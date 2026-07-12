@@ -13,7 +13,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import rfc8785
 from cryptography.hazmat.primitives import serialization
@@ -51,6 +51,24 @@ PRIVATE_MARKERS = (
     "~" + "/" + "arcs-anchor",
 )
 EXCLUDED_CLASSES = ["raw_prompt", "raw_output", "raw_tool_arguments", "raw_tool_result"]
+REGISTERED_BINDING_VERSIONS = frozenset({
+    "direct-harness.v0.1",
+    "fastmcp.middleware.v0.1",
+})
+CANCELLATION_FIELD_NAMES = frozenset({
+    "request_cancelled",
+    "execution_state_unknown",
+    "result_not_delivered",
+})
+_CORE_RECEIPT_FIELDS = frozenset({
+    "receipt_version", "profile_id", "profile_version", "receipt_id",
+    "receipt_type", "receipt_kind", "boundary_type", "protocol_binding",
+    "subject_ref", "issuer_id", "runtime_instance_id", "boundary_id",
+    "logical_call_id", "issued_at", "artifact_classes_covered",
+    "artifact_classes_excluded", "attestation_limits",
+    "retention_class_applied", "extensions", "receipt_signature",
+    "admission_receipt_ref", "outcome", "result_digest",
+})
 _SAFE_FILE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
@@ -152,6 +170,7 @@ class SigningIdentity:
             "key_id": self.key_id,
             "signature": "",
         }
+        enforce_raw_content_exclusion(signed)
         preimage = copy.deepcopy(signed)
         del preimage["receipt_signature"]["signature"]
         try:
@@ -174,6 +193,8 @@ class ReceiptContext:
     actor_ref: str | None = None
     tenant_id: str | None = None
     workspace_id: str | None = None
+    binding_version: str = "direct-harness.v0.1"
+    parent_receipt_ref: str | None = None
 
 
 class RawEnvelopeFileSink:
@@ -241,6 +262,10 @@ class SignedReceiptEmitter:
         self.sink = sink
 
     def _common(self, context: ReceiptContext, *, receipt_kind: str, artifact_class: str) -> dict[str, Any]:
+        if context.binding_version not in REGISTERED_BINDING_VERSIONS:
+            raise ReceiptContentError(
+                f"unregistered binding_version: {context.binding_version}"
+            )
         envelope: dict[str, Any] = {
             "receipt_version": RECEIPT_VERSION,
             "profile_id": PROFILE_ID,
@@ -260,7 +285,7 @@ class SignedReceiptEmitter:
             "artifact_classes_excluded": list(EXCLUDED_CLASSES),
             "attestation_limits": [BASE_LIMIT],
             "retention_class_applied": "hash_only",
-            "extensions": {"mcp": {"binding_version": "direct-harness.v0.1"}},
+            "extensions": {"mcp": {"binding_version": context.binding_version}},
         }
         if context.actor_ref:
             envelope["actor_ref"] = context.actor_ref
@@ -268,7 +293,50 @@ class SignedReceiptEmitter:
             envelope["tenant_id"] = context.tenant_id
         if context.workspace_id:
             envelope["workspace_id"] = context.workspace_id
+        if context.parent_receipt_ref:
+            envelope["parent_receipt_ref"] = context.parent_receipt_ref
         return envelope
+
+    @staticmethod
+    def _append_attestation_limits(
+        envelope: dict[str, Any], additions: Sequence[str]
+    ) -> None:
+        limits = envelope["attestation_limits"]
+        if isinstance(additions, (str, bytes)):
+            raise ReceiptContentError(
+                "additional attestation limits must be a sequence of strings"
+            )
+        for limit in additions:
+            if not isinstance(limit, str) or not limit.strip():
+                raise ReceiptContentError(
+                    "additional attestation limits must be non-empty strings"
+                )
+            if limit not in limits:
+                limits.append(limit)
+
+    @staticmethod
+    def _apply_binding_owned_fields(
+        envelope: dict[str, Any], *, outcome: str,
+        binding_owned_fields: Mapping[str, bool] | None,
+    ) -> None:
+        if not binding_owned_fields:
+            return
+        if outcome != "indeterminate":
+            raise ReceiptContentError(
+                "cancellation fields are permitted only on indeterminate outcomes"
+            )
+        for key, value in binding_owned_fields.items():
+            if key in _CORE_RECEIPT_FIELDS:
+                raise ReceiptContentError(
+                    f"binding-owned field collides with core field: {key}"
+                )
+            if key not in CANCELLATION_FIELD_NAMES:
+                raise ReceiptContentError(f"unknown binding-owned field: {key}")
+            if type(value) is not bool:
+                raise ReceiptContentError(
+                    f"binding-owned field must be boolean: {key}"
+                )
+            envelope[key] = value
 
     def emit_admission(
         self,
@@ -280,6 +348,7 @@ class SignedReceiptEmitter:
         review_object_ref: str | None = None,
         retry_contract: str | None = None,
         reason_code: str | None = None,
+        additional_attestation_limits: Sequence[str] = (),
     ) -> str:
         envelope = self._common(context, receipt_kind="admission", artifact_class="tool_call_admission")
         envelope.update({
@@ -296,6 +365,8 @@ class SignedReceiptEmitter:
             envelope["retry_contract"] = retry_contract
         if reason_code:
             envelope["reason_code"] = reason_code
+        self._append_attestation_limits(envelope, additional_attestation_limits)
+        enforce_raw_content_exclusion(envelope)
         signed = self.identity.sign_envelope(envelope)
         return self.sink.write(signed)
 
@@ -307,6 +378,8 @@ class SignedReceiptEmitter:
         outcome: str,
         result_digest: str | None = None,
         exception_class: str | None = None,
+        additional_attestation_limits: Sequence[str] = (),
+        binding_owned_fields: Mapping[str, bool] | None = None,
     ) -> str:
         envelope = self._common(context, receipt_kind="outcome", artifact_class="tool_call_outcome")
         envelope.update({
@@ -321,5 +394,12 @@ class SignedReceiptEmitter:
             envelope["attestation_limits"].append(RESULT_LIMIT)
         if outcome == "task_submitted":
             envelope["attestation_limits"].append(TASK_LIMIT)
+        self._append_attestation_limits(envelope, additional_attestation_limits)
+        self._apply_binding_owned_fields(
+            envelope,
+            outcome=outcome,
+            binding_owned_fields=binding_owned_fields,
+        )
+        enforce_raw_content_exclusion(envelope)
         signed = self.identity.sign_envelope(envelope)
         return self.sink.write(signed)

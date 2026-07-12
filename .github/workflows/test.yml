@@ -8,9 +8,15 @@ jobs:
         python-version: ['3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: thelaplage/arcs-verify
+          path: arcs-verify-checkout
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e '.[dev]'
+      - run: pip install ./arcs-verify-checkout
       - run: pytest -q
+      - run: rm -rf arcs-verify-checkout
       - run: python3 tools/check_public_release.py .
