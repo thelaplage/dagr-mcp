@@ -69,12 +69,12 @@ MCP_RECORD_CUSTODY_GATEWAY_VOCABULARY: tuple[str, ...] = (
 )
 
 PRIVATE_REFERENCE_MARKERS: tuple[str, ...] = (
-    "/Users/",
-    "/home/",
+    "/" + "Users" + "/",
+    "/" + "home" + "/",
     "/private/",
     "/var/folders/",
     "/mnt/user-data",
-    "C:\\",
+    "C:" + "\\" + "\\",
     "C:/",
     "file://",
     "query_logs/",

@@ -12,6 +12,9 @@ dependencies = [
   "rfc8785==0.1.4",
 ]
 
+[project.scripts]
+dagr-mcp-demo = "dagr_mcp.demo:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=9,<10", "jsonschema>=4.26,<5"]
 

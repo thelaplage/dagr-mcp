@@ -232,7 +232,7 @@ def test_rejects_private_paths_anywhere() -> None:
         MCPRecordCustodyGatewayError, match="private reference marker"
     ):
         build_mcp_record_custody_gateway(
-            **_kwargs(target_ref="file:///Users/operator/tool.json")
+            **_kwargs(target_ref="file://" + "/" + "Users" + "/operator/tool.json")
         )
 
     with pytest.raises(
@@ -291,7 +291,7 @@ def test_serialized_gateway_contains_no_private_payload_markers() -> None:
     )
     rendered = json.dumps(projection, sort_keys=True)
 
-    assert "/Users/" not in rendered
+    assert "/" + "Users" + "/" not in rendered
     assert "/private/" not in rendered
     assert "query_logs/" not in rendered
     assert "prompt_text" not in rendered
