@@ -74,6 +74,21 @@ def sha256_digest(value: Any) -> str:
     return "sha256:" + hashlib.sha256(canonical).hexdigest()
 
 
+
+def fastmcp_tool_result_digest(
+    *, content: Any, structured_content: Any, meta: Any, is_error: bool
+) -> str:
+    """Digest the exact `fastmcp.tool_result.v1` four-member projection."""
+
+    projection = {
+        "content": content,
+        "structuredContent": structured_content,
+        "_meta": meta,
+        "isError": is_error,
+    }
+    return sha256_digest(projection)
+
+
 def _walk(value: Any):
     if isinstance(value, Mapping):
         for key, item in value.items():

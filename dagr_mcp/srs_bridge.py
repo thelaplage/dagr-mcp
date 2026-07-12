@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from .srs_receipts import ReceiptContext, SignedReceiptEmitter
+from .srs_receipts import ReceiptContext, SignedReceiptEmitter, fastmcp_tool_result_digest
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,8 +62,13 @@ class HarnessSRSBridge:
         admission_receipt_ref: str,
         outcome: str,
         result_digest: str | None = None,
+        result_value: Any | None = None,
         exception_class: str | None = None,
     ) -> str:
+        if result_digest is None and outcome in {"result_returned", "error_returned"}:
+            result_digest = fastmcp_tool_result_digest(
+                content=None, structured_content=result_value, meta=None,
+                is_error=outcome == "error_returned")
         return self.emitter.emit_outcome(
             context=self._context(harness_context),
             admission_receipt_ref=admission_receipt_ref,

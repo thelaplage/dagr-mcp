@@ -362,7 +362,7 @@ def wrap_handler(
                     harness_context=harness_context,
                     admission_receipt_ref=harness_context.admission_receipt_ref,
                     outcome="result_returned",
-                    result_digest=harness_context.result_hash)
+                    result_value=result)
                 harness_context.receipt_refs.extend(
                     [harness_context.admission_receipt_ref, outcome_ref])
             except Exception:

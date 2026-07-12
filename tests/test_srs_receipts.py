@@ -165,3 +165,27 @@ def test_review_object_creation_failure_is_terminal_refusal(tmp_path):
     assert receipts[0]["disposition"] == "refused"
     assert receipts[0]["reason_code"] == "review_object_creation_failed"
     assert "review_object_ref" not in receipts[0]
+
+
+def test_result_digest_uses_exact_four_member_projection(tmp_path):
+    from dagr_mcp.srs_receipts import fastmcp_tool_result_digest
+
+    identity, sink, bridge = build(tmp_path)
+    wrapped = wrap_handler(
+        lambda *args, **kwargs: {"record_ref": "record:1"},
+        HarnessConfig("1", "module", "1", "profile", "policy"),
+        HarnessSinks(event=InMemoryEventSink()),
+        policies=[ToolPolicy("records.lookup", "read", "allow")],
+        srs_bridge=bridge,
+    )
+    result = wrapped("records.lookup", {"record_ref": "record:1"}, {"request_ref": "call-5"})
+    assert result.ok
+    receipts = [json.loads(path.read_text()) for path in tmp_path.glob("urn_srs_receipt_*.json")]
+    outcome = next(item for item in receipts if item["receipt_kind"] == "outcome")
+    expected = fastmcp_tool_result_digest(
+        content=None,
+        structured_content={"record_ref": "record:1"},
+        meta=None,
+        is_error=False,
+    )
+    assert outcome["result_digest"] == expected
