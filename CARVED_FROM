@@ -1,5 +1,5 @@
 source: garp-sdk uploaded snapshot
-source_commit: unavailable_in_archive
+source_commit: ba1fb5a7165ff90280d6b34ced46845a51f6a9b8
 verified_source_tests: 104
 enforcement_harness.py bb7228eb59cd93d3217c926f1fa11a406e5338a4a12526654685a8dd484af22a
 tool_call_disposition.py 08160ba610fca5af85be8f5023b2769b37d67fe4290a0f3a32ebe4c795b15ad0
