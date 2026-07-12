@@ -20,3 +20,6 @@ dev = ["pytest>=9,<10", "jsonschema>=4.26,<5"]
 
 [tool.setuptools.packages.find]
 include = ["dagr_mcp*"]
+
+[tool.setuptools.package-data]
+dagr_mcp = ["vendor/srs/*.json", "vendor/srs/*.zip"]
