@@ -1,0 +1,33 @@
+{
+  "policy_pack_id": "garp.tests.tool_policy_pack_synthetic",
+  "policy_pack_version": "0.1.0",
+  "module_id": "garp.tests.policy_fixture",
+  "applies_to_profile_group": "probe_synthetic_group",
+  "tool_policy_group": "default_probe_tools",
+  "default_decision": "deny",
+  "unknown_tool_behavior": "deny",
+  "tools": [
+    {
+      "tool_name": "probe_tool",
+      "tool_class": "read",
+      "decision": "allow",
+      "receipt_required": true,
+      "review_required": false,
+      "retention_class": "hash_only",
+      "required_sinks": ["event", "receipt"],
+      "reason": null,
+      "gate_timeout_seconds": null
+    },
+    {
+      "tool_name": "secondary_probe_tool",
+      "tool_class": "write",
+      "decision": "gate",
+      "receipt_required": false,
+      "review_required": true,
+      "retention_class": "hash_only",
+      "required_sinks": ["event", "review_object"],
+      "reason": "synthetic_gate_review",
+      "gate_timeout_seconds": 120
+    }
+  ]
+}

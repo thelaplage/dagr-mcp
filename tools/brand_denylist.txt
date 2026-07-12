@@ -1,0 +1,1 @@
+# One candidate brand token per line. Empty until the naming gate records a deny list.

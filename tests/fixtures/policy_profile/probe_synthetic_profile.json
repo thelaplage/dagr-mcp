@@ -1,0 +1,12 @@
+{
+  "profile_id": "probe_synthetic",
+  "profile_version": "0.1",
+  "schema_version": "garp.profile.v1.1.probe",
+  "harness": {},
+  "sink_requirements": {
+    "event_sink_required": true,
+    "receipt_sink_required": true,
+    "health_check_mode": "explicit",
+    "required_sink_failure_behavior": "fail_closed"
+  }
+}
