@@ -36,5 +36,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e '.[dev]' '${{ matrix.fastmcp-spec }}'
       - run: python -c "import fastmcp, sys; print('lane=${{ matrix.lane }}'); print('python=' + sys.version.split()[0]); print('fastmcp=' + getattr(fastmcp, '__version__', 'unknown'))"
+      - name: Verify committed FastMCP fixtures
+        if: ${{ matrix.fastmcp-spec == 'fastmcp==3.4.4' && matrix.python-version == '3.13' }}
+        run: python tools/generate_fastmcp_fixtures.py --check
       - run: pytest -q
       - run: python3 tools/check_public_release.py .
