@@ -14,6 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
+dagr-mcp = "dagr_mcp.demo:main"
 dagr-mcp-demo = "dagr_mcp.demo:main"
 
 [project.optional-dependencies]

@@ -5,6 +5,6 @@ Binding versions identify the emitter-owned integration surface that observed an
 | Value | Status | Meaning |
 |---|---|---|
 | `direct-harness.v0.1` | active | The synchronous direct harness included in `dagr-mcp`. |
-| `fastmcp.middleware.v0.1` | reserved | The FastMCP middleware binding specified for WP4. |
+| `fastmcp.middleware.v0.1` | active | The FastMCP middleware binding specified for WP4. |
 
 New values require a reviewed registry change before use. Existing values remain stable for receipt verification and migration.

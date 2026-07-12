@@ -1,9 +1,12 @@
-"""Generate a signed admission/outcome pair without a framework dependency."""
+"""Generate signed DAGR/SRS receipts from the demo paths."""
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
+import shlex
+import sys
 import tempfile
 from pathlib import Path
 
@@ -13,22 +16,41 @@ from .srs_bridge import BridgeConfig, HarnessSRSBridge
 from .srs_receipts import RawEnvelopeFileSink, SignedReceiptEmitter, SigningIdentity
 
 
+PROFILE = "srs.mcp.sdk_enforcement.v0.1"
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, help="Receipt output directory. Defaults to an ephemeral directory.")
+    parser = argparse.ArgumentParser(description=__doc__, prog="dagr-mcp")
+    subparsers = parser.add_subparsers(dest="command")
+    demo = subparsers.add_parser("demo", help="run the receipt demo")
+    demo.add_argument(
+        "--output",
+        type=Path,
+        help="Receipt output directory. Defaults to an ephemeral directory.",
+    )
+    demo.add_argument(
+        "--direct",
+        action="store_true",
+        help="Use the direct WP3 harness path instead of the FastMCP middleware path.",
+    )
     return parser
 
 
-def run_demo(output: Path | None = None) -> Path:
-    directory = output or Path(tempfile.mkdtemp(prefix="dagr-mcp-demo-"))
+def _build_emitter(directory: Path) -> tuple[SigningIdentity, SignedReceiptEmitter]:
     sink = RawEnvelopeFileSink(directory)
     identity = SigningIdentity.generate(
         issuer_id="issuer:dagr:demo",
         key_id="issuer.dagr.demo/receipt-signing/ephemeral",
     )
     sink.write_trust_bundle(identity.trust_bundle())
+    return identity, SignedReceiptEmitter(identity=identity, sink=sink)
+
+
+def run_direct_demo(output: Path | None = None) -> Path:
+    directory = output or Path(tempfile.mkdtemp(prefix="dagr-mcp-demo-"))
+    _identity, emitter = _build_emitter(directory)
     bridge = HarnessSRSBridge(
-        emitter=SignedReceiptEmitter(identity=identity, sink=sink),
+        emitter=emitter,
         config=BridgeConfig(
             runtime_instance_id="runtime:dagr:demo",
             boundary_id="boundary:dagr:direct-harness",
@@ -63,15 +85,76 @@ def run_demo(output: Path | None = None) -> Path:
     return directory
 
 
+async def run_fastmcp_demo_async(output: Path | None = None) -> Path:
+    try:
+        from fastmcp import FastMCP
+        from fastmcp.client import Client
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "FastMCP is required for the default demo. "
+            "Install dagr-mcp with dependencies, or run `dagr-mcp demo --direct`."
+        ) from exc
+
+    from .fastmcp_binding import DAGRMiddleware, DAGRMiddlewareConfig
+
+    directory = output or Path(tempfile.mkdtemp(prefix="dagr-mcp-demo-"))
+    _identity, emitter = _build_emitter(directory)
+    server = FastMCP("dagr-mcp-demo")
+    server.add_middleware(
+        DAGRMiddleware(
+            emitter=emitter,
+            config=DAGRMiddlewareConfig(
+                runtime_instance_id="runtime:dagr:demo",
+                boundary_id="boundary:dagr:fastmcp",
+                policy_pack_id="policy:dagr:demo",
+                policy_pack_version="v0.1",
+                tool_classes={"records_lookup": "read"},
+            ),
+        )
+    )
+
+    @server.tool
+    async def records_lookup(record_ref: str) -> dict[str, object]:
+        return {"record_ref": record_ref, "found": True}
+
+    async with Client(server) as client:
+        await client.call_tool("records_lookup", {"record_ref": "record:demo:1"})
+    return directory
+
+
+def run_demo(output: Path | None = None, *, direct: bool = False) -> Path:
+    if direct:
+        return run_direct_demo(output)
+    return asyncio.run(run_fastmcp_demo_async(output))
+
+
+def arcs_verify_command(directory: Path) -> str:
+    receipt_glob = shlex.quote(str(directory)) + "/urn_srs_receipt_*.json"
+    keyring = str(directory / "issuer-keys.json")
+    return (
+        "for receipt in "
+        f"{receipt_glob}; do "
+        "arcs-verify \"$receipt\" "
+        f"--keyring {shlex.quote(keyring)} "
+        f"--profile {PROFILE}; "
+        "done"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    directory = run_demo(args.output)
+    raw_args = list(sys.argv[1:] if argv is None else argv)
+    if not raw_args or raw_args[0] != "demo":
+        raw_args = ["demo", *raw_args]
+    args = build_parser().parse_args(raw_args)
+    directory = run_demo(args.output, direct=args.direct)
     receipt_paths = sorted(path for path in directory.glob("*.json") if path.name != "issuer-keys.json")
     print(json.dumps({
         "output_directory": str(directory),
         "trust_bundle": str(directory / "issuer-keys.json"),
         "receipts": [str(path) for path in receipt_paths],
+        "next_command": arcs_verify_command(directory),
     }, indent=2))
+    print(arcs_verify_command(directory))
     return 0
 
 
