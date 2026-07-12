@@ -1,35 +1,28 @@
 from __future__ import annotations
 
-import base64
-import copy
 import json
 from pathlib import Path
 
 import pytest
-import rfc8785
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from jsonschema import Draft202012Validator
 
 from dagr_mcp.enforcement_harness import HarnessConfig, HarnessSinks, ToolPolicy, wrap_handler
 from dagr_mcp.sdk_spine import InMemoryEventSink, InMemoryReviewObjectSink
 from dagr_mcp.srs_bridge import BridgeConfig, HarnessSRSBridge
-from dagr_mcp.srs_receipts import RawEnvelopeFileSink, ReceiptContentError, SignedReceiptEmitter, SigningIdentity
+from tests.receipt_verification import verify_receipt
+
+from dagr_mcp.srs_receipts import (
+    RawEnvelopeFileSink,
+    ReceiptContentError,
+    ReceiptContext,
+    SignedReceiptEmitter,
+    SigningIdentity,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = json.loads((ROOT / "dagr_mcp/vendor/srs/srs-envelope-v0.2.0.schema.json").read_text())
 
-
-def decode(value: str) -> bytes:
-    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-
-
 def verify(envelope: dict, bundle: dict) -> None:
-    assert not list(Draft202012Validator(SCHEMA).iter_errors(envelope))
-    entry = bundle["issuers"][0]
-    preimage = copy.deepcopy(envelope)
-    signature = decode(preimage["receipt_signature"].pop("signature"))
-    canonical = rfc8785.dumps(preimage)
-    Ed25519PublicKey.from_public_bytes(decode(entry["public_key"])).verify(signature, canonical)
+    verify_receipt(envelope, bundle, SCHEMA)
 
 
 def build(tmp_path: Path):
@@ -189,3 +182,60 @@ def test_result_digest_uses_exact_four_member_projection(tmp_path):
         is_error=False,
     )
     assert outcome["result_digest"] == expected
+
+
+def test_emitter_accepts_deterministic_id_and_clock_factories(tmp_path: Path):
+    identity = SigningIdentity.generate(
+        issuer_id="issuer:test:deterministic",
+        key_id="issuer.test.deterministic/key/1",
+    )
+    sink = RawEnvelopeFileSink(tmp_path)
+    ids = {
+        "admission": "urn:srs:receipt:admission:fixture-1",
+        "outcome": "urn:srs:receipt:outcome:fixture-1",
+    }
+    emitter = SignedReceiptEmitter(
+        identity=identity,
+        sink=sink,
+        receipt_id_factory=lambda receipt_kind: ids[receipt_kind],
+        issued_at_factory=lambda: "2026-07-12T12:00:00Z",
+    )
+    context = ReceiptContext(
+        runtime_instance_id="runtime:test:deterministic",
+        boundary_id="boundary:test:deterministic",
+        policy_pack_id="policy:test:deterministic",
+        policy_pack_version="1",
+        subject_ref="tool-call:fixture-1",
+        logical_call_id="call:fixture-1",
+        actor_ref="actor:test:deterministic",
+        binding_version="fastmcp.middleware.v0.1",
+    )
+
+    admission_ref = emitter.emit_admission(
+        context=context,
+        requested_tool_name="records_lookup",
+        argument_digest="sha256:" + ("0" * 64),
+        disposition="admitted",
+    )
+    outcome_ref = emitter.emit_outcome(
+        context=context,
+        admission_receipt_ref=admission_ref,
+        outcome="result_returned",
+        result_digest="sha256:" + ("1" * 64),
+    )
+
+    assert admission_ref == ids["admission"]
+    assert outcome_ref == ids["outcome"]
+
+    receipts = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(tmp_path.glob("urn_srs_receipt_*.json"))
+    ]
+    assert {item["receipt_id"] for item in receipts} == set(ids.values())
+    assert {item["issued_at"] for item in receipts} == {
+        "2026-07-12T12:00:00Z"
+    }
+
+    bundle = identity.trust_bundle()
+    for receipt in receipts:
+        verify(receipt, bundle)

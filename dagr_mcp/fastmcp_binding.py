@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import inspect
 import json
 import os
@@ -137,6 +138,9 @@ class DAGRMiddlewareConfig:
     emit_read_admission_before_execution: bool = True
     emergency_spool_path: Path | None = None
     parent_receipt_ref: str | None = None
+    logical_call_id_override: str | None = None
+    subject_ref_override: str | None = None
+    result_projection_observer: Callable[[Mapping[str, Any]], None] | None = None
     additional_attestation_limits: tuple[str, ...] = (DEFAULT_BOUNDARY_LIMIT,)
 
 
@@ -228,6 +232,8 @@ class DAGRMiddleware(Middleware):
 
         try:
             projection = project_fastmcp_tool_result(result)
+            if self.config.result_projection_observer is not None:
+                self.config.result_projection_observer(copy.deepcopy(projection))
             result_digest = fastmcp_tool_result_digest(
                 content=projection["content"],
                 structured_content=projection["structuredContent"],
@@ -268,8 +274,17 @@ class DAGRMiddleware(Middleware):
         session_id = _context_attr(context.fastmcp_context, "session_id")
         request_ref = _scoped_hash_ref("request", request_id) if request_id else None
         session_ref = _scoped_hash_ref("session", session_id) if session_id else None
-        logical_call_id = request_ref or f"call:{uuid.uuid4()}"
-        subject_ref = session_ref or request_ref or f"tool-call:{logical_call_id}"
+        logical_call_id = (
+            self.config.logical_call_id_override
+            or request_ref
+            or f"call:{uuid.uuid4()}"
+        )
+        subject_ref = (
+            self.config.subject_ref_override
+            or session_ref
+            or request_ref
+            or f"tool-call:{logical_call_id}"
+        )
 
         return RequestSnapshot(
             tool_name=tool_name,

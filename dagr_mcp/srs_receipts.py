@@ -13,7 +13,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 import rfc8785
 from cryptography.hazmat.primitives import serialization
@@ -128,6 +128,10 @@ def enforce_raw_content_exclusion(value: Any) -> None:
 
 def now_utc_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _default_receipt_id(receipt_kind: str) -> str:
+    return f"urn:srs:receipt:{receipt_kind}:{uuid.uuid4()}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,9 +261,18 @@ class RawEnvelopeFileSink:
 
 
 class SignedReceiptEmitter:
-    def __init__(self, *, identity: SigningIdentity, sink: RawEnvelopeFileSink):
+    def __init__(
+        self,
+        *,
+        identity: SigningIdentity,
+        sink: RawEnvelopeFileSink,
+        receipt_id_factory: Callable[[str], str] | None = None,
+        issued_at_factory: Callable[[], str] | None = None,
+    ):
         self.identity = identity
         self.sink = sink
+        self._receipt_id_factory = receipt_id_factory or _default_receipt_id
+        self._issued_at_factory = issued_at_factory or now_utc_iso
 
     def _common(self, context: ReceiptContext, *, receipt_kind: str, artifact_class: str) -> dict[str, Any]:
         if context.binding_version not in REGISTERED_BINDING_VERSIONS:
@@ -270,7 +283,7 @@ class SignedReceiptEmitter:
             "receipt_version": RECEIPT_VERSION,
             "profile_id": PROFILE_ID,
             "profile_version": PROFILE_VERSION,
-            "receipt_id": f"urn:srs:receipt:{receipt_kind}:{uuid.uuid4()}",
+            "receipt_id": self._receipt_id_factory(receipt_kind),
             "receipt_type": "sdk_enforcement",
             "receipt_kind": receipt_kind,
             "boundary_type": "mcp_tool_call",
@@ -280,7 +293,7 @@ class SignedReceiptEmitter:
             "runtime_instance_id": context.runtime_instance_id,
             "boundary_id": context.boundary_id,
             "logical_call_id": context.logical_call_id,
-            "issued_at": now_utc_iso(),
+            "issued_at": self._issued_at_factory(),
             "artifact_classes_covered": [artifact_class],
             "artifact_classes_excluded": list(EXCLUDED_CLASSES),
             "attestation_limits": [BASE_LIMIT],

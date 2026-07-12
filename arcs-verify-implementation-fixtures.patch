@@ -1,154 +1,174 @@
-diff --git a/packs/srs.mcp.sdk_enforcement/v0.1/PROVISIONAL_FIXTURES.md b/packs/srs.mcp.sdk_enforcement/v0.1/PROVISIONAL_FIXTURES.md
---- a/packs/srs.mcp.sdk_enforcement/v0.1/PROVISIONAL_FIXTURES.md
-+++ b/packs/srs.mcp.sdk_enforcement/v0.1/PROVISIONAL_FIXTURES.md
-@@ -1,5 +1,5 @@
--# Provisional implementation fixture status
-+# Implementation fixture status
- 
- The `normative/` directory is a permanent byte-identical copy of the standard-layer WP2A vectors. It is never replaced.
- 
--The pack remains provisional until WP4 adds real `dagr-mcp` code-path receipts under `implementations/dagr-mcp/`. Those implementation fixtures supplement the normative vectors and do not modify them.
-+Implementation-generated fixtures now supplement the normative set under `implementation/`. The provisional status is closed.
-diff --git a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/issuer-keys.json b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/issuer-keys.json
-new file mode 100644
---- /dev/null
-+++ b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/issuer-keys.json
-@@ -0,0 +1,14 @@
-+{
-+  "issuers": [
-+    {
-+      "algorithm": "Ed25519",
-+      "issuer_id": "issuer:dagr:implementation-fixture",
-+      "key_id": "issuer.dagr.implementation-fixture/receipt-signing/2026-07",
-+      "not_after": "2036-01-01T00:00:00Z",
-+      "not_before": "2026-01-01T00:00:00Z",
-+      "public_key": "yz-xJJVgQJCZYCGLKPbvMFPLTijbozsCmRzt68zLSJA",
-+      "trusted": true
-+    }
-+  ],
-+  "trust_bundle_version": "srs.trust_bundle.v0.1"
-+}
 diff --git a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/admission-admitted.json b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/admission-admitted.json
-new file mode 100644
---- /dev/null
+index 7358091..be7e761 100644
+--- a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/admission-admitted.json
 +++ b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/admission-admitted.json
-@@ -0,0 +1,47 @@
-+{
-+  "actor_ref": "actor:anonymous_or_local",
-+  "argument_digest": "sha256:2985689108fc6142efabf72b17fcd4b25cf4543511403fc9869ccab52354977b",
-+  "artifact_classes_covered": [
-+    "tool_call_admission"
-+  ],
-+  "artifact_classes_excluded": [
-+    "raw_prompt",
-+    "raw_output",
-+    "raw_tool_arguments",
-+    "raw_tool_result"
-+  ],
-+  "attestation_limits": [
-+    "The receipt attests only to governance conditions at the named admission boundary."
-+  ],
-+  "boundary_id": "boundary:dagr:fastmcp",
-+  "boundary_type": "mcp_tool_call",
-+  "disposition": "admitted",
-+  "extensions": {
-+    "mcp": {
-+      "binding_version": "fastmcp.middleware.v0.1"
-+    }
-+  },
-+  "issued_at": "2026-07-11T20:10:00Z",
-+  "issuer_id": "issuer:dagr:implementation-fixture",
-+  "logical_call_id": "call:implementation-demo-1",
-+  "policy_pack_id": "policy:dagr:demo",
-+  "policy_pack_version": "v0.1",
-+  "profile_id": "srs.mcp.sdk_enforcement",
-+  "profile_version": "v0.1",
-+  "protocol_binding": "mcp",
-+  "receipt_id": "urn:srs:receipt:admission:implementation-demo-1",
-+  "receipt_kind": "admission",
-+  "receipt_signature": {
-+    "algorithm": "Ed25519",
-+    "canonicalization": "RFC8785-JCS",
-+    "key_id": "issuer.dagr.implementation-fixture/receipt-signing/2026-07",
-+    "signature": "kwAbXLlcdxLJBtKVDLPlT717if5Vsnxl1AIu5DERnNo4fgdynDv3_0HQ_eAH3C_6Lb3WAvI5I1wqS1KZLlTfDA"
-+  },
-+  "receipt_type": "sdk_enforcement",
-+  "receipt_version": "srs.core.v5.1",
-+  "requested_tool_name": "records_lookup",
-+  "retention_class_applied": "hash_only",
-+  "runtime_instance_id": "runtime:dagr:implementation-fixture",
-+  "subject_ref": "tool-call:call:implementation-demo-1",
-+  "tool_resolution_status": "not_observed"
-+}
-diff --git a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json
-new file mode 100644
---- /dev/null
-+++ b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json
-@@ -0,0 +1,45 @@
-+{
-+  "actor_ref": "actor:anonymous_or_local",
-+  "admission_receipt_ref": "urn:srs:receipt:admission:implementation-demo-1",
-+  "artifact_classes_covered": [
-+    "tool_call_outcome"
-+  ],
-+  "artifact_classes_excluded": [
-+    "raw_prompt",
-+    "raw_output",
-+    "raw_tool_arguments",
-+    "raw_tool_result"
-+  ],
-+  "attestation_limits": [
+@@ -11,7 +11,8 @@
+     "raw_tool_result"
+   ],
+   "attestation_limits": [
+-    "The receipt attests only to governance conditions at the named admission boundary."
 +    "The receipt attests only to governance conditions at the named admission boundary.",
-+    "The receipt establishes the request, admission disposition, and semantic result returned at the configured boundary. It does not independently establish that the underlying tool body executed for this invocation, because middleware such as caches may satisfy a call without handler execution."
-+  ],
-+  "boundary_id": "boundary:dagr:fastmcp",
-+  "boundary_type": "mcp_tool_call",
-+  "extensions": {
-+    "mcp": {
-+      "binding_version": "fastmcp.middleware.v0.1"
-+    }
-+  },
-+  "issued_at": "2026-07-11T20:10:01Z",
-+  "issuer_id": "issuer:dagr:implementation-fixture",
-+  "logical_call_id": "call:implementation-demo-1",
-+  "outcome": "result_returned",
-+  "profile_id": "srs.mcp.sdk_enforcement",
-+  "profile_version": "v0.1",
-+  "protocol_binding": "mcp",
-+  "receipt_id": "urn:srs:receipt:outcome:implementation-demo-1",
-+  "receipt_kind": "outcome",
-+  "receipt_signature": {
-+    "algorithm": "Ed25519",
-+    "canonicalization": "RFC8785-JCS",
-+    "key_id": "issuer.dagr.implementation-fixture/receipt-signing/2026-07",
-+    "signature": "eBDXz8BIRXhIO9i0mt04zcrARHllgTqsK852vo-mvz1_n1yN0Yg8QDH-tLI3U-9mhp1EQ7OBj0fR9XlMZphHBg"
-+  },
-+  "receipt_type": "sdk_enforcement",
-+  "receipt_version": "srs.core.v5.1",
-+  "result_digest": "sha256:edc37ef6631e85681c4968ff5e249be728119a0f757ca769b4c371e3536eb02b",
-+  "retention_class_applied": "hash_only",
-+  "runtime_instance_id": "runtime:dagr:implementation-fixture",
-+  "subject_ref": "tool-call:call:implementation-demo-1"
-+}
++    "The middleware is installed once at the institutional trust boundary; receipts attest only to observations at that boundary."
+   ],
+   "boundary_id": "boundary:dagr:fastmcp",
+   "boundary_type": "mcp_tool_call",
+@@ -21,27 +22,27 @@
+       "binding_version": "fastmcp.middleware.v0.1"
+     }
+   },
+-  "issued_at": "2026-07-11T20:10:00Z",
+-  "issuer_id": "issuer:dagr:implementation-fixture",
+-  "logical_call_id": "call:implementation-demo-1",
++  "issued_at": "2026-07-12T12:00:00Z",
++  "issuer_id": "issuer:dagr:fastmcp-fixture",
++  "logical_call_id": "call:dagr:fastmcp-fixture:1",
+   "policy_pack_id": "policy:dagr:demo",
+   "policy_pack_version": "v0.1",
+   "profile_id": "srs.mcp.sdk_enforcement",
+   "profile_version": "v0.1",
+   "protocol_binding": "mcp",
+-  "receipt_id": "urn:srs:receipt:admission:implementation-demo-1",
++  "receipt_id": "urn:srs:receipt:admission:dagr-fastmcp-fixture-1",
+   "receipt_kind": "admission",
+   "receipt_signature": {
+     "algorithm": "Ed25519",
+     "canonicalization": "RFC8785-JCS",
+-    "key_id": "issuer.dagr.implementation-fixture/receipt-signing/2026-07",
+-    "signature": "kwAbXLlcdxLJBtKVDLPlT717if5Vsnxl1AIu5DERnNo4fgdynDv3_0HQ_eAH3C_6Lb3WAvI5I1wqS1KZLlTfDA"
++    "key_id": "issuer.dagr.fastmcp-fixture/receipt-signing/v1",
++    "signature": "cxiS-MeGcx_bLg0Y73-uCC55uub7EjeQa5C9Z4xh5sCSsok_pJfNA5gEerb4EfC48qwBKFmbsTQyhEQOpqjgBQ"
+   },
+   "receipt_type": "sdk_enforcement",
+   "receipt_version": "srs.core.v5.1",
+   "requested_tool_name": "records_lookup",
+   "retention_class_applied": "hash_only",
+-  "runtime_instance_id": "runtime:dagr:implementation-fixture",
+-  "subject_ref": "tool-call:call:implementation-demo-1",
++  "runtime_instance_id": "runtime:dagr:fastmcp-fixture",
++  "subject_ref": "tool-call:call:dagr:fastmcp-fixture:1",
+   "tool_resolution_status": "not_observed"
+ }
 diff --git a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/expectations.json b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/expectations.json
-new file mode 100644
---- /dev/null
+index a84470a..ccb44fa 100644
+--- a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/expectations.json
 +++ b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/expectations.json
-@@ -0,0 +1,17 @@
-+{
-+  "entries": [
-+    {
-+      "expected_failure_codes": [],
-+      "path": "admission-admitted.json",
-+      "signature_valid": true
-+    },
-+    {
-+      "expected_failure_codes": [],
-+      "path": "outcome-result-returned.json",
-+      "signature_valid": true
-+    }
-+  ],
-+  "implementation": "dagr-mcp-fastmcp-demo",
+@@ -1,17 +1,36 @@
+ {
+-  "entries": [
 +  "keyring": "issuer-keys.json",
-+  "profile": "srs.mcp.sdk_enforcement.v0.1"
-+}
++  "profile": "srs.mcp.sdk_enforcement.v0.1",
++  "receipts": [
+     {
+       "expected_failure_codes": [],
+       "path": "admission-admitted.json",
+-      "signature_valid": true
++      "verdicts": {
++        "attestation_limits_present": true,
++        "chain_status": "not_applicable",
++        "envelope": true,
++        "issuer_key_resolved": true,
++        "issuer_key_trusted": true,
++        "profile": true,
++        "raw_content_exclusion": true,
++        "schema_digest": true,
++        "signature_valid": true
++      }
+     },
+     {
+       "expected_failure_codes": [],
+       "path": "outcome-result-returned.json",
+-      "signature_valid": true
++      "verdicts": {
++        "attestation_limits_present": true,
++        "chain_status": "not_applicable",
++        "envelope": true,
++        "issuer_key_resolved": true,
++        "issuer_key_trusted": true,
++        "profile": true,
++        "raw_content_exclusion": true,
++        "schema_digest": true,
++        "signature_valid": true
++      }
+     }
+-  ],
+-  "implementation": "dagr-mcp-fastmcp-demo",
+-  "keyring": "issuer-keys.json",
+-  "profile": "srs.mcp.sdk_enforcement.v0.1"
++  ]
+ }
+diff --git a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/issuer-keys.json b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/issuer-keys.json
+index 391ceb2..b7a19b8 100644
+--- a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/issuer-keys.json
++++ b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/issuer-keys.json
+@@ -2,11 +2,11 @@
+   "issuers": [
+     {
+       "algorithm": "Ed25519",
+-      "issuer_id": "issuer:dagr:implementation-fixture",
+-      "key_id": "issuer.dagr.implementation-fixture/receipt-signing/2026-07",
++      "issuer_id": "issuer:dagr:fastmcp-fixture",
++      "key_id": "issuer.dagr.fastmcp-fixture/receipt-signing/v1",
+       "not_after": "2036-01-01T00:00:00Z",
+       "not_before": "2026-01-01T00:00:00Z",
+-      "public_key": "yz-xJJVgQJCZYCGLKPbvMFPLTijbozsCmRzt68zLSJA",
++      "public_key": "WWhzV9-MNoorMSfmcwdiBUcpG9mGKTBkDvd0-9tq5Sk",
+       "trusted": true
+     }
+   ],
+diff --git a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json
+index c9be254..9015b6b 100644
+--- a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json
++++ b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json
+@@ -1,6 +1,6 @@
+ {
+   "actor_ref": "actor:anonymous_or_local",
+-  "admission_receipt_ref": "urn:srs:receipt:admission:implementation-demo-1",
++  "admission_receipt_ref": "urn:srs:receipt:admission:dagr-fastmcp-fixture-1",
+   "artifact_classes_covered": [
+     "tool_call_outcome"
+   ],
+@@ -12,7 +12,8 @@
+   ],
+   "attestation_limits": [
+     "The receipt attests only to governance conditions at the named admission boundary.",
+-    "The receipt establishes the request, admission disposition, and semantic result returned at the configured boundary. It does not independently establish that the underlying tool body executed for this invocation, because middleware such as caches may satisfy a call without handler execution."
++    "The receipt establishes the request, admission disposition, and semantic result returned at the configured boundary. It does not independently establish that the underlying tool body executed for this invocation, because middleware such as caches may satisfy a call without handler execution.",
++    "The middleware is installed once at the institutional trust boundary; receipts attest only to observations at that boundary."
+   ],
+   "boundary_id": "boundary:dagr:fastmcp",
+   "boundary_type": "mcp_tool_call",
+@@ -21,25 +22,25 @@
+       "binding_version": "fastmcp.middleware.v0.1"
+     }
+   },
+-  "issued_at": "2026-07-11T20:10:01Z",
+-  "issuer_id": "issuer:dagr:implementation-fixture",
+-  "logical_call_id": "call:implementation-demo-1",
++  "issued_at": "2026-07-12T12:00:01Z",
++  "issuer_id": "issuer:dagr:fastmcp-fixture",
++  "logical_call_id": "call:dagr:fastmcp-fixture:1",
+   "outcome": "result_returned",
+   "profile_id": "srs.mcp.sdk_enforcement",
+   "profile_version": "v0.1",
+   "protocol_binding": "mcp",
+-  "receipt_id": "urn:srs:receipt:outcome:implementation-demo-1",
++  "receipt_id": "urn:srs:receipt:outcome:dagr-fastmcp-fixture-1",
+   "receipt_kind": "outcome",
+   "receipt_signature": {
+     "algorithm": "Ed25519",
+     "canonicalization": "RFC8785-JCS",
+-    "key_id": "issuer.dagr.implementation-fixture/receipt-signing/2026-07",
+-    "signature": "eBDXz8BIRXhIO9i0mt04zcrARHllgTqsK852vo-mvz1_n1yN0Yg8QDH-tLI3U-9mhp1EQ7OBj0fR9XlMZphHBg"
++    "key_id": "issuer.dagr.fastmcp-fixture/receipt-signing/v1",
++    "signature": "tj4V3FToBIE3T902CMNyZaOUlkdYwovH6DpawMuMpDNhwnf2Q7oskPhSLBowo-6AYBvTtnPGmbitl11QG-LsBw"
+   },
+   "receipt_type": "sdk_enforcement",
+   "receipt_version": "srs.core.v5.1",
+-  "result_digest": "sha256:edc37ef6631e85681c4968ff5e249be728119a0f757ca769b4c371e3536eb02b",
++  "result_digest": "sha256:f443bb788204bc89c29c077ad77d7a2c436bc88c4533f81541a02390f43471d2",
+   "retention_class_applied": "hash_only",
+-  "runtime_instance_id": "runtime:dagr:implementation-fixture",
+-  "subject_ref": "tool-call:call:implementation-demo-1"
++  "runtime_instance_id": "runtime:dagr:fastmcp-fixture",
++  "subject_ref": "tool-call:call:dagr:fastmcp-fixture:1"
+ }

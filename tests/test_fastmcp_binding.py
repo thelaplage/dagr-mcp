@@ -36,6 +36,7 @@ from dagr_mcp.fastmcp_binding import (
     DAGRMiddleware,
     DAGRMiddlewareConfig,
     default_actor_resolution,
+    project_fastmcp_tool_result,
 )
 from dagr_mcp.sdk_spine import InMemoryReviewObjectSink
 from dagr_mcp.srs_receipts import (
@@ -665,3 +666,49 @@ async def test_stdio_like_call_without_token_is_anonymous_or_local(tmp_path: Pat
     await call_direct(middleware, "stdio", ToolResult(content=["ok"]))
     receipts = assert_all_receipts_verify(directory, identity)
     assert split_pair(receipts)[0]["actor_ref"] == "actor:anonymous_or_local"
+
+
+async def test_fixture_overrides_capture_live_middleware_projection(tmp_path: Path):
+    directory = tmp_path / "receipts"
+    identity = SigningIdentity.generate(
+        issuer_id="issuer:test:projection-observer",
+        key_id="issuer.test.projection-observer/key/1",
+    )
+    observed: list[dict[str, Any]] = []
+    middleware = DAGRMiddleware(
+        emitter=SignedReceiptEmitter(
+            identity=identity,
+            sink=RawEnvelopeFileSink(directory),
+        ),
+        config=DAGRMiddlewareConfig(
+            runtime_instance_id="runtime:test:projection-observer",
+            boundary_id="boundary:test:projection-observer",
+            policy_pack_id="policy:test:projection-observer",
+            policy_pack_version="1",
+            logical_call_id_override="call:fixture:fastmcp:1",
+            subject_ref_override="tool-call:fixture:fastmcp:1",
+            result_projection_observer=lambda projection: observed.append(
+                dict(projection)
+            ),
+        ),
+    )
+    result = ToolResult(
+        content=[TextContent(type="text", text='{"found":true}')],
+        structured_content={"found": True},
+    )
+
+    returned = await call_direct(
+        middleware,
+        "records_lookup",
+        result,
+        {"record_ref": "record:demo:1"},
+    )
+
+    assert returned is result
+    assert observed == [project_fastmcp_tool_result(result)]
+
+    receipts = assert_all_receipts_verify(directory, identity)
+    assert len(receipts) == 2
+    for receipt in receipts:
+        assert receipt["logical_call_id"] == "call:fixture:fastmcp:1"
+        assert receipt["subject_ref"] == "tool-call:fixture:fastmcp:1"
