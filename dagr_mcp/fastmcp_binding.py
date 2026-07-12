@@ -89,20 +89,20 @@ class BindingPolicy:
 
 
 class ActorResolver(Protocol):
-    async def __call__(
+    def __call__(
         self,
         context: MiddlewareContext[Any],
         snapshot: RequestSnapshot,
-    ) -> ActorResolution:
+    ) -> ActorResolution | Awaitable[ActorResolution]:
         ...
 
 
 class PolicyResolver(Protocol):
-    async def __call__(
+    def __call__(
         self,
         snapshot: RequestSnapshot,
         actor: ActorResolution,
-    ) -> BindingPolicy:
+    ) -> BindingPolicy | Awaitable[BindingPolicy]:
         ...
 
 
@@ -287,7 +287,10 @@ class DAGRMiddleware(Middleware):
         snapshot: RequestSnapshot,
     ) -> ActorResolution:
         if self.config.actor_resolver is not None:
-            return await self.config.actor_resolver(context, snapshot)
+            resolved = self.config.actor_resolver(context, snapshot)
+            if inspect.isawaitable(resolved):
+                resolved = await resolved
+            return resolved
         return default_actor_resolution()
 
     async def _resolve_policy(
@@ -296,7 +299,10 @@ class DAGRMiddleware(Middleware):
         actor: ActorResolution,
     ) -> BindingPolicy:
         if self.config.policy_resolver is not None:
-            return await self.config.policy_resolver(snapshot, actor)
+            resolved = self.config.policy_resolver(snapshot, actor)
+            if inspect.isawaitable(resolved):
+                resolved = await resolved
+            return resolved
         return BindingPolicy(
             disposition="admitted",
             tool_class=self.config.tool_classes.get(snapshot.tool_name, "read"),
