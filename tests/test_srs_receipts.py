@@ -135,3 +135,33 @@ def test_trust_bundle_contains_no_private_key_material(tmp_path):
     assert "seed" not in text
     path = sink.write_trust_bundle(bundle)
     assert path.exists()
+
+
+def test_review_object_creation_failure_is_terminal_refusal(tmp_path):
+    identity, sink, bridge = build(tmp_path)
+    called = False
+
+    class FailingReviewSink(InMemoryReviewObjectSink):
+        def create_review_object(self, review):
+            raise RuntimeError("unavailable")
+
+    def inner(*args, **kwargs):
+        nonlocal called
+        called = True
+        return {"unexpected": True}
+
+    wrapped = wrap_handler(
+        inner,
+        HarnessConfig("1", "module", "1", "profile", "policy"),
+        HarnessSinks(event=InMemoryEventSink(), review=FailingReviewSink()),
+        policies=[ToolPolicy("write", "write", "gate", review_required=True)],
+        srs_bridge=bridge,
+    )
+    result = wrapped("write", {"record_ref": "record:1"}, {"request_ref": "call-4"})
+    assert not result.ok
+    assert not called
+    receipts = [json.loads(path.read_text()) for path in tmp_path.glob("urn_srs_receipt_*.json")]
+    assert len(receipts) == 1
+    assert receipts[0]["disposition"] == "refused"
+    assert receipts[0]["reason_code"] == "review_object_creation_failed"
+    assert "review_object_ref" not in receipts[0]

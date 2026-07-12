@@ -794,7 +794,7 @@ def _gate_call(
 
     try:
         review_object_ref = sinks.review.create_review_object(review_object)
-    except SinkUnavailableError:
+    except Exception:  # Review routing failure is a terminal institutional refusal.
         if srs_bridge is not None:
             try:
                 context.admission_receipt_ref = srs_bridge.emit_admission(
