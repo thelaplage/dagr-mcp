@@ -110,6 +110,7 @@ class HarnessContext:
     event_chain_refs: list[str] = field(default_factory=list)
     receipt_refs: list[str] = field(default_factory=list)
     review_object_ref: str | None = None
+    admission_receipt_ref: str | None = None
     sink_health_snapshot: dict[str, SinkHealth] = field(default_factory=dict)
     attestation_limits: list[str] = field(default_factory=list)
 
@@ -171,6 +172,7 @@ def wrap_handler(
     sinks: HarnessSinks,
     policies: PoliciesInput = None,
     policy_profile: PolicyProfileProjection | None = None,
+    srs_bridge: Any | None = None,
 ) -> Callable[[str, Any, Any], GovernedResult]:
     policy_by_tool = _normalize_policies(policies)
     failure_behavior = (
@@ -241,6 +243,13 @@ def wrap_handler(
             failure_behavior=failure_behavior,
         )
         if sink_failure:
+            if srs_bridge is not None:
+                try:
+                    harness_context.admission_receipt_ref = srs_bridge.emit_admission(
+                        harness_context=harness_context, tool_name=tool_name,
+                        disposition="refused", reason_code="required_sink_unavailable")
+                except Exception:
+                    pass
             _append_event_if_available(
                 sinks=sinks,
                 event_type="mcp.tool.call.rejected",
@@ -260,6 +269,16 @@ def wrap_handler(
             )
 
         if policy_decision.decision in {"deny", "defer", "fail_closed"}:
+            if srs_bridge is not None:
+                reason_code = "unknown_tool_fail_closed" if policy_decision.reason == "unknown_tool" else "policy_refused"
+                try:
+                    harness_context.admission_receipt_ref = srs_bridge.emit_admission(
+                        harness_context=harness_context, tool_name=tool_name,
+                        disposition="refused", reason_code=reason_code)
+                except Exception:
+                    return _governed_failure(
+                        failure_reason="pre_execution_receipt_failure",
+                        policy_decision=policy_decision, context=harness_context)
             _append_event_if_available(
                 sinks=sinks,
                 event_type="mcp.tool.call.rejected",
@@ -293,12 +312,31 @@ def wrap_handler(
                 arguments=arguments,
                 policy_decision=policy_decision,
                 tool_policy=policy_by_tool.get(tool_name),
+                srs_bridge=srs_bridge,
             )
+
+        if srs_bridge is not None:
+            try:
+                harness_context.admission_receipt_ref = srs_bridge.emit_admission(
+                    harness_context=harness_context, tool_name=tool_name,
+                    disposition="admitted")
+            except Exception:
+                return _governed_failure(
+                    failure_reason="pre_execution_receipt_failure",
+                    policy_decision=policy_decision, context=harness_context)
 
         result = None
         try:
             result = _call_inner(inner, tool_name, arguments, context)
         except Exception as exc:  # noqa: BLE001 - governed failures must not leak raw exceptions.
+            if srs_bridge is not None and harness_context.admission_receipt_ref is not None:
+                try:
+                    srs_bridge.emit_outcome(
+                        harness_context=harness_context,
+                        admission_receipt_ref=harness_context.admission_receipt_ref,
+                        outcome="exception", exception_class=type(exc).__name__)
+                except Exception:
+                    pass
             _append_event_if_available(
                 sinks=sinks,
                 event_type="mcp.tool.call.failed",
@@ -318,6 +356,17 @@ def wrap_handler(
             )
 
         harness_context.result_hash = stable_payload_hash(result)
+        if srs_bridge is not None and harness_context.admission_receipt_ref is not None:
+            try:
+                outcome_ref = srs_bridge.emit_outcome(
+                    harness_context=harness_context,
+                    admission_receipt_ref=harness_context.admission_receipt_ref,
+                    outcome="result_returned",
+                    result_digest=harness_context.result_hash)
+                harness_context.receipt_refs.extend(
+                    [harness_context.admission_receipt_ref, outcome_ref])
+            except Exception:
+                pass
         _append_event_if_available(
             sinks=sinks,
             event_type="mcp.tool.call.executed",
@@ -694,8 +743,16 @@ def _gate_call(
     arguments: Mapping[str, Any],
     policy_decision: PolicyDecision,
     tool_policy: ToolPolicy | None,
+    srs_bridge: Any | None = None,
 ) -> GovernedResult:
     if sinks.review is None:
+        if srs_bridge is not None:
+            try:
+                context.admission_receipt_ref = srs_bridge.emit_admission(
+                    harness_context=context, tool_name=tool_name, disposition="refused",
+                    reason_code="review_object_creation_failed")
+            except Exception:
+                pass
         return _governed_failure(
             failure_reason="review_object_sink_unavailable",
             policy_decision=policy_decision,
@@ -738,6 +795,13 @@ def _gate_call(
     try:
         review_object_ref = sinks.review.create_review_object(review_object)
     except SinkUnavailableError:
+        if srs_bridge is not None:
+            try:
+                context.admission_receipt_ref = srs_bridge.emit_admission(
+                    harness_context=context, tool_name=tool_name, disposition="refused",
+                    reason_code="review_object_creation_failed")
+            except Exception:
+                pass
         return _governed_failure(
             failure_reason="review_object_sink_unavailable",
             policy_decision=policy_decision,
@@ -745,6 +809,17 @@ def _gate_call(
         )
 
     context.review_object_ref = review_object_ref
+    if srs_bridge is not None:
+        try:
+            context.admission_receipt_ref = srs_bridge.emit_admission(
+                harness_context=context, tool_name=tool_name,
+                disposition="deferred_for_review", review_object_ref=review_object_ref,
+                retry_contract="retry_after_approval")
+            context.receipt_refs.append(context.admission_receipt_ref)
+        except Exception:
+            return _governed_failure(
+                failure_reason="pre_execution_receipt_failure",
+                policy_decision=policy_decision, context=context)
     _append_event_if_available(
         sinks=sinks,
         event_type="mcp.tool.call.gated",
