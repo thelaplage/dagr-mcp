@@ -277,7 +277,7 @@ def normalize_review_decision_outcome(value: str) -> str:
 
 # Opaque ref returned by ``FileReviewObjectSink.record_decision`` /
 # ``GarpLocalReviewObjectSink.record_decision`` (``review_decision:<namespace>:<n>``).
-# In-memory sinks use a separate ``decision:<n>`` prefix — not validated here.
+# In-memory sinks use a separate ``decision:<n>`` prefix - not validated here.
 _REVIEW_DECISION_REF_RE = re.compile(
     r"^review_decision:(?P<ns>[A-Za-z][A-Za-z0-9_]*):(?P<idx>[1-9]\d*)$"
 )
@@ -310,7 +310,7 @@ def normalize_review_decision_ref(value: str) -> str:
 def review_decision_ref_from_sink_ref(ref: str) -> str:
     """Validate a value returned from ``record_decision`` on durable JSONL sinks.
 
-    Same rules as ``normalize_review_decision_ref`` — use when bridging sink
+    Same rules as ``normalize_review_decision_ref`` - use when bridging sink
     returns into linkage payloads without widening accepted shapes.
     """
 
@@ -416,7 +416,7 @@ class ReceiptSink(Protocol):
 
     **Verification posture:** ``verify_receipt`` returns structured ``ok=False``
     results when the sink is unavailable, IO fails, rows are malformed, or the
-    receipt is missing — callers must not treat verification as solely exceptional.
+    receipt is missing - callers must not treat verification as solely exceptional.
     Missing cryptography surfaces as explicit ``not_implemented`` / ``not_applicable``
     detail keys, not silent ``ok=True``.
 
@@ -507,7 +507,7 @@ class ReviewObjectSink(Protocol):
 class LintFindingSink(Protocol):
     """Persists lint findings; ``summarize`` is advisory.
 
-    ``summarize`` aggregates counts for dashboards — it does **not** gate execution.
+    ``summarize`` aggregates counts for dashboards - it does **not** gate execution.
 
     **Severity:** Including ``blocker`` severity describes impact only; harness/policy
     decides enforcement vs advisory posture.

@@ -1,66 +1,54 @@
+diff --git a/garp_sdk/enforcement_harness.py b/garp_sdk/enforcement_harness.py
 --- a/garp_sdk/enforcement_harness.py
 +++ b/garp_sdk/enforcement_harness.py
-@@ -1,3 +1,8 @@
+@@ -0,0 +1,5 @@
 +# PUBLIC CANONICAL NOTICE
 +# This module is frozen at the DAGR carve boundary. Public-canonical behavior
 +# now lives in the dagr-mcp repository. Review private consumers for migration
 +# within 90 days after the public launch.
 +
- """Canonical enforcement harness extracted from garp-local's monolith.
- 
- This module is the keystone the SDK was previously missing: a ``wrap_handler``
+diff --git a/garp_sdk/tool_call_disposition.py b/garp_sdk/tool_call_disposition.py
 --- a/garp_sdk/tool_call_disposition.py
 +++ b/garp_sdk/tool_call_disposition.py
-@@ -1,3 +1,8 @@
+@@ -0,0 +1,5 @@
 +# PUBLIC CANONICAL NOTICE
 +# This module is frozen at the DAGR carve boundary. Public-canonical behavior
 +# now lives in the dagr-mcp repository. Review private consumers for migration
 +# within 90 days after the public launch.
 +
- """Pure helpers for ``review_object_type == \"tool_call_disposition\"`` ReviewObject rows.
- 
- No sink writes, harness execution, or disk I/O — callers assemble explicitly.
+diff --git a/garp_sdk/policy_profile.py b/garp_sdk/policy_profile.py
 --- a/garp_sdk/policy_profile.py
 +++ b/garp_sdk/policy_profile.py
-@@ -1,3 +1,8 @@
+@@ -0,0 +1,5 @@
 +# PUBLIC CANONICAL NOTICE
 +# This module is frozen at the DAGR carve boundary. Public-canonical behavior
 +# now lives in the dagr-mcp repository. Review private consumers for migration
 +# within 90 days after the public launch.
 +
- from __future__ import annotations
- 
- import json
+diff --git a/garp_sdk/lint/matter_scope.py b/garp_sdk/lint/matter_scope.py
 --- a/garp_sdk/lint/matter_scope.py
 +++ b/garp_sdk/lint/matter_scope.py
-@@ -1,3 +1,8 @@
+@@ -0,0 +1,5 @@
 +# PUBLIC CANONICAL NOTICE
 +# This module is frozen at the DAGR carve boundary. Public-canonical behavior
 +# now lives in the dagr-mcp repository. Review private consumers for migration
 +# within 90 days after the public launch.
 +
- from __future__ import annotations
- 
- import re
+diff --git a/garp_sdk/sdk_spine.py b/garp_sdk/sdk_spine.py
 --- a/garp_sdk/sdk_spine.py
 +++ b/garp_sdk/sdk_spine.py
-@@ -1,3 +1,8 @@
+@@ -0,0 +1,5 @@
 +# PUBLIC CANONICAL NOTICE
 +# This module is frozen at the DAGR carve boundary. Public-canonical behavior
 +# now lives in the dagr-mcp repository. Review private consumers for migration
 +# within 90 days after the public launch.
 +
- from __future__ import annotations
- 
- import hashlib
+diff --git a/garp_sdk/mcp_record_custody_gateway.py b/garp_sdk/mcp_record_custody_gateway.py
 --- a/garp_sdk/mcp_record_custody_gateway.py
 +++ b/garp_sdk/mcp_record_custody_gateway.py
-@@ -1,3 +1,8 @@
+@@ -0,0 +1,5 @@
 +# PUBLIC CANONICAL NOTICE
 +# This module is frozen at the DAGR carve boundary. Public-canonical behavior
 +# now lives in the dagr-mcp repository. Review private consumers for migration
 +# within 90 days after the public launch.
 +
- """GARP MCP Record Custody Gateway contract.
- 
- Refs-only SDK object representing a custody record candidate composed at an

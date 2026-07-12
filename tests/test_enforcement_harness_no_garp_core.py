@@ -3,8 +3,8 @@
 ``dagr_mcp.enforcement_harness`` was extracted from garp-local's
 ``garp_core.enforcement_harness`` so downstream adapters (e.g. arcs-anchor's
 MCP harness adapter) can consume a canonical SDK harness instead of importing
-the monolith. That guarantee only holds if the extracted module — and its
-transitive import closure — never reaches back into ``garp_core`` or any
+the monolith. That guarantee only holds if the extracted module - and its
+transitive import closure - never reaches back into ``garp_core`` or any
 sibling-repo internals.
 
 The guarantee is about *dependency*, not the literal token: the module

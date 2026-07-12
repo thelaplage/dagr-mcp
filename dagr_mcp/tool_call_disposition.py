@@ -1,6 +1,6 @@
 """Pure helpers for ``review_object_type == \"tool_call_disposition\"`` ReviewObject rows.
 
-No sink writes, harness execution, or disk I/O — callers assemble explicitly.
+No sink writes, harness execution, or disk I/O - callers assemble explicitly.
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ def resolved_argument_hash_from_disposition_payload(
 
     **Canonical** field: ``argument_hash`` (builder + spec).
 
-    **Legacy** field: ``arguments_hash`` — accepted only when ``argument_hash`` is
+    **Legacy** field: ``arguments_hash`` - accepted only when ``argument_hash`` is
     absent, or when both keys are present with **identical** string values. Harness
     ``ReviewObject`` gate rows and harness event ``detail`` blobs include canonical
     ``argument_hash``; event ``detail`` may still duplicate the digest under legacy
@@ -139,7 +139,7 @@ def timeout_decision_outcome() -> Literal["expired"]:
     ``gate_timeout_seconds`` elapses; this module does not schedule timeouts.
 
     Execution receipts must not be emitted after terminal ``rejected`` or
-    ``expired`` disposition decisions — enforcement of that belongs in harness /
+    ``expired`` disposition decisions - enforcement of that belongs in harness /
     sink wiring, not here.
     """
 
@@ -181,7 +181,7 @@ def hash_tool_call_context(context: Mapping[str, Any] | None) -> str | None:
 def argument_hash_for_tool_call(arguments: Mapping[str, Any]) -> str:
     """Stable ``sha256:…`` digest for later comparison against a disposition row.
 
-    Equivalent to :func:`hash_tool_call_arguments` — separate name for binding docs
+    Equivalent to :func:`hash_tool_call_arguments` - separate name for binding docs
     and harness-adjacent callers discussing retry/resume posture.
     """
 
@@ -238,14 +238,14 @@ def tool_call_disposition_execution_readiness(
     decision: ReviewDecision | None,
     arguments: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Pure readiness summary — combines disposition validation + optional decision + digest match.
+    """Pure readiness summary - combines disposition validation + optional decision + digest match.
 
     Does **not** execute inner handlers, write sinks, emit events, or emit receipts.
     ``decision`` is typically a replayed ``ReviewDecision`` or ``None`` when still
     pending. Invalid decisions raise :exc:`ToolCallDispositionError`.
 
     Returned mapping keys are ``status``, ``allows_execution``, ``argument_hash``,
-    ``reviewed_argument_hash``, ``reason`` only — never raw argument blobs.
+    ``reviewed_argument_hash``, ``reason`` only - never raw argument blobs.
     """
 
     validate_tool_call_disposition_review_object(review_object)
@@ -529,7 +529,7 @@ def tool_call_disposition_decision_status(
     review_sink: Any,
     review_object_ref: str,
 ) -> dict[str, Any]:
-    """Summarize disposition decisions for ``review_object_ref`` — pure read helper.
+    """Summarize disposition decisions for ``review_object_ref`` - pure read helper.
 
     Uses ``terminal_decision_lookup`` / ``latest_decision_lookup`` when present,
     otherwise falls back to ``terminal_decision`` / ``latest_decision``. Does **not**
