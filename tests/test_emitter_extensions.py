@@ -174,7 +174,7 @@ def test_bridge_passes_binding_context_and_extension_parameters(tmp_path):
         binding_owned_fields={
             "request_cancelled": True,
             "execution_state_unknown": True,
-            "result_not_delivered": True,
+            "delivery_incomplete": True,
         },
         parent_receipt_ref="urn:srs:receipt:parent:1",
         additional_attestation_limits=(PROXY_LIMIT,),
@@ -296,7 +296,7 @@ def test_each_new_fact_is_signature_covered(tmp_path):
         binding_owned_fields={
             "request_cancelled": True,
             "execution_state_unknown": True,
-            "result_not_delivered": True,
+            "delivery_incomplete": True,
         },
     )
     receipt = load_receipt(tmp_path, receipt_id)
@@ -398,7 +398,7 @@ def test_combined_extension_receipt_passes_all_nine_verdicts(tmp_path):
         binding_owned_fields={
             "request_cancelled": True,
             "execution_state_unknown": True,
-            "result_not_delivered": True,
+            "delivery_incomplete": True,
         },
     )
     receipt = load_receipt(tmp_path, receipt_id)

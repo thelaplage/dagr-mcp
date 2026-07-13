@@ -58,7 +58,11 @@ REGISTERED_BINDING_VERSIONS = frozenset({
 CANCELLATION_FIELD_NAMES = frozenset({
     "request_cancelled",
     "execution_state_unknown",
-    "result_not_delivered",
+    # Neutral delivery-state fact. Deliberately NOT named with a `result`-shaped
+    # token: the ARCS raw-content profile treats any `(?:^|_)result(?:$|_)` key as
+    # result-shaped content and rejects it, so a `result_*` name collides with
+    # raw-content exclusion even though the value is a governance Boolean.
+    "delivery_incomplete",
 })
 _CORE_RECEIPT_FIELDS = frozenset({
     "receipt_version", "profile_id", "profile_version", "receipt_id",
