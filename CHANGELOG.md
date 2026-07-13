@@ -14,6 +14,25 @@ and in package metadata does not by itself mean that a tag, a release, or public
 availability exists.
 
 ### Added
+- Second lifecycle binding over the official Python MCP SDK
+  (`dagr_mcp_sdk_binding`, binding version `official-mcp-sdk.python.v0.1`),
+  binding the `mcp.server.lowlevel.Server` call-tool handler seam onto the
+  Sprint A3 neutral lifecycle core. The FastMCP binding remains the default and
+  is unchanged. Includes an official-SDK binding mask, a supported server
+  construction surface, and a cross-binding conformance corpus proving both
+  bindings agree on every binding-neutral semantic field (the only permitted
+  difference is the intentionally-distinct binding-version stamp). One lifecycle
+  state is an explicit **binding capability difference**: `task_submitted` — the
+  `mcp.types.CreateTaskResult` type exists, but it is not a genuine result of the
+  bound `tools/call` client seam (which parses responses as `CallToolResult`), so
+  the official-SDK binding marks it unsupported and fails closed rather than
+  coercing it; the FastMCP `task_submitted` behavior is unchanged, and the
+  cross-binding corpus records the difference. The `mcp` dependency is declared as
+  the optional `official-sdk` extra **pinned to the exact proven version
+  `mcp==1.28.1`** (the only version exercised against the binding, its mask, the
+  real in-process transport, and the cross-binding corpus); the receipt
+  schema/profile is unchanged. See
+  [docs/OFFICIAL_MCP_SDK_BINDING.md](docs/OFFICIAL_MCP_SDK_BINDING.md).
 - Public-canonical MCP admission runtime carved from the enforcement harness:
   disposition, policy profile, matter-scope lint, sink protocols and in-memory
   sinks, the refs-only record-custody gateway, and the SRS bridge.
