@@ -12,7 +12,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Protocol, TypeAlias
+from typing import Any, Literal, NoReturn, Protocol, TypeAlias
 
 import rfc8785
 
@@ -38,6 +38,24 @@ from dagr_mcp.srs_receipts import (
     SignedReceiptEmitter,
     fastmcp_tool_result_digest,
     sha256_digest,
+)
+
+# Sprint A4 — the live FastMCP path binds onto the binding-neutral lifecycle
+# core. The core (:mod:`dagr_mcp_lifecycle.core`) is authoritative for the
+# lifecycle *decisions* — admission disposition resolution, whether execution
+# proceeds, whether an admission record is durably observed before execution,
+# the outcome record family, the result-digest / governance-fact / cancellation
+# posture, and the receipt cardinality. This module is the FastMCP adapter: it
+# converts binding inputs into neutral core models, invokes the core, and
+# projects the resulting plan back into the existing emitter calls. The core
+# imports nothing from this package or FastMCP; the neutral→binding token
+# projection is the A2 mask (:mod:`dagr_mcp_lifecycle.binding_mask`), imported
+# lazily in the projection helpers below to avoid a mask↔binding import cycle.
+from dagr_mcp_lifecycle.core import plan_admission, plan_outcome_strict
+from dagr_mcp_lifecycle.models import (
+    AdmissionPlan,
+    AdmissionRequest,
+    ExecutionObservation,
 )
 
 ToolClass: TypeAlias = Literal["read", "write", "destructive"]
@@ -144,6 +162,48 @@ class DAGRMiddlewareConfig:
     additional_attestation_limits: tuple[str, ...] = (DEFAULT_BOUNDARY_LIMIT,)
 
 
+# --------------------------------------------------------------------------- #
+# Neutral lifecycle adapter (Sprint A4)                                        #
+# --------------------------------------------------------------------------- #
+# The core resolves the lifecycle in neutral tokens; these helpers are the thin
+# projection back onto the FastMCP binding vocabulary. The neutral→binding token
+# tables are owned by the A2 mask, which remains the single projection authority
+# and is verified against the live binding. The mask is imported lazily so it can
+# keep importing this module at load time without a cycle.
+
+# The neutral disposition each binding disposition token maps *to* on the way
+# into the core. This is the inverse of the mask's ``project_disposition`` and is
+# the one place the adapter reads the binding disposition token.
+_NEUTRAL_DISPOSITION_BY_BINDING: dict[Disposition, str] = {
+    "admitted": "admitted",
+    "refused": "refused",
+    "deferred_for_review": "deferred",
+}
+
+
+def _to_neutral_disposition(binding_disposition: Disposition) -> str:
+    return _NEUTRAL_DISPOSITION_BY_BINDING[binding_disposition]
+
+
+def _project_binding_disposition(neutral_disposition: str) -> Disposition:
+    """Project a neutral disposition onto the binding admission token (A2 mask)."""
+
+    from dagr_mcp_lifecycle.binding_mask import project_disposition
+
+    return project_disposition(neutral_disposition)  # type: ignore[return-value]
+
+
+def _project_binding_outcome(neutral_outcome: str) -> str:
+    """Project a neutral outcome record family onto the emitter token (A2 mask)."""
+
+    from dagr_mcp_lifecycle.binding_mask import project_outcome
+
+    token = project_outcome(neutral_outcome).binding_token
+    if token is None:  # pragma: no cover - plan_outcome_strict excludes unsupported.
+        raise ToolError(f"neutral outcome {neutral_outcome!r} carries no binding token")
+    return token
+
+
 class DAGRMiddleware(Middleware):
     """FastMCP ``tools/call`` middleware that emits signed admission receipts."""
 
@@ -162,15 +222,42 @@ class DAGRMiddleware(Middleware):
         policy = await self._resolve_policy(snapshot, actor)
         receipt_context = self._receipt_context(snapshot, actor, policy)
 
-        if policy.disposition == "refused":
-            self._emit_terminal_refusal(receipt_context, snapshot, policy)
-            raise ToolError("Call refused by admission policy")
+        neutral_disposition = _to_neutral_disposition(policy.disposition)
 
-        if policy.disposition == "deferred_for_review":
-            await self._defer_for_review(receipt_context, snapshot, actor, policy)
+        # A deferral must durably create its review object *before* the neutral
+        # core can resolve the disposition: a review object that fails to create
+        # resolves — in the core — to a refusal on review_object_creation_failed
+        # (never onto required_sink_unavailable; §17 residual is preserved). The
+        # review object is an adapter side effect, so it is minted here.
+        review_object_ref: str | None = None
+        review_object_created: bool | None = None
+        if neutral_disposition == "deferred":
+            try:
+                review_object_ref = await self._create_review_object(
+                    snapshot, actor, policy
+                )
+                review_object_created = True
+            except Exception as exc:  # noqa: BLE001 - review creation failure is terminal.
+                self._record_review_failure(receipt_context, snapshot, exc)
+                review_object_created = False
+
+        # The core owns the admission decision: disposition resolution, whether
+        # execution proceeds, and whether an admission record is durably observed
+        # before execution.
+        admission_plan = plan_admission(
+            self._neutral_admission_request(
+                policy, neutral_disposition, review_object_created
+            )
+        )
+
+        if not admission_plan.execution_proceeds:
+            # Refused or deferred: a single terminal admission record, then raise.
+            self._project_terminal_admission(
+                admission_plan, receipt_context, snapshot, policy, review_object_ref
+            )
 
         admission_receipt_ref: str | None = None
-        if self._must_emit_admission_before_execution(policy.tool_class):
+        if admission_plan.admission_recorded:
             try:
                 admission_receipt_ref = self._emit_admission(
                     receipt_context,
@@ -193,6 +280,11 @@ class DAGRMiddleware(Middleware):
         try:
             result = await call_next(context)
         except asyncio.CancelledError:
+            # Neutral outcome: cancellation. The core plans an ``indeterminate``
+            # outcome carrying the three cancellation governance Booleans and no
+            # result_digest. The projection literals below are frozen by A1
+            # (test_freeze_binding_maps_cancellation_to_indeterminate_...) and are
+            # proved byte-equal to the core plan by the A4 differential test.
             if admission_receipt_ref is not None:
                 self._emit_outcome_best_effort(
                     receipt_context,
@@ -207,6 +299,10 @@ class DAGRMiddleware(Middleware):
                 )
             raise
         except Exception as exc:
+            # Neutral outcome: exception. A raised TimeoutError is an ordinary
+            # inner exception here (the binding carries no dedicated timeout
+            # disposition; the core's timeout→exception subsumption is exercised
+            # by the differential harness, see docs/FASTMCP_CORE_REBINDING.md).
             if admission_receipt_ref is not None:
                 self._emit_outcome_best_effort(
                     receipt_context,
@@ -221,12 +317,13 @@ class DAGRMiddleware(Middleware):
             return result
 
         if isinstance(result, CreateTaskResult):
-            self._emit_post_execution_outcome(
+            self._emit_planned_outcome(
+                admission_plan,
                 receipt_context,
                 snapshot,
                 admission_receipt_ref,
                 result,
-                outcome="task_submitted",
+                ExecutionObservation("task_submitted"),
             )
             return result
 
@@ -240,7 +337,9 @@ class DAGRMiddleware(Middleware):
                 meta=projection["_meta"],
                 is_error=projection["isError"],
             )
-            outcome = "error_returned" if projection["isError"] else "result_returned"
+            observation = ExecutionObservation(
+                "error" if projection["isError"] else "result"
+            )
         except Exception as exc:  # noqa: BLE001 - post-execution failure policy applies.
             self._record_receipt_failure(
                 receipt_context,
@@ -252,12 +351,13 @@ class DAGRMiddleware(Middleware):
             )
             return result
 
-        self._emit_post_execution_outcome(
+        self._emit_planned_outcome(
+            admission_plan,
             receipt_context,
             snapshot,
             admission_receipt_ref,
             result,
-            outcome=outcome,
+            observation,
             result_digest=result_digest,
         )
         return result
@@ -347,68 +447,88 @@ class DAGRMiddleware(Middleware):
             ),
         )
 
-    def _emit_terminal_refusal(
+    def _neutral_admission_request(
         self,
-        receipt_context: ReceiptContext,
-        snapshot: RequestSnapshot,
         policy: BindingPolicy,
-    ) -> None:
-        try:
-            self._emit_admission(
-                receipt_context,
-                snapshot,
-                policy,
-                disposition="refused",
-                reason_code=policy.reason_code or "policy_refused",
-            )
-        except Exception as exc:  # noqa: BLE001 - do not leak signer/sink failures.
-            self._record_receipt_failure(
-                receipt_context,
-                snapshot,
-                attempted_receipt_kind="admission",
-                failure=exc,
-            )
+        neutral_disposition: str,
+        review_object_created: bool | None,
+    ) -> AdmissionRequest:
+        """Convert the resolved binding policy into the neutral core request.
 
-    async def _defer_for_review(
+        The refusal ground is the binding's own (``policy.reason_code`` defaulting
+        to ``policy_refused``) and is carried verbatim by the core — never
+        repaired (§17 residual). ``review_object_created`` is set only for a
+        deferral and is what lets the core resolve a failed review object to a
+        refusal on ``review_object_creation_failed``.
+        """
+
+        return AdmissionRequest(
+            disposition=neutral_disposition,  # type: ignore[arg-type]
+            tool_class=policy.tool_class,
+            refusal_ground=(
+                (policy.reason_code or "policy_refused")  # type: ignore[arg-type]
+                if neutral_disposition == "refused"
+                else None
+            ),
+            review_object_created=review_object_created,
+            emit_read_admission_before_execution=(
+                self.config.emit_read_admission_before_execution
+            ),
+            has_parent_boundary=(
+                policy.parent_receipt_ref is not None
+                or self.config.parent_receipt_ref is not None
+            ),
+        )
+
+    def _project_terminal_admission(
         self,
+        admission_plan: AdmissionPlan,
         receipt_context: ReceiptContext,
         snapshot: RequestSnapshot,
-        actor: ActorResolution,
         policy: BindingPolicy,
-    ) -> None:
-        try:
-            review_object_ref = await self._create_review_object(
-                snapshot,
-                actor,
-                policy,
-            )
-        except Exception as exc:  # noqa: BLE001 - review creation failure is terminal.
-            self._record_review_failure(receipt_context, snapshot, exc)
+        review_object_ref: str | None,
+    ) -> NoReturn:
+        """Project a non-proceeding admission plan (refused/deferred) and raise.
+
+        The core has already resolved the disposition — including a deferral whose
+        review object failed to create, which it resolves to a refusal on
+        ``review_object_creation_failed``. This method only emits the single
+        terminal admission record the plan describes and raises the frozen
+        ``ToolError`` for the resolved disposition; it makes no lifecycle decision.
+        """
+
+        record = admission_plan.record
+        assert record is not None  # refused/deferred always plan a record.
+        binding_disposition = _project_binding_disposition(record.disposition)
+
+        if record.disposition == "refused":
             try:
                 self._emit_admission(
                     receipt_context,
                     snapshot,
                     policy,
-                    disposition="refused",
-                    reason_code="review_object_creation_failed",
+                    disposition=binding_disposition,
+                    reason_code=record.reason_code,
                 )
-            except Exception as receipt_exc:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001 - do not leak signer/sink failures.
                 self._record_receipt_failure(
                     receipt_context,
                     snapshot,
                     attempted_receipt_kind="admission",
-                    failure=receipt_exc,
+                    failure=exc,
                 )
-            raise ToolError("Call refused by admission policy") from None
+            raise ToolError("Call refused by admission policy")
 
+        # Deferred: a single deferred admission record carrying the review-object
+        # reference and the core's continuation contract (retry_after_approval).
         try:
             self._emit_admission(
                 receipt_context,
                 snapshot,
                 policy,
-                disposition="deferred_for_review",
+                disposition=binding_disposition,
                 review_object_ref=review_object_ref,
-                retry_contract="retry_after_approval",
+                retry_contract=record.retry_contract,
             )
         except Exception as exc:  # noqa: BLE001
             self._record_receipt_failure(
@@ -471,11 +591,6 @@ class DAGRMiddleware(Middleware):
             raise RuntimeError("review object creator returned an invalid ref")
         return ref
 
-    def _must_emit_admission_before_execution(self, tool_class: ToolClass) -> bool:
-        if tool_class in {"write", "destructive"}:
-            return True
-        return self.config.emit_read_admission_before_execution
-
     def _pre_execution_failure_mode(self, tool_class: ToolClass) -> ReceiptFailureMode:
         return self.config.pre_execution_receipt_failure.get(tool_class, "fail_closed")
 
@@ -499,6 +614,40 @@ class DAGRMiddleware(Middleware):
             retry_contract=retry_contract,
             reason_code=reason_code,
             additional_attestation_limits=self._attestation_limits(policy),
+        )
+
+    def _emit_planned_outcome(
+        self,
+        admission_plan: AdmissionPlan,
+        receipt_context: ReceiptContext,
+        snapshot: RequestSnapshot,
+        admission_receipt_ref: str,
+        result: Any,
+        observation: ExecutionObservation,
+        *,
+        result_digest: str | None = None,
+    ) -> None:
+        """Project a core-planned post-execution outcome onto the emitter.
+
+        The core decides the outcome record family, whether it carries a result
+        digest, and (via ``plan_outcome_strict``) refuses any unsupported neutral
+        event (``input_required``) rather than coercing it. The adapter only
+        projects the neutral family onto the binding token and supplies the digest
+        it computed when the family carries one. Used for the ``result`` /
+        ``error`` / ``task_submitted`` families; ``exception`` and ``cancellation``
+        keep their A1-frozen inline emit calls in :meth:`on_call_tool`.
+        """
+
+        record = plan_outcome_strict(admission_plan, observation).record
+        if record is None:  # pragma: no cover - guarded by admission_receipt_ref.
+            return
+        self._emit_post_execution_outcome(
+            receipt_context,
+            snapshot,
+            admission_receipt_ref,
+            result,
+            outcome=_project_binding_outcome(record.outcome),
+            result_digest=result_digest if record.carries_result_digest else None,
         )
 
     def _emit_post_execution_outcome(
