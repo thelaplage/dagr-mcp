@@ -202,7 +202,7 @@ class DAGRMiddleware(Middleware):
                     binding_owned_fields={
                         "request_cancelled": True,
                         "execution_state_unknown": True,
-                        "result_not_delivered": True,
+                        "delivery_incomplete": True,
                     },
                 )
             raise

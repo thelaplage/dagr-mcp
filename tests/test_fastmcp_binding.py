@@ -487,7 +487,7 @@ async def test_cancelled_call_gets_best_effort_indeterminate_and_reraises(tmp_pa
     assert outcome["outcome"] == "indeterminate"
     assert outcome["request_cancelled"] is True
     assert outcome["execution_state_unknown"] is True
-    assert outcome["result_not_delivered"] is True
+    assert outcome["delivery_incomplete"] is True
 
 
 async def test_timeout_does_not_record_success_after_effect_may_have_happened(tmp_path: Path):
