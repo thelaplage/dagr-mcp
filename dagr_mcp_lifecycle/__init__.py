@@ -39,7 +39,46 @@ from dagr_mcp_lifecycle import contract as contract
 
 # ``binding_mask`` is intentionally NOT imported here: it depends on ``dagr_mcp``
 # and importing it eagerly would violate the neutral package's import direction.
-# It is declared public and is imported lazily on first explicit use, e.g.
-# ``from dagr_mcp_lifecycle import binding_mask``.
+# It is declared public and is bound lazily on first explicit use — either as an
+# attribute (``dagr_mcp_lifecycle.binding_mask``) via the PEP 562 ``__getattr__``
+# below, or by a direct submodule import (``from dagr_mcp_lifecycle import
+# binding_mask``). Both routes pull ``dagr_mcp`` in only at that moment.
+_LAZY_SUBMODULES = frozenset({"binding_mask"})
 
 __all__ = ["contract", "binding_mask"]
+
+
+def __getattr__(name):
+    """Lazily bind the declared-but-unimported submodules (PEP 562).
+
+    ``binding_mask`` is a declared public name that the root does not import
+    eagerly, because importing it pulls the FastMCP binding (``dagr_mcp`` /
+    ``fastmcp``) into memory and the neutral package must be importable without
+    the binding present. On first explicit access the real submodule is imported
+    and cached on the package, so later accesses never re-enter this hook. Every
+    other unknown attribute raises :class:`AttributeError` in the normal way.
+    """
+
+    if name in _LAZY_SUBMODULES:
+        # Import lazily. ``import_module`` binds the submodule as an attribute of
+        # this package (caching it in ``globals()``), so the next access resolves
+        # directly without re-entering ``__getattr__``; the explicit assignment
+        # makes that caching intent unmistakable.
+        import importlib
+
+        module = importlib.import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    """Expose the lazily-bound submodules alongside the real package globals.
+
+    Without this, a declared-but-not-yet-accessed ``binding_mask`` would be
+    absent from ``dir(dagr_mcp_lifecycle)`` until first access. Listing it keeps
+    the declared public surface (``__all__``) discoverable and consistent
+    regardless of whether the lazy submodule has been loaded yet.
+    """
+
+    return sorted(set(globals()) | _LAZY_SUBMODULES)

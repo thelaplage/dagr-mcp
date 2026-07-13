@@ -377,6 +377,15 @@ accidental class/function/constant exports). The whole surface is frozen against
 **disjoint** from the A1 `dagr_mcp` snapshot — so a reader can never mistake the
 neutral surface for A1 parity.
 
+The root's `__all__` names both submodules — `contract` **and** `binding_mask` —
+but the root imports only `contract` eagerly (§12.3). `binding_mask` is therefore
+a *declared-but-lazy* export: it is bound on first explicit access via the
+package's PEP 562 `__getattr__`/`__dir__`, and cached on the package thereafter.
+Because that binding happens lazily, the public-surface freeze is regenerated and
+checked **from a cold subprocess** that has not imported `binding_mask`
+beforehand — so a name reachable only because of an earlier import can never be
+mistaken for a genuine export (`tests/test_lifecycle_lazy_export.py`).
+
 ### 12.3 Import direction
 
 The neutral vocabulary must be usable without the binding present:
@@ -384,13 +393,18 @@ The neutral vocabulary must be usable without the binding present:
 - `dagr_mcp_lifecycle.contract` imports with **no** `dagr_mcp`, `fastmcp`,
   `arcs_verify`, `arcs_amnesiac`, or `garp_sdk` in `sys.modules`.
 - Importing the package **root** eagerly binds only the neutral `contract`
-  submodule; it does **not** pull the FastMCP binding into memory.
-- `dagr_mcp_lifecycle.binding_mask` **may** depend on `dagr_mcp` — the binding is
-  the oracle — and importing it does pull the binding in (a positive control
-  proves the direction test is not vacuous).
+  submodule; it does **not** pull the FastMCP binding into memory. `binding_mask`
+  is declared but not imported — a fresh `import dagr_mcp_lifecycle` leaves it out
+  of `sys.modules`, yet it stays discoverable via `dir()` and `__all__`.
+- The first explicit access — `dagr_mcp_lifecycle.binding_mask` (PEP 562
+  `__getattr__`) or `from dagr_mcp_lifecycle import binding_mask` — imports the
+  real submodule, caches it on the package, and pulls the binding in only then.
+  `dagr_mcp_lifecycle.binding_mask` **may** depend on `dagr_mcp` — the binding is
+  the oracle — and a positive control proves the direction test is not vacuous.
+  An unknown attribute on the root raises `AttributeError` in the normal way.
 
-All three are checked in fresh subprocess interpreters, because the test process
-has already imported the binding.
+These are checked in fresh subprocess interpreters, because the test process has
+already imported the binding.
 
 ### 12.4 Mapping totality
 
@@ -501,3 +515,22 @@ The hardening adds **19** focused tests
 snapshot, golden digests, and signing bytes are unchanged. The neutral package's
 own public surface is now frozen separately by
 `tests/golden/neutral_lifecycle/public_api_surface.json`.
+
+### Follow-up: lazy `binding_mask` export (2026-07-13)
+
+A later pass closed one remaining false-clean: the root declares `binding_mask`
+in `__all__` but does not import it, so the in-process public-surface test could
+pass only because an earlier `from dagr_mcp_lifecycle import binding_mask` had
+already bound the attribute — while a genuinely fresh
+`import dagr_mcp_lifecycle; dagr_mcp_lifecycle.binding_mask` had nothing to
+resolve. The root now provides a PEP 562 `__getattr__`/`__dir__` lazy export
+(§12.2–12.3); **7** cold-subprocess proofs are added
+(`tests/test_lifecycle_lazy_export.py`), lifting the focused neutral suite to
+`43 passed` and the co-installed suite to `313 passed`. `contract.py`, the
+lifecycle tokens, mask mappings, protocol stamps, A1 goldens, receipt behavior,
+and binding code are all unchanged. Re-verified: canonical ARCS `108 passed`,
+public-release scan `PASS: 0 finding(s)`, `python -m build` + `twine check`
+`PASSED` (wheel ships the updated `dagr_mcp_lifecycle/__init__.py`), and the
+clean-wheel smoke confirms `dagr_mcp_lifecycle.contract` still imports with no
+binding present while `dagr_mcp_lifecycle.binding_mask` loads lazily and verifies
+against the shipped binding.
