@@ -1,0 +1,174 @@
+{
+  "keyring": "issuer-keys.json",
+  "profile": "srs.mcp.sdk_enforcement.v0.1",
+  "receipts": [
+    {
+      "disposition": "admitted",
+      "expected_failure_codes": [],
+      "name": "admission-admitted",
+      "outcome": null,
+      "passed": true,
+      "path": "urn_srs_receipt_admission_freeze-admitted.json",
+      "receipt_id": "urn:srs:receipt:admission:freeze-admitted",
+      "receipt_kind": "admission",
+      "verdicts": {
+        "attestation_limits_present": true,
+        "chain_status": "not_applicable",
+        "envelope": true,
+        "issuer_key_resolved": true,
+        "issuer_key_trusted": true,
+        "profile": true,
+        "raw_content_exclusion": true,
+        "schema_digest": true,
+        "signature_valid": true
+      }
+    },
+    {
+      "disposition": "refused",
+      "expected_failure_codes": [],
+      "name": "admission-refused",
+      "outcome": null,
+      "passed": true,
+      "path": "urn_srs_receipt_admission_freeze-refused.json",
+      "receipt_id": "urn:srs:receipt:admission:freeze-refused",
+      "receipt_kind": "admission",
+      "verdicts": {
+        "attestation_limits_present": true,
+        "chain_status": "not_applicable",
+        "envelope": true,
+        "issuer_key_resolved": true,
+        "issuer_key_trusted": true,
+        "profile": true,
+        "raw_content_exclusion": true,
+        "schema_digest": true,
+        "signature_valid": true
+      }
+    },
+    {
+      "disposition": "deferred_for_review",
+      "expected_failure_codes": [],
+      "name": "admission-deferred",
+      "outcome": null,
+      "passed": true,
+      "path": "urn_srs_receipt_admission_freeze-deferred.json",
+      "receipt_id": "urn:srs:receipt:admission:freeze-deferred",
+      "receipt_kind": "admission",
+      "verdicts": {
+        "attestation_limits_present": true,
+        "chain_status": "not_applicable",
+        "envelope": true,
+        "issuer_key_resolved": true,
+        "issuer_key_trusted": true,
+        "profile": true,
+        "raw_content_exclusion": true,
+        "schema_digest": true,
+        "signature_valid": true
+      }
+    },
+    {
+      "disposition": null,
+      "expected_failure_codes": [],
+      "name": "outcome-result-returned",
+      "outcome": "result_returned",
+      "passed": true,
+      "path": "urn_srs_receipt_outcome_freeze-result-returned.json",
+      "receipt_id": "urn:srs:receipt:outcome:freeze-result-returned",
+      "receipt_kind": "outcome",
+      "verdicts": {
+        "attestation_limits_present": true,
+        "chain_status": "not_applicable",
+        "envelope": true,
+        "issuer_key_resolved": true,
+        "issuer_key_trusted": true,
+        "profile": true,
+        "raw_content_exclusion": true,
+        "schema_digest": true,
+        "signature_valid": true
+      }
+    },
+    {
+      "disposition": null,
+      "expected_failure_codes": [],
+      "name": "outcome-error-returned",
+      "outcome": "error_returned",
+      "passed": true,
+      "path": "urn_srs_receipt_outcome_freeze-error-returned.json",
+      "receipt_id": "urn:srs:receipt:outcome:freeze-error-returned",
+      "receipt_kind": "outcome",
+      "verdicts": {
+        "attestation_limits_present": true,
+        "chain_status": "not_applicable",
+        "envelope": true,
+        "issuer_key_resolved": true,
+        "issuer_key_trusted": true,
+        "profile": true,
+        "raw_content_exclusion": true,
+        "schema_digest": true,
+        "signature_valid": true
+      }
+    },
+    {
+      "disposition": null,
+      "expected_failure_codes": [],
+      "name": "outcome-exception",
+      "outcome": "exception",
+      "passed": true,
+      "path": "urn_srs_receipt_outcome_freeze-exception.json",
+      "receipt_id": "urn:srs:receipt:outcome:freeze-exception",
+      "receipt_kind": "outcome",
+      "verdicts": {
+        "attestation_limits_present": true,
+        "chain_status": "not_applicable",
+        "envelope": true,
+        "issuer_key_resolved": true,
+        "issuer_key_trusted": true,
+        "profile": true,
+        "raw_content_exclusion": true,
+        "schema_digest": true,
+        "signature_valid": true
+      }
+    },
+    {
+      "disposition": null,
+      "expected_failure_codes": [],
+      "name": "outcome-task-submitted",
+      "outcome": "task_submitted",
+      "passed": true,
+      "path": "urn_srs_receipt_outcome_freeze-task-submitted.json",
+      "receipt_id": "urn:srs:receipt:outcome:freeze-task-submitted",
+      "receipt_kind": "outcome",
+      "verdicts": {
+        "attestation_limits_present": true,
+        "chain_status": "not_applicable",
+        "envelope": true,
+        "issuer_key_resolved": true,
+        "issuer_key_trusted": true,
+        "profile": true,
+        "raw_content_exclusion": true,
+        "schema_digest": true,
+        "signature_valid": true
+      }
+    },
+    {
+      "disposition": null,
+      "expected_failure_codes": [],
+      "name": "outcome-indeterminate",
+      "outcome": "indeterminate",
+      "passed": true,
+      "path": "urn_srs_receipt_outcome_freeze-indeterminate.json",
+      "receipt_id": "urn:srs:receipt:outcome:freeze-indeterminate",
+      "receipt_kind": "outcome",
+      "verdicts": {
+        "attestation_limits_present": true,
+        "chain_status": "not_applicable",
+        "envelope": true,
+        "issuer_key_resolved": true,
+        "issuer_key_trusted": true,
+        "profile": true,
+        "raw_content_exclusion": true,
+        "schema_digest": true,
+        "signature_valid": true
+      }
+    }
+  ]
+}

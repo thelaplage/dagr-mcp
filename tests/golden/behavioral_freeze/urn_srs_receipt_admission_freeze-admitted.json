@@ -1,0 +1,48 @@
+{
+  "actor_ref": "actor:freeze:1",
+  "argument_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "artifact_classes_covered": [
+    "tool_call_admission"
+  ],
+  "artifact_classes_excluded": [
+    "raw_prompt",
+    "raw_output",
+    "raw_tool_arguments",
+    "raw_tool_result"
+  ],
+  "attestation_limits": [
+    "The receipt attests only to governance conditions at the named admission boundary.",
+    "The middleware is installed once at the institutional trust boundary; receipts attest only to observations at that boundary."
+  ],
+  "boundary_id": "boundary:freeze:1",
+  "boundary_type": "mcp_tool_call",
+  "disposition": "admitted",
+  "extensions": {
+    "mcp": {
+      "binding_version": "fastmcp.middleware.v0.1"
+    }
+  },
+  "issued_at": "2026-07-13T00:00:00Z",
+  "issuer_id": "issuer:dagr:behavioral-freeze",
+  "logical_call_id": "call:freeze:admitted",
+  "policy_pack_id": "policy:freeze",
+  "policy_pack_version": "1",
+  "profile_id": "srs.mcp.sdk_enforcement",
+  "profile_version": "v0.1",
+  "protocol_binding": "mcp",
+  "receipt_id": "urn:srs:receipt:admission:freeze-admitted",
+  "receipt_kind": "admission",
+  "receipt_signature": {
+    "algorithm": "Ed25519",
+    "canonicalization": "RFC8785-JCS",
+    "key_id": "issuer.dagr.behavioral-freeze/receipt-signing/v1",
+    "signature": "_-vZj2ihYoUmyrNYHG_4LzRWmkpdH1h7pmgspQJY03p_B7dQLcjlBr5FQTLzV0pbxBmR-hQeuS1lu4mn2iD5Cw"
+  },
+  "receipt_type": "sdk_enforcement",
+  "receipt_version": "srs.core.v5.1",
+  "requested_tool_name": "records.lookup",
+  "retention_class_applied": "hash_only",
+  "runtime_instance_id": "runtime:freeze:1",
+  "subject_ref": "subject:freeze:1",
+  "tool_resolution_status": "not_observed"
+}
