@@ -88,6 +88,35 @@
       "RECEIPT_CARDINALITY",
       "RECEIPT_REFERENCE_EDGES",
       "RESULT_DIGEST_OUTCOMES"
+    ],
+    "dagr_mcp_lifecycle.core": [
+      "core_outcome_status",
+      "plan_admission",
+      "plan_lifecycle",
+      "plan_lifecycle_strict",
+      "plan_outcome",
+      "plan_outcome_strict"
+    ],
+    "dagr_mcp_lifecycle.models": [
+      "ADAPTER_RESPONSIBILITIES",
+      "ADMISSION_BEFORE_EXECUTION_REQUIRED",
+      "AdapterResponsibility",
+      "AdmissionPlan",
+      "AdmissionRecordIntent",
+      "AdmissionRequest",
+      "CORE_ID",
+      "CORE_VERSION",
+      "ExecutionObservation",
+      "GOVERNED_TOOL_CLASSES",
+      "GovernedToolClass",
+      "LifecyclePlan",
+      "OutcomePlan",
+      "OutcomeRecordIntent",
+      "SUBSUMED_OUTCOMES",
+      "TIMEOUT_EXCEPTION_CLASS",
+      "UNSUPPORTED_OUTCOMES",
+      "UnsupportedLifecycleEvent",
+      "UnsupportedLifecycleResult"
     ]
   },
   "package_public_names": [
