@@ -205,22 +205,6 @@ SMUGGLED_RAW_RESULT = (
 
 
 @requires_arcs
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CROSS-REPO SAFETY REQUIREMENT (red evidence preserved): a properly "
-        "re-signed receipt that carries raw tool-result material under the "
-        "Boolean governance field `delivery_incomplete` currently PASSES the "
-        "ARCS verifier. The DAGR emitter refuses non-Booleans on this field, so "
-        "the field is safe at DAGR's own boundary, but ARCS performs no Boolean "
-        "type guard on governance/cancellation fields and the neutral name is "
-        "(correctly) not result-shaped, so RAW_KEY_RE does not fire and the "
-        "value is not a secret pattern. An arcs-verify Boolean type guard on the "
-        "cancellation/governance Booleans is required to close this. When that "
-        "guard lands this test will XPASS and strict=True will flip it red, "
-        "signalling that the xfail marker must be removed."
-    ),
-)
 def test_resigned_raw_material_on_neutral_field_must_be_rejected_by_arcs(tmp_path):
     """Adversarial, full re-sign: the malicious receipt is cryptographically valid.
 
