@@ -177,18 +177,95 @@ def test_raw_content_cannot_ride_the_neutral_field_at_emit_time(tmp_path, smuggl
 
 
 @requires_arcs
-def test_tampering_raw_content_onto_neutral_field_breaks_the_receipt(tmp_path):
-    # The neutral name is deliberately *not* result-shaped, so ARCS would not
-    # flag a raw string under it by key alone. That is not a hole: raw content
-    # can never be emitted under the field (the emitter refuses non-Booleans,
-    # see above), and any post-signing tamper that injects content invalidates
-    # the signature. Prove the tampered receipt is rejected as a whole.
+def test_naive_tamper_raw_content_onto_neutral_field_breaks_the_signature(tmp_path):
+    # WEAK CASE (kept for completeness): a *naive* post-signing tamper that does
+    # not re-sign is caught by the Ed25519 signature alone. This proves the
+    # signature covers the field, but it does NOT prove the raw-content posture:
+    # the rejection here is only ``signature_valid is False``. The adversarial
+    # re-signing case below is the real requirement.
     identity, receipt = _emit_delivery_receipt(tmp_path)
     injected = copy.deepcopy(receipt)
     injected[NEUTRAL_FIELD] = "BEGIN transcript: the tool returned raw rows"
     report = _arcs_report(injected, identity)
     assert report["signature_valid"] is False, report
     assert report["passed"] is False, report
+
+
+# Raw tool-result material an attacker would try to smuggle under the neutral
+# governance Boolean. Deliberately NOT a credential/secret pattern (those are
+# caught by PROHIBITED_VALUE_RE) — this is ordinary leaked result content, which
+# is exactly what the raw-content-exclusion posture must exclude regardless of
+# the field name it hides behind.
+SMUGGLED_RAW_RESULT = (
+    "BEGIN tool transcript\n"
+    "row 1: customer alice@example.com balance 4210.55\n"
+    "row 2: internal note — do not disclose to caller\n"
+    "END transcript"
+)
+
+
+@requires_arcs
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CROSS-REPO SAFETY REQUIREMENT (red evidence preserved): a properly "
+        "re-signed receipt that carries raw tool-result material under the "
+        "Boolean governance field `delivery_incomplete` currently PASSES the "
+        "ARCS verifier. The DAGR emitter refuses non-Booleans on this field, so "
+        "the field is safe at DAGR's own boundary, but ARCS performs no Boolean "
+        "type guard on governance/cancellation fields and the neutral name is "
+        "(correctly) not result-shaped, so RAW_KEY_RE does not fire and the "
+        "value is not a secret pattern. An arcs-verify Boolean type guard on the "
+        "cancellation/governance Booleans is required to close this. When that "
+        "guard lands this test will XPASS and strict=True will flip it red, "
+        "signalling that the xfail marker must be removed."
+    ),
+)
+def test_resigned_raw_material_on_neutral_field_must_be_rejected_by_arcs(tmp_path):
+    """Adversarial, full re-sign: the malicious receipt is cryptographically valid.
+
+    Steps (mirrors the required threat model exactly):
+
+    1. emit an otherwise-valid indeterminate delivery receipt;
+    2. replace the `delivery_incomplete` Boolean with raw tool-result material;
+    3. recompute canonical bytes (``sign_envelope`` re-runs RFC 8785 JCS);
+    4. re-sign with the *same* test issuer key so the signature is genuinely valid;
+    5. run the complete ARCS verifier against the issuer trust bundle;
+    6. require rejection for a raw-content / profile / extension-type reason —
+       NOT merely signature invalidity.
+
+    The required behavior is asserted directly. It currently fails (ARCS admits
+    the receipt), so the test is a strict xfail: the red evidence is preserved
+    and the requirement is committed as an executable cross-repo contract.
+    """
+
+    identity, receipt = _emit_delivery_receipt(tmp_path)
+
+    # (2) swap the Boolean fact for raw result content.
+    forged = copy.deepcopy(receipt)
+    forged[NEUTRAL_FIELD] = SMUGGLED_RAW_RESULT
+    forged.pop("receipt_signature", None)
+
+    # (3)+(4) recompute canonical bytes and re-sign with the real issuer key.
+    resigned = identity.sign_envelope(forged)
+    assert resigned[NEUTRAL_FIELD] == SMUGGLED_RAW_RESULT
+
+    # (5) full verifier run.
+    report = _arcs_report(resigned, identity)
+
+    # (6) This is a *genuine* re-sign: the signature must be valid, so any
+    # rejection is necessarily a content/profile/type rejection, not signature
+    # invalidity. That is the whole point of the threat model.
+    assert report["signature_valid"] is True, report
+
+    # REQUIRED: ARCS must not admit raw tool-result material carried under a
+    # Boolean governance field. This is the assertion that currently fails.
+    assert report["passed"] is False, report
+    assert (
+        report["raw_content_exclusion"] is False
+        or report["profile"] is False
+        or report["envelope"] is False
+    ), report
 
 
 # --------------------------------------------------------------------------- #
