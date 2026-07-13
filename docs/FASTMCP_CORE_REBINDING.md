@@ -39,6 +39,19 @@ classification. After A4 those decisions are made by the neutral core, and the
 adapter only converts inputs into neutral models and projects the returned plan
 back into the existing emitter calls.
 
+The rebinding covers **every** live outcome family. Admission and the
+result / error / task-submitted outcomes route through the core; the cancellation
+and raised-exception outcomes — which an earlier A4 revision still emitted from
+independent inline decisions — now also invoke `plan_outcome_strict`, so the core
+is the sole runtime authority for the neutral outcome family, whether a result
+digest is carried, the cancellation governance facts, and the timeout→exception
+subsumption. The A1-frozen inline literals survive only as **checked projection
+invariants** that fail closed against the core plan (see below). Two further
+correctness points are addressed: the adapter routes a raised `TimeoutError`
+through the core's timeout path rather than describing the subsumption only in a
+test, and an opaque `BindingPolicy.reason_code` outside the core's closed
+vocabulary is preserved verbatim instead of crashing the closed core (§7).
+
 ## Core-owned decisions
 
 The core (`plan_admission`, `plan_outcome_strict`) is now the single authority for
@@ -52,12 +65,13 @@ every lifecycle decision it implements:
 | Deferral whose review object failed → refusal on `review_object_creation_failed` | `plan_admission` with `review_object_created=False` (never `required_sink_unavailable`; §17 residual preserved) |
 | Refusal ground carried verbatim (incl. `required_sink_unavailable`) | `AdmissionRecordIntent.reason_code` |
 | Deferral continuation contract (`retry_after_approval`) | `AdmissionRecordIntent.retry_contract` |
-| Outcome record family (result / error / exception / task_submitted / cancellation) | `plan_outcome_strict → OutcomeRecordIntent.outcome` |
+| Outcome record family for **every** live outcome — result / error / task_submitted **and** exception / cancellation | `plan_outcome_strict → OutcomeRecordIntent.outcome` |
 | Result-digest presence per outcome | `OutcomeRecordIntent.carries_result_digest` |
 | Cancellation governance-fact posture (all three, `True`, indeterminate-only) | `OutcomeRecordIntent.governance_facts` |
-| Timeout → exception subsumption (`exception_class="TimeoutError"`) | `SUBSUMED_OUTCOMES`, exercised by the differential harness (see below) |
+| Timeout → exception subsumption (`exception_class="TimeoutError"`) on the **live** path | adapter identifies the raised `TimeoutError` and hands the core `ExecutionObservation("timeout")`; `SUBSUMED_OUTCOMES` records it onto the exception family |
 | Receipt cardinality (admitted → 2, refused/deferred → 1) | `plan_admission` + `plan_outcome_strict` record existence |
-| `input_required` is unsupported, never coerced | `plan_outcome_strict` raises `UnsupportedLifecycleEvent` |
+| The refusal **decision** for every disposition (opaque reason codes stay adapter-owned, §7 below) | `plan_admission → AdmissionPlan.resolved_disposition` / `execution_proceeds` |
+| `input_required` is unsupported, never coerced — including via the exception/cancellation fallback | `plan_outcome_strict` raises `UnsupportedLifecycleEvent` |
 
 The neutral→binding token projection is owned by the A2 **mask**
 (`project_disposition`, `project_outcome`, `project_cancellation_fact`), which is
@@ -108,12 +122,20 @@ observation produces is the core's.
 6. If `admission_plan.admission_recorded`: `_emit_admission(disposition="admitted")`
    captures `admission_receipt_ref`; on emit failure the adapter's fail-open /
    fail-closed policy applies (unchanged).
-7. `result = await call_next(context)`.
-   - `asyncio.CancelledError` → inline **A1-frozen** emit
-     `outcome="indeterminate"` with the three `True` governance Booleans; re-raise.
-   - other `Exception` → inline **A1-frozen** emit `outcome="exception"`,
-     `exception_class=type(exc).__name__`; re-raise. (A raised `TimeoutError` is an
-     ordinary inner exception here — see below.)
+7. `result = await call_next(context)`. Both interruption branches now route
+   through the core via `_project_core_outcome`, which invokes
+   `plan_outcome_strict(admission_plan, observation)` and makes the returned record
+   the runtime authority (outcome family, digest presence, governance facts):
+   - `asyncio.CancelledError` → `_project_core_outcome(...,
+     ExecutionObservation("cancellation"), frozen_outcome="indeterminate",
+     frozen_binding_owned_fields={the three `True` Booleans})`; re-raise.
+   - other `Exception` → the adapter inspects the raised object, derives
+     `exception_class=type(exc).__name__`, and identifies a `TimeoutError`
+     (`isinstance(exc, TimeoutError)`), building `ExecutionObservation("timeout")`
+     for a timeout — routing it through the core's timeout→exception subsumption —
+     or `ExecutionObservation("exception", exception_class=…)` otherwise, then
+     `_project_core_outcome(..., frozen_outcome="exception",
+     exception_class=type(exc).__name__)`; re-raise.
 8. `result` branch: `CreateTaskResult` → `_emit_planned_outcome(...,
    ExecutionObservation("task_submitted"))`; otherwise project the FastMCP result,
    compute the digest, classify `ExecutionObservation("error" | "result")`, and
@@ -121,18 +143,40 @@ observation produces is the core's.
    `plan_outcome_strict` and projects `record.outcome` → binding token via the
    mask, supplying the digest only when `record.carries_result_digest`.
 
-### Why the cancellation/exception emits remain inline
+### The cancellation/exception literals are checked projection invariants
 
 A1 freezes the cancellation/exception mapping by **source inspection**
 (`test_freeze_binding_maps_cancellation_to_indeterminate_with_governance_fields`
 asserts `outcome="indeterminate"`, the three governance Booleans,
 `outcome="exception"`, and `exception_class=type(exc).__name__` appear literally
-in `on_call_tool`). Those two emits therefore keep their frozen inline
-binding-projection literals. They are proved byte-equal to what the core plans and
-the mask projects by `test_frozen_cancellation_literals_equal_the_core_projection`
-and `test_frozen_exception_literal_equals_the_core_projection`, so the two
-spellings of the same fact cannot drift apart. This is a frozen A1 residual and is
-**not** repaired, renamed, or reinterpreted in this sprint.
+in `on_call_tool`). Those literals therefore remain spelled inline — but they are
+no longer a **second decision authority**. They are passed into
+`_project_core_outcome` as the `frozen_outcome` / `frozen_binding_owned_fields`
+the emit is *expected* to produce, and the helper:
+
+1. invokes `plan_outcome_strict` so the **core** decides the neutral outcome
+   family, whether a result digest is carried, and the cancellation governance
+   facts (and subsumes a `timeout` observation onto the exception family);
+2. projects the core record through the A2 mask (`project_outcome`,
+   `project_cancellation_fact`);
+3. verifies the projection equals the frozen inline literal — outcome token, the
+   `carries_result_digest is False` invariant, and the governance-fact dict — and
+   **fails closed** (raises a deterministic `ToolError`, *before* any emit) on any
+   mismatch;
+4. emits the core-derived projection, not the literal.
+
+So the frozen literal survives A1 source inspection as a *checked invariant*, the
+core is the runtime authority, and the two spellings of the same fact can never
+diverge without a fail-closed error. This is proved by
+`test_frozen_cancellation_literals_equal_the_core_projection`,
+`test_frozen_exception_literal_equals_the_core_projection`, the production-path
+invocation tests (`test_cancellation_actually_invokes_plan_outcome_strict`,
+`test_ordinary_exception_actually_invokes_plan_outcome_strict`,
+`test_raised_timeout_actually_invokes_the_core_timeout_exception_path`,
+`test_cancellation_governance_facts_are_obtained_from_the_core_record`), and the
+fail-closed tests
+(`test_divergent_core_outcome_family_fails_closed_before_any_receipt`,
+`test_divergent_core_governance_facts_fail_closed_before_any_receipt`).
 
 ## Explicitly unsupported lifecycle state
 
@@ -140,19 +184,57 @@ spellings of the same fact cannot drift apart. This is a frozen A1 residual and 
 explicitly unsupported. The binding has no elicitation / continuation branch, the
 mask classifies it `unsupported`, and `plan_outcome_strict` raises
 `UnsupportedLifecycleEvent` rather than coercing it into a supported outcome. The
-production adapter never mints an `input_required` observation.
+production cancellation/exception branches only ever construct `cancellation`,
+`timeout`, or `exception` observations, so an `input_required` can never arise
+there; `test_input_required_cannot_enter_the_outcome_fallback` proves the property
+from the other side — handed an `input_required` observation, `_project_core_outcome`
+fails closed via `plan_outcome_strict` before any emit, so it cannot be coerced
+into a supported cancellation/exception outcome.
 
-## Timeout posture (unchanged)
+## Timeout posture (observable unchanged; now core-authoritative on the live path)
 
-The production adapter does **not** distinctly observe a timeout: a raised
-`TimeoutError` flows through the generic `except Exception` branch and is recorded
+The observable is exactly what A1 §14 freezes: a raised `TimeoutError` is recorded
 as `outcome="exception"` with `exception_class="TimeoutError"` and no
-`result_digest` — exactly as A1 §14 freezes it, and exactly as the mask marks
-`timeout` *subsumed*. The core's `timeout → exception` subsumption is the neutral
-statement of the same fact; it is exercised by
-`test_core_timeout_subsumption_projects_to_the_same_exception_token`, which proves
-the subsumed family projects to the same binding token (`exception`) and exception
-class. No production path mints a neutral `timeout` token.
+`result_digest`. What changed in this hardening is *who decides it on the live
+path*. The adapter now **identifies** the `TimeoutError` (adapter responsibility,
+§4) and hands the core `ExecutionObservation("timeout")`; the core subsumes it onto
+the exception family (`SUBSUMED_OUTCOMES`), which the mask projects to the binding
+token `exception`. The adapter-owned `exception_class` (`type(exc).__name__`) is
+`TimeoutError` for a genuine `TimeoutError`, so the emitted receipt is byte-for-byte
+what the frozen generic-exception path produced — and because both the
+timeout-subsumed and the direct-exception observations land on the same
+`exception` family with no digest, an ordinary (non-timeout) exception is
+observably identical either way. `test_raised_timeout_actually_invokes_the_core_timeout_exception_path`
+proves the live path passes the `timeout` observation to the core and still emits
+the frozen shape; `test_core_timeout_subsumption_projects_to_the_same_exception_token`
+proves the neutral subsumption lands on the same binding token and class.
+
+## Refusal decision vs. reason code (§7)
+
+`BindingPolicy.reason_code` is an arbitrary `str | None`, and a policy provider
+may return an **opaque** code outside the core's closed neutral
+`NEUTRAL_REFUSAL_GROUNDS` vocabulary (`policy_refused`,
+`unknown_tool_fail_closed`, `required_sink_unavailable`,
+`review_object_creation_failed`). The core is authoritative only for the refusal
+**decision** — that the call is refused, produces a single terminal admission
+record, and does not proceed — not for the opaque reason string. The adapter
+therefore:
+
+- maps the binding reason code onto a **closed** neutral ground for the core
+  (`_neutral_refusal_ground`: a known ground passes through verbatim; an opaque
+  code or `None` resolves to `policy_refused`), so the core never sees a token
+  outside its vocabulary and never raises on production input; and
+- stamps the **verbatim** binding reason code on the emitted receipt
+  (`_binding_refusal_reason_code`, defaulting to `policy_refused`), preserving the
+  pre-core behavior exactly rather than silently narrowing an opaque code to the
+  neutral ground.
+
+A deferral that the core resolves to a refusal (its review object failed to
+create) still emits the core's governance ground `review_object_creation_failed`
+unchanged — never `required_sink_unavailable` (§17). This is proved by
+`test_opaque_reason_code_maps_to_a_closed_ground_but_emits_verbatim` and
+`test_opaque_binding_reason_code_survives_to_the_receipt`, and the in-vocabulary
+goldens are unaffected (for a known code the two projections coincide).
 
 ## Differential harness (test-only)
 
@@ -178,6 +260,29 @@ Additional proofs in the same file:
 - `test_core_still_imports_no_fastmcp_or_binding_package` — importing the core in a
   clean process pulls in no `dagr_mcp` / `fastmcp` / `mcp` root.
 
+The differential oracle proves *equivalence*; it is not, on its own, proof that the
+live cancellation/exception path *invokes* the core. The production-path tests
+supply that proof directly by spying on the live `plan_outcome_strict`, forcing a
+divergent core plan, and exercising the reason-code projection:
+
+- `test_cancellation_actually_invokes_plan_outcome_strict` /
+  `test_ordinary_exception_actually_invokes_plan_outcome_strict` /
+  `test_raised_timeout_actually_invokes_the_core_timeout_exception_path` — the live
+  cancellation, exception, and timeout paths each call `plan_outcome_strict` with
+  the expected neutral observation (`cancellation` / `exception` / `timeout`).
+- `test_cancellation_governance_facts_are_obtained_from_the_core_record` — the
+  emitted cancellation Booleans equal the core record projected through the mask.
+- `test_divergent_core_outcome_family_fails_closed_before_any_receipt` /
+  `test_divergent_core_governance_facts_fail_closed_before_any_receipt` — a
+  monkeypatched divergent core plan raises a deterministic projection error and no
+  contradictory outcome receipt is written (only the admission record exists).
+- `test_input_required_cannot_enter_the_outcome_fallback` — the fallback helper
+  fails closed on an `input_required` observation instead of coercing it.
+- `test_opaque_reason_code_maps_to_a_closed_ground_but_emits_verbatim` /
+  `test_opaque_binding_reason_code_survives_to_the_receipt` — an opaque
+  out-of-vocabulary reason code is emitted verbatim while the core still decides
+  the refusal (§7).
+
 ## Parity verification results
 
 Run 2026-07-13 against branch `feat/fastmcp-core-rebinding-v0-1` (base `64f3922`).
@@ -186,18 +291,18 @@ Environment: Python 3.13, FastMCP 3.4.4, rfc8785 0.1.4; co-installed lane adds
 
 | Check | Result |
 |-------|--------|
-| Standalone DAGR full suite | **394 passed, 18 skipped** |
-| Co-installed DAGR full suite | **434 passed** |
+| Standalone DAGR full suite | **403 passed, 18 skipped** |
+| Co-installed DAGR full suite | **443 passed** |
 | A1 behavioral-freeze suite | **40 passed** (co-installed); **37 passed, 3 skipped** (standalone) |
-| A2 contract / mask / hardening / lazy-export suites | **43 passed** |
+| A2 contract / mask / hardening / lazy-export suites | **43 passed** (both lanes) |
 | A3 neutral-core suite | **97 passed** (both lanes) |
-| A4 rebinding suite (`test_fastmcp_core_rebinding.py`) | **24 passed** |
+| A4 rebinding suite (`test_fastmcp_core_rebinding.py`) | **33 passed** (both lanes) — 24 prior + 9 new production-path / fail-closed / §7 tests |
 | Canonical ARCS suite (`arcs-verify @ da89ebe`, unmodified) | **108 passed** |
 | Fixture regeneration check (`tools/generate_fastmcp_fixtures.py --check`) | **PASS — committed FastMCP fixtures match fresh 3.4.4 generation** (fixtures unmodified) |
 | Public-release scan (`tools/check_public_release.py .`) | **PASS: 0 finding(s)** |
 | Package build (`python -m build --sdist --wheel`) | **Successfully built `dagr_mcp-0.1.0.tar.gz` and `dagr_mcp-0.1.0-py3-none-any.whl`** |
 | `twine check` | **PASSED** (wheel + sdist) |
-| Clean-wheel FastMCP execution smoke | **OK** — end-to-end `tools/call` through the installed wheel emits the `admitted` + `result_returned` signed pair, outcome references admission, `binding_version="fastmcp.middleware.v0.1"`; `fastmcp_binding.plan_admission is dagr_mcp_lifecycle.core.plan_admission` |
+| Clean-wheel FastMCP execution smoke | **OK** — end-to-end `tools/call` through the installed wheel (run outside the source tree) emits both the `admitted` + `result_returned` pair (result-digest present) **and** the rebound exception outcome for a raised `TimeoutError` (`admitted` + `exception`, `exception_class="TimeoutError"`, no `result_digest`); each outcome references its admission, `binding_version="fastmcp.middleware.v0.1"`; `fastmcp_binding.plan_admission is dagr_mcp_lifecycle.core.plan_admission` and likewise for `plan_outcome_strict` |
 
 The A1 goldens (signed receipts, custody projections, public-API snapshot) are
 byte-identical: the freeze suite regenerates and compares them and passes in both

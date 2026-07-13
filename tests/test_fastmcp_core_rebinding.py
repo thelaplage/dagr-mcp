@@ -40,6 +40,8 @@ from dagr_mcp_lifecycle.core import plan_admission, plan_outcome_strict
 from dagr_mcp_lifecycle.models import (
     AdmissionRequest,
     ExecutionObservation,
+    OutcomePlan,
+    OutcomeRecordIntent,
     UnsupportedLifecycleEvent,
 )
 
@@ -466,3 +468,355 @@ def test_core_still_imports_no_fastmcp_or_binding_package():
     )
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "clean"
+
+
+# --------------------------------------------------------------------------- #
+# 7. The cancellation / exception paths INVOKE the core on the live path       #
+# --------------------------------------------------------------------------- #
+# The differential tests above prove the frozen inline literals *equal* the core
+# projection. These tests go further: they prove the production cancellation and
+# raised-exception paths actually *call* plan_outcome_strict with the right
+# neutral observation, so the core — not an independent inline decision — is the
+# runtime authority for those outcome families too.
+
+
+def _outcome_observation_spy(monkeypatch):
+    """Record every ExecutionObservation the live path hands plan_outcome_strict."""
+
+    seen: list[ExecutionObservation] = []
+    real = fastmcp_binding.plan_outcome_strict
+
+    def spy(plan, observation):
+        seen.append(observation)
+        return real(plan, observation)
+
+    monkeypatch.setattr(fastmcp_binding, "plan_outcome_strict", spy)
+    return seen
+
+
+async def test_cancellation_actually_invokes_plan_outcome_strict(
+    monkeypatch, tmp_path: Path
+):
+    """asyncio.CancelledError routes through plan_outcome_strict('cancellation')."""
+
+    seen = _outcome_observation_spy(monkeypatch)
+    middleware, _identity, directory = build_binding(
+        tmp_path, tool_classes={"t.write": "write"}
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await call_direct(middleware, "t.write", asyncio.CancelledError())
+
+    assert [o.observation for o in seen] == ["cancellation"]
+    _admission, outcome = split_pair(read_receipts(directory))
+    assert outcome["outcome"] == "indeterminate"
+
+
+async def test_ordinary_exception_actually_invokes_plan_outcome_strict(
+    monkeypatch, tmp_path: Path
+):
+    """A raised ValueError routes through plan_outcome_strict('exception')."""
+
+    seen = _outcome_observation_spy(monkeypatch)
+    middleware, _identity, directory = build_binding(
+        tmp_path, tool_classes={"t.write": "write"}
+    )
+
+    with pytest.raises(ValueError):
+        await call_direct(middleware, "t.write", ValueError("boom"))
+
+    assert len(seen) == 1
+    assert seen[0].observation == "exception"
+    assert seen[0].exception_class == "ValueError"
+    _admission, outcome = split_pair(read_receipts(directory))
+    assert outcome["outcome"] == "exception"
+    assert outcome["extensions"]["mcp"]["exception_class"] == "ValueError"
+    assert "result_digest" not in outcome
+
+
+async def test_raised_timeout_actually_invokes_the_core_timeout_exception_path(
+    monkeypatch, tmp_path: Path
+):
+    """A raised TimeoutError routes through the core's timeout→exception path.
+
+    The adapter *identifies* the TimeoutError and hands the core a neutral
+    ``timeout`` observation; the core subsumes it onto the exception family with
+    ``exception_class='TimeoutError'``. The observable stays exactly the frozen §14
+    shape (outcome ``exception``, class ``TimeoutError``, no ``result_digest``).
+    """
+
+    seen = _outcome_observation_spy(monkeypatch)
+    middleware, _identity, directory = build_binding(
+        tmp_path, tool_classes={"t.write": "write"}
+    )
+
+    with pytest.raises(TimeoutError):
+        await call_direct(middleware, "t.write", TimeoutError("slow"))
+
+    assert len(seen) == 1
+    assert seen[0].observation == "timeout"  # the core timeout path, not "exception"
+    _admission, outcome = split_pair(read_receipts(directory))
+    assert outcome["outcome"] == "exception"
+    assert outcome["extensions"]["mcp"]["exception_class"] == "TimeoutError"
+    assert "result_digest" not in outcome
+
+
+async def test_cancellation_governance_facts_are_obtained_from_the_core_record(
+    tmp_path: Path,
+):
+    """The emitted cancellation Booleans equal the core record projected via the mask."""
+
+    middleware, _identity, directory = build_binding(
+        tmp_path, tool_classes={"t.write": "write"}
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await call_direct(middleware, "t.write", asyncio.CancelledError())
+
+    _admission, outcome = split_pair(read_receipts(directory))
+
+    # Independently derive what the core record projects and compare field-by-field.
+    admitted = plan_admission(AdmissionRequest("admitted", tool_class="write"))
+    record = plan_outcome_strict(admitted, ExecutionObservation("cancellation")).record
+    assert record is not None
+    expected = {
+        binding_mask.project_cancellation_fact(fact): record.governance_facts_value
+        for fact in record.governance_facts
+    }
+    assert expected == {
+        "request_cancelled": True,
+        "execution_state_unknown": True,
+        "delivery_incomplete": True,
+    }
+    for field, value in expected.items():
+        assert outcome[field] is value
+    assert outcome["outcome"] == "indeterminate"
+
+
+# --------------------------------------------------------------------------- #
+# 8. Fail-closed projection: a divergent core plan never emits a receipt        #
+# --------------------------------------------------------------------------- #
+
+
+def _divergent_result_plan(_plan, _observation) -> OutcomePlan:
+    """A core plan whose family projects to ``result_returned`` — deliberately wrong."""
+
+    return OutcomePlan(
+        observation="result",
+        record=OutcomeRecordIntent(
+            outcome="result",
+            subsumed_from=None,
+            exception_class=None,
+            carries_result_digest=True,
+            references_admission=True,
+            governance_facts=(),
+            governance_facts_value=True,
+            attestation_limit_families=("base", "result", "boundary"),
+            adapter_responsibilities=(),
+        ),
+    )
+
+
+def _divergent_cancellation_missing_facts(_plan, _observation) -> OutcomePlan:
+    """A cancellation plan that projects to ``indeterminate`` but drops its facts."""
+
+    return OutcomePlan(
+        observation="cancellation",
+        record=OutcomeRecordIntent(
+            outcome="cancellation",
+            subsumed_from=None,
+            exception_class=None,
+            carries_result_digest=False,
+            references_admission=True,
+            governance_facts=(),  # the three governance Booleans are missing
+            governance_facts_value=True,
+            attestation_limit_families=("base", "boundary"),
+            adapter_responsibilities=(),
+        ),
+    )
+
+
+async def test_divergent_core_outcome_family_fails_closed_before_any_receipt(
+    monkeypatch, tmp_path: Path
+):
+    """A core outcome that projects off the frozen exception literal fails closed."""
+
+    monkeypatch.setattr(fastmcp_binding, "plan_outcome_strict", _divergent_result_plan)
+    middleware, _identity, directory = build_binding(
+        tmp_path, tool_classes={"t.write": "write"}
+    )
+
+    with pytest.raises(ToolError, match="diverged from the frozen binding literal"):
+        await call_direct(middleware, "t.write", ValueError("boom"))
+
+    # Only the admission receipt exists — no contradictory outcome receipt.
+    receipts = read_receipts(directory)
+    assert [r["receipt_kind"] for r in receipts] == ["admission"]
+
+
+async def test_divergent_core_governance_facts_fail_closed_before_any_receipt(
+    monkeypatch, tmp_path: Path
+):
+    """A cancellation core record missing its governance facts fails closed."""
+
+    monkeypatch.setattr(
+        fastmcp_binding, "plan_outcome_strict", _divergent_cancellation_missing_facts
+    )
+    middleware, _identity, directory = build_binding(
+        tmp_path, tool_classes={"t.write": "write"}
+    )
+
+    with pytest.raises(ToolError, match="governance facts diverged"):
+        await call_direct(middleware, "t.write", asyncio.CancelledError())
+
+    receipts = read_receipts(directory)
+    assert [r["receipt_kind"] for r in receipts] == ["admission"]
+
+
+# --------------------------------------------------------------------------- #
+# 9. input_required can never enter the exception / cancellation fallback       #
+# --------------------------------------------------------------------------- #
+
+
+async def test_input_required_cannot_enter_the_outcome_fallback(tmp_path: Path):
+    """Handed to the live fallback helper, an input_required event fails closed.
+
+    The production cancellation/exception branches only ever construct
+    ``cancellation`` / ``timeout`` / ``exception`` observations, so an
+    ``input_required`` never arises there. This proves the safety property from the
+    other side: even if the fallback helper is invoked with the unsupported event,
+    ``plan_outcome_strict`` raises ``UnsupportedLifecycleEvent`` *before* any emit,
+    so it cannot be coerced into a supported cancellation/exception outcome.
+    """
+
+    middleware, _identity, directory = build_binding(
+        tmp_path, tool_classes={"t.write": "write"}
+    )
+
+    # Capture a real admission plan / context / receipt ref from an admitted call.
+    captured: dict[str, object] = {}
+    real_emit_planned = middleware._emit_planned_outcome
+
+    def capture(admission_plan, receipt_context, snapshot, admission_receipt_ref, *a, **k):
+        captured.update(
+            plan=admission_plan,
+            ctx=receipt_context,
+            snap=snapshot,
+            ref=admission_receipt_ref,
+        )
+        return real_emit_planned(
+            admission_plan, receipt_context, snapshot, admission_receipt_ref, *a, **k
+        )
+
+    middleware._emit_planned_outcome = capture  # type: ignore[assignment]
+    await call_direct(middleware, "t.write", ToolResult(content="ok"))
+    before = len(read_receipts(directory))
+
+    for mode in contract.INPUT_REQUIRED_MODES:
+        with pytest.raises(UnsupportedLifecycleEvent):
+            middleware._project_core_outcome(
+                captured["plan"],
+                ExecutionObservation("input_required", input_required_mode=mode),
+                captured["ctx"],
+                captured["snap"],
+                captured["ref"],
+                frozen_outcome="exception",
+                exception_class="ValueError",
+            )
+
+    # The refused fallback emitted nothing.
+    assert len(read_receipts(directory)) == before
+
+
+# --------------------------------------------------------------------------- #
+# 10. Opaque binding reason codes are preserved (core owns only the decision)   #
+# --------------------------------------------------------------------------- #
+
+
+def test_opaque_reason_code_maps_to_a_closed_ground_but_emits_verbatim():
+    """§7: the core sees a closed neutral ground; the adapter keeps the opaque code."""
+
+    opaque = fastmcp_binding.BindingPolicy(
+        disposition="refused", reason_code="tenant_quota_exceeded"
+    )
+    # The core is handed a valid closed ground (it owns the refusal *decision*)…
+    assert (
+        fastmcp_binding.DAGRMiddleware._neutral_refusal_ground(opaque)
+        == "policy_refused"
+    )
+    assert (
+        fastmcp_binding.DAGRMiddleware._neutral_refusal_ground(opaque)
+        in contract.NEUTRAL_REFUSAL_GROUNDS
+    )
+    # …while the adapter preserves the opaque code for the emitted receipt.
+    assert (
+        fastmcp_binding.DAGRMiddleware._binding_refusal_reason_code(opaque)
+        == "tenant_quota_exceeded"
+    )
+
+    # A known ground is passed through unchanged on both sides.
+    known = fastmcp_binding.BindingPolicy(
+        disposition="refused", reason_code="required_sink_unavailable"
+    )
+    assert (
+        fastmcp_binding.DAGRMiddleware._neutral_refusal_ground(known)
+        == "required_sink_unavailable"
+    )
+    assert (
+        fastmcp_binding.DAGRMiddleware._binding_refusal_reason_code(known)
+        == "required_sink_unavailable"
+    )
+
+    # A missing code defaults to policy_refused on both sides.
+    default = fastmcp_binding.BindingPolicy(disposition="refused")
+    assert (
+        fastmcp_binding.DAGRMiddleware._neutral_refusal_ground(default)
+        == "policy_refused"
+    )
+    assert (
+        fastmcp_binding.DAGRMiddleware._binding_refusal_reason_code(default)
+        == "policy_refused"
+    )
+
+
+async def test_opaque_binding_reason_code_survives_to_the_receipt(
+    monkeypatch, tmp_path: Path
+):
+    """A refusal with an out-of-vocabulary reason code emits it verbatim, no crash.
+
+    The core is fed a closed neutral ground, so it still decides the refusal
+    (``execution_proceeds is False``); the adapter stamps the opaque binding code
+    on the emitted receipt rather than crashing on the core's closed vocabulary.
+    """
+
+    handler_ran = False
+
+    def resolver(_snapshot, _actor):
+        return fastmcp_binding.BindingPolicy(
+            disposition="refused",
+            tool_class="destructive",
+            reason_code="tenant_quota_exceeded",
+        )
+
+    seen_plans: list[object] = []
+    real_admission = fastmcp_binding.plan_admission
+
+    def spy_admission(request):
+        plan = real_admission(request)
+        seen_plans.append(plan)
+        return plan
+
+    monkeypatch.setattr(fastmcp_binding, "plan_admission", spy_admission)
+    middleware, _identity, directory = build_binding(tmp_path, policy_resolver=resolver)
+
+    with pytest.raises(ToolError, match="Call refused by admission policy"):
+        await call_direct(middleware, "danger", ToolResult(content="never"))
+
+    # The core still decided the refusal (execution does not proceed)…
+    assert seen_plans and seen_plans[0].execution_proceeds is False
+    assert seen_plans[0].resolved_disposition == "refused"
+    # …and the opaque binding code reached the receipt verbatim.
+    receipts = read_receipts(directory)
+    assert len(receipts) == 1
+    assert receipts[0]["disposition"] == "refused"
+    assert receipts[0]["reason_code"] == "tenant_quota_exceeded"
+    assert handler_ran is False
