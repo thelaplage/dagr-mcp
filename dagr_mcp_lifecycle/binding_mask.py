@@ -34,6 +34,12 @@ from dagr_mcp_lifecycle import contract
 MASK_ID = "dagr.mcp.lifecycle_binding_mask"
 MASK_VERSION = "v0.1"
 
+# The exact, pinned binding this mask is written against. It is spelled out
+# here as an explicit identifier so the mask can never be read as describing an
+# unpinned/"latest" binding. ``verify_mask_matches_binding`` asserts it is the
+# live binding version, so this literal cannot drift from the oracle.
+MASK_BINDING_TARGET = "fastmcp.middleware.v0.1"
+
 # The binding this mask describes. Read from the live binding module.
 BINDING_VERSION: str = fastmcp_binding.BINDING_VERSION
 TASK_RESULT_IMPORT_PATH: str = fastmcp_binding.CREATE_TASK_RESULT_IMPORT_PATH
@@ -266,6 +272,90 @@ SIGNATURE_STAMPS: dict[str, str] = {
 }
 
 # --------------------------------------------------------------------------- #
+# Protocol-stamp discipline                                                   #
+# --------------------------------------------------------------------------- #
+# The binding observably stamps exactly one protocol identifier: the pinned
+# protocol-binding token ``mcp`` (``PROTOCOL_STAMPS["protocol_binding"]``). It
+# does NOT observe the MCP ``initialize`` handshake's negotiated
+# ``protocolVersion`` anywhere, so the mask declares the negotiated MCP protocol
+# *version* ``unsupported`` rather than inventing a version the binding cannot
+# observe. Only an exact, observable, pinned identifier is ever treated as a
+# valid protocol stamp; every empty / draft / latest / wildcard / inferred form
+# is classified ``unsupported``.
+
+ProtocolStampStatus = Literal["pinned", "unsupported"]
+
+# The exact observable protocol identifier the binding pins on every record.
+OBSERVED_PROTOCOL_BINDING: str = "mcp"
+
+# The negotiated MCP protocol version is not observed by this binding.
+NEGOTIATED_MCP_PROTOCOL_VERSION_STATUS: MappingStatus = "unsupported"
+
+# Stamp forms that are never a valid pinned protocol identifier. An observed
+# stamp equal (case-insensitively) to any of these — or empty, or ``None`` — is
+# classified ``unsupported`` and must never be minted onto a record.
+REJECTED_PROTOCOL_STAMP_FORMS: tuple[str, ...] = (
+    "",
+    "draft",
+    "latest",
+    "main",
+    "dev",
+    "snapshot",
+    "unpinned",
+    "mutable",
+    "*",
+    "any",
+    "inferred",
+)
+
+
+def classify_protocol_stamp(stamp: str | None) -> ProtocolStampStatus:
+    """Classify an observed protocol stamp against the binding's discipline.
+
+    Returns ``"pinned"`` only for the exact observable identifier the binding
+    stamps. Every empty, draft, latest, wildcard, inferred, or otherwise
+    unknown stamp — including ``None`` — is ``"unsupported"``: the binding
+    cannot observe it, so the mask refuses to treat it as a pinned protocol
+    identifier.
+    """
+
+    if stamp == OBSERVED_PROTOCOL_BINDING:
+        return "pinned"
+    return "unsupported"
+
+
+def assert_protocol_stamps_pinned() -> None:
+    """Fail if any declared stamp is empty or a mutable/wildcard/draft form.
+
+    Every value in :data:`PROTOCOL_STAMPS` and :data:`BINDING_STAMPS` must be a
+    non-empty, pinned identifier. The exact protocol-binding token classifies as
+    ``pinned`` and every rejected form (and ``None``) classifies as
+    ``unsupported``. The binding invents no MCP protocol version, so no
+    ``protocol_version`` field is declared.
+    """
+
+    rejected = {form.lower() for form in REJECTED_PROTOCOL_STAMP_FORMS}
+    for name, value in {**PROTOCOL_STAMPS, **BINDING_STAMPS}.items():
+        assert value, (name, "empty protocol/binding stamp")
+        assert value.lower() not in rejected, (name, value)
+
+    # The declared protocol-binding stamp is the exact observable identifier.
+    assert PROTOCOL_STAMPS["protocol_binding"] == OBSERVED_PROTOCOL_BINDING
+
+    # No invented MCP protocol version: the mask declares none and treats the
+    # negotiated version as unsupported.
+    assert "protocol_version" not in PROTOCOL_STAMPS
+    assert "protocolVersion" not in PROTOCOL_STAMPS
+    assert NEGOTIATED_MCP_PROTOCOL_VERSION_STATUS == "unsupported"
+
+    # The classifier accepts only the exact observable stamp.
+    assert classify_protocol_stamp(OBSERVED_PROTOCOL_BINDING) == "pinned"
+    assert classify_protocol_stamp(None) == "unsupported"
+    for bad in REJECTED_PROTOCOL_STAMP_FORMS:
+        assert classify_protocol_stamp(bad) == "unsupported"
+
+
+# --------------------------------------------------------------------------- #
 # Projection helpers                                                           #
 # --------------------------------------------------------------------------- #
 
@@ -339,6 +429,110 @@ def custody_normalized_projection(projection: Mapping[str, Any]) -> dict[str, An
 
 
 # --------------------------------------------------------------------------- #
+# Mapping totality                                                             #
+# --------------------------------------------------------------------------- #
+
+
+def verify_mapping_total(
+    *,
+    live_dispositions: set[str] | None = None,
+    live_outcome_tokens: set[str] | None = None,
+    live_cancellation_fields: set[str] | None = None,
+    neutral_dispositions: tuple[str, ...] | None = None,
+    neutral_outcomes: tuple[str, ...] | None = None,
+    neutral_cancellation_facts: tuple[str, ...] | None = None,
+) -> None:
+    """Prove the mask is a total, duplicate-free classification.
+
+    * Every neutral disposition / outcome / cancellation fact is classified
+      **exactly once** as ``direct``, ``subsumed``, or ``unsupported`` — no
+      duplicates and no unclassified tokens.
+    * Every binding-side disposition, outcome, and governance token visible in
+      the A1 oracle is **represented** by a mask entry.
+
+    Defaults read the live binding oracle
+    (``fastmcp_binding.Disposition`` / :data:`BINDING_OUTCOME_TOKENS` /
+    ``srs_receipts.CANCELLATION_FIELD_NAMES``) and the frozen neutral vocabulary,
+    so adding a token to *either* side fails this check until it is classified.
+    The keyword arguments exist so a test can inject an augmented oracle and
+    demonstrate that failure without mutating the live modules.
+    """
+
+    live_dispositions = (
+        set(get_args(fastmcp_binding.Disposition))
+        if live_dispositions is None
+        else set(live_dispositions)
+    )
+    live_outcome_tokens = (
+        set(BINDING_OUTCOME_TOKENS)
+        if live_outcome_tokens is None
+        else set(live_outcome_tokens)
+    )
+    live_cancellation_fields = (
+        set(srs_receipts.CANCELLATION_FIELD_NAMES)
+        if live_cancellation_fields is None
+        else set(live_cancellation_fields)
+    )
+    neutral_dispositions = neutral_dispositions or contract.NEUTRAL_DISPOSITIONS
+    neutral_outcomes = neutral_outcomes or contract.NEUTRAL_OUTCOMES
+    neutral_cancellation_facts = (
+        neutral_cancellation_facts or contract.NEUTRAL_CANCELLATION_FACTS
+    )
+
+    valid_status = set(get_args(MappingStatus))
+
+    def _partition(entries: tuple[BindingMaskEntry, ...], neutral: tuple[str, ...]) -> None:
+        tokens = [e.neutral_token for e in entries]
+        # Exactly once: no duplicate neutral token.
+        assert len(tokens) == len(set(tokens)), ("duplicate neutral token", tokens)
+        # No unclassified neutral token, and no mask entry for a phantom token.
+        assert set(tokens) == set(neutral), (set(tokens), set(neutral))
+        # Every entry carries a valid classification.
+        for entry in entries:
+            assert entry.status in valid_status, entry
+            if entry.status == "unsupported":
+                assert entry.binding_token is None, entry
+
+    _partition(DISPOSITION_MASK, neutral_dispositions)
+    _partition(OUTCOME_MASK, neutral_outcomes)
+    _partition(CANCELLATION_FACT_MASK, neutral_cancellation_facts)
+
+    # Binding coverage — every live disposition token is represented.
+    direct_disposition_tokens = {
+        e.binding_token
+        for e in DISPOSITION_MASK
+        if e.status == "direct" and e.binding_token is not None
+    }
+    assert direct_disposition_tokens == live_dispositions, (
+        direct_disposition_tokens,
+        live_dispositions,
+    )
+
+    # Binding coverage — every live outcome token is represented (direct or
+    # subsumed), and no mapped entry names a token the emitter cannot stamp.
+    covered_outcome_tokens = {
+        e.binding_token
+        for e in OUTCOME_MASK
+        if e.status in ("direct", "subsumed") and e.binding_token is not None
+    }
+    assert covered_outcome_tokens == live_outcome_tokens, (
+        covered_outcome_tokens,
+        live_outcome_tokens,
+    )
+
+    # Binding coverage — every governance (cancellation) field is represented.
+    masked_cancellation_fields = {
+        e.binding_token
+        for e in CANCELLATION_FACT_MASK
+        if e.binding_token is not None
+    }
+    assert masked_cancellation_fields == live_cancellation_fields, (
+        masked_cancellation_fields,
+        live_cancellation_fields,
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Drift guard                                                                  #
 # --------------------------------------------------------------------------- #
 
@@ -350,6 +544,17 @@ def verify_mask_matches_binding() -> None:
     only from the live binding modules, so it can never pass while lying about
     the binding.
     """
+
+    # The mask's pinned target is the live binding version (no unpinned target).
+    assert MASK_BINDING_TARGET == fastmcp_binding.BINDING_VERSION, (
+        MASK_BINDING_TARGET,
+        fastmcp_binding.BINDING_VERSION,
+    )
+
+    # The mapping is a total, duplicate-free classification with full binding
+    # coverage, and the protocol stamps are pinned with no invented version.
+    verify_mapping_total()
+    assert_protocol_stamps_pinned()
 
     # Dispositions: the direct binding tokens are exactly the binding's
     # Disposition Literal members.
@@ -429,6 +634,7 @@ class _NullResult:
 __all__ = [
     "MASK_ID",
     "MASK_VERSION",
+    "MASK_BINDING_TARGET",
     "BINDING_VERSION",
     "TASK_RESULT_IMPORT_PATH",
     "BINDING_OUTCOME_TOKENS",
@@ -452,6 +658,12 @@ __all__ = [
     "PROTOCOL_STAMPS",
     "BINDING_STAMPS",
     "SIGNATURE_STAMPS",
+    "ProtocolStampStatus",
+    "OBSERVED_PROTOCOL_BINDING",
+    "NEGOTIATED_MCP_PROTOCOL_VERSION_STATUS",
+    "REJECTED_PROTOCOL_STAMP_FORMS",
+    "classify_protocol_stamp",
+    "assert_protocol_stamps_pinned",
     "project_disposition",
     "project_outcome",
     "project_cancellation_fact",
@@ -460,5 +672,6 @@ __all__ = [
     "normalized_projection",
     "normalized_projection_bytes",
     "custody_normalized_projection",
+    "verify_mapping_total",
     "verify_mask_matches_binding",
 ]

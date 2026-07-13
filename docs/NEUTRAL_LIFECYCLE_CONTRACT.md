@@ -54,9 +54,13 @@ This sprint adds a contract and a mask; it changes no binding behavior.
 | `dagr_mcp_lifecycle/contract.py` | The binding-neutral vocabulary. Imports nothing from `dagr_mcp`. |
 | `dagr_mcp_lifecycle/binding_mask.py` | The mask that maps the live binding onto the vocabulary; reads binding-side values back from `dagr_mcp` so it cannot drift. |
 | `tests/test_neutral_lifecycle_contract.py` | Grounds every mask claim against a live emitter run and the committed freeze fixtures. |
+| `tests/test_lifecycle_contract_hardening.py` | Freezes the neutral package's own public surface, version discipline, import direction, mapping totality, and protocol-stamp discipline (§12). |
+| `tests/golden/neutral_lifecycle/public_api_surface.json` | The committed public-surface snapshot for `dagr_mcp_lifecycle`, separate from the A1 `dagr_mcp`-only snapshot. |
 
 `binding_mask.verify_mask_matches_binding()` is the drift guard: it reads only
-from the live binding modules and fails if the mask has drifted from them.
+from the live binding modules and fails if the mask has drifted from them. It
+now also runs `binding_mask.verify_mapping_total()` (mapping totality, §12.4)
+and `binding_mask.assert_protocol_stamps_pinned()` (protocol discipline, §12.5).
 
 ---
 
@@ -339,6 +343,89 @@ dedicated dispositions, and it says which is which:
 Nothing is silently mapped: a subsumed event names the token it is recorded onto,
 and an unsupported event carries `binding_token = None`.
 
+## 12. Freeze discipline for the neutral package (hardening)
+
+`dagr_mcp_lifecycle` ships publicly but is **outside** the Sprint A1
+`dagr_mcp`-only public-API snapshot. The following discipline is the smallest
+executable freeze that stops the neutral package from later drifting into a false
+claim of parity with the A1 binding surface. It is enforced by
+`tests/test_lifecycle_contract_hardening.py`.
+
+### 12.1 Pinned version identifiers
+
+Both contracts carry explicit, pinned identifiers — never `draft`, `latest`,
+`main`, a wildcard, or any unpinned/mutable token:
+
+```
+contract.CONTRACT_ID       == "dagr.mcp.lifecycle_contract"
+contract.CONTRACT_VERSION  == "v0.1"
+binding_mask.MASK_ID       == "dagr.mcp.lifecycle_binding_mask"
+binding_mask.MASK_VERSION  == "v0.1"
+binding_mask.MASK_BINDING_TARGET == "fastmcp.middleware.v0.1"   # == fastmcp_binding.BINDING_VERSION
+```
+
+`MASK_BINDING_TARGET` is the exact, pinned binding this mask is written against;
+the drift guard asserts it equals the live `fastmcp_binding.BINDING_VERSION`, so
+it can never name an unpinned or "latest" binding.
+
+### 12.2 Explicit public surface, frozen separately
+
+`dagr_mcp_lifecycle.contract` and `dagr_mcp_lifecycle.binding_mask` each declare
+a deliberate `__all__`; the package root re-exports **submodules only** (no
+accidental class/function/constant exports). The whole surface is frozen against
+`tests/golden/neutral_lifecycle/public_api_surface.json`, which is proven
+**disjoint** from the A1 `dagr_mcp` snapshot — so a reader can never mistake the
+neutral surface for A1 parity.
+
+### 12.3 Import direction
+
+The neutral vocabulary must be usable without the binding present:
+
+- `dagr_mcp_lifecycle.contract` imports with **no** `dagr_mcp`, `fastmcp`,
+  `arcs_verify`, `arcs_amnesiac`, or `garp_sdk` in `sys.modules`.
+- Importing the package **root** eagerly binds only the neutral `contract`
+  submodule; it does **not** pull the FastMCP binding into memory.
+- `dagr_mcp_lifecycle.binding_mask` **may** depend on `dagr_mcp` — the binding is
+  the oracle — and importing it does pull the binding in (a positive control
+  proves the direction test is not vacuous).
+
+All three are checked in fresh subprocess interpreters, because the test process
+has already imported the binding.
+
+### 12.4 Mapping totality
+
+`binding_mask.verify_mapping_total()` proves the mask is a **total,
+duplicate-free classification**:
+
+- every neutral disposition, outcome, and cancellation fact is classified
+  **exactly once** as `direct`, `subsumed`, or `unsupported` — no duplicates, no
+  unclassified tokens;
+- every binding-side token visible in the A1 oracle is represented: the live
+  `fastmcp_binding.Disposition` members, the live emitter's outcome tokens
+  (`binding_mask.BINDING_OUTCOME_TOKENS`, grounded by driving the emitter), and
+  the `srs_receipts.CANCELLATION_FIELD_NAMES` governance registry.
+
+Because the check reads the live oracle and the frozen neutral vocabulary,
+**adding a token to either side fails the mask tests until it is classified** —
+demonstrated by injecting an augmented oracle and asserting the check raises.
+
+### 12.5 Protocol-stamp discipline
+
+The binding observably stamps exactly one protocol identifier — the pinned
+protocol-binding token `mcp` (`binding_mask.OBSERVED_PROTOCOL_BINDING`,
+`== PROTOCOL_STAMPS["protocol_binding"]`). It does **not** observe the MCP
+`initialize` handshake's negotiated `protocolVersion` anywhere, so the mask
+declares the negotiated MCP protocol version **unsupported**
+(`NEGOTIATED_MCP_PROTOCOL_VERSION_STATUS == "unsupported"`) rather than inventing
+a version the binding cannot observe — proven by scanning the binding source for
+any protocol-version field and finding none.
+
+`binding_mask.classify_protocol_stamp(...)` returns `"pinned"` only for the exact
+observable identifier; every empty, `draft`, `latest`, wildcard (`*`), inferred,
+or otherwise unknown stamp — and `None` — classifies as `"unsupported"`.
+`assert_protocol_stamps_pinned()` additionally refuses any empty or
+mutable/wildcard value among the declared protocol and binding stamps.
+
 ---
 
 ## The three-layer parity model
@@ -392,19 +479,25 @@ or clock legitimately varies — that is what Layer 2 is for.
 
 ## Verification
 
-Run 2026-07-13 against base `9e861ad`. Environment: **Python 3.14.5, FastMCP
-3.4.4, cryptography 46.0.7, rfc8785 0.1.4**; co-installed lane adds
+Hardening run 2026-07-13 against base `9e861ad`. Environment: **Python 3.13.4,
+FastMCP 3.4.4, cryptography 46.0.7, rfc8785 0.1.4**; co-installed lane adds
 **arcs-verify 0.1.1 @ `da89ebe`, arcs-amnesiac 0.2.0, garp-sdk 0.1.0**.
 
 | Lane | Command | Result |
 |------|---------|--------|
-| Standalone DAGR | `python -m pytest -q` | `247 passed, 18 skipped` |
-| Co-installed DAGR | `python -m pytest -q` | `287 passed` |
-| Neutral contract suite | `python -m pytest -q tests/test_neutral_lifecycle_contract.py` | `17 passed` |
+| Standalone DAGR | `python -m pytest -q` | `266 passed, 18 skipped` |
+| Co-installed DAGR | `python -m pytest -q` | `306 passed` |
+| Neutral-contract focused suite | `python -m pytest -q tests/test_neutral_lifecycle_contract.py tests/test_lifecycle_contract_hardening.py` | `36 passed` |
 | Canonical ARCS (unmodified `da89ebe`) | `(cd ../arcs-verify && python -m pytest -q)` | `108 passed` |
+| Fixture/freeze check | `python tools/generate_fastmcp_fixtures.py --check` | committed fixtures match fresh 3.4.4 generation |
 | Public-release scan | `python tools/check_public_release.py .` | `PASS: 0 finding(s)` |
-| Package build | `python -m build` + `twine check dist/*` | built + `PASSED` |
+| Package build | `python -m build` + `twine check dist/*` | built (wheel ships `dagr_mcp_lifecycle`) + `PASSED` |
+| Clean-wheel import smoke | install wheel in a fresh venv, import outside the repo | `dagr_mcp_lifecycle.contract` imports with no binding present; the shipped mask verifies against the shipped binding |
 
-The standalone and co-installed suites each grew by the **17** new contract tests
-(230 → 247 standalone, 270 → 287 co-installed). No pre-existing test changed, and
-the frozen public-API snapshot, golden digests, and signing bytes are unchanged.
+The hardening adds **19** focused tests
+(`tests/test_lifecycle_contract_hardening.py`): 247 → 266 standalone,
+287 → 306 co-installed. No pre-existing test changed; the neutral vocabulary
+(`contract.py`) is byte-identical, and the frozen A1 `dagr_mcp` public-API
+snapshot, golden digests, and signing bytes are unchanged. The neutral package's
+own public surface is now frozen separately by
+`tests/golden/neutral_lifecycle/public_api_surface.json`.
