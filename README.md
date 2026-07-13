@@ -27,10 +27,14 @@ transport-neutral runtime.
 
 ## Current binding boundary
 
-The current framework integration is **FastMCP `3.4.4`** (declared as
-`fastmcp>=3.4.4,<4` in `pyproject.toml`; version measured from the installed
-package). The FastMCP middleware records this binding identifier in every
-receipt it emits:
+The current framework integration targets **FastMCP 3.x**. The supported
+dependency range declared in `pyproject.toml` is `fastmcp>=3.4.4,<4`. The
+repository commits no lock or exact constraint, so it does not pin an exact
+framework version — a fresh source install resolves whatever compatible FastMCP
+3.x release the index offers (the P2 acceptance environment resolved FastMCP
+3.4.4). The FastMCP middleware records a stable binding **contract** identifier
+in every receipt it emits; this identifier is fixed by the binding and is **not**
+the FastMCP package version:
 
 - `binding_version`: **`fastmcp.middleware.v0.1`**, carried at
   `extensions.mcp.binding_version`.
@@ -67,7 +71,9 @@ installs this emitter and ARCS Verify into separate virtual environments, runs
 the real installed `dagr-mcp` demo to produce receipts in a temporary output
 directory, then independently verifies them with a separately installed
 `arcs-verify` CLI. No receipt is hand-authored, no network fetch happens during
-emission or verification, and no private credential is used.
+emission or verification, and no operator-supplied or production signing
+credential is required — the demo generates a fresh ephemeral Ed25519 signing
+key that stays in process memory and is never written to the output directory.
 
 ## Receipt lifecycle and cardinality
 

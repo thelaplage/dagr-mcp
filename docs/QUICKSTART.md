@@ -4,7 +4,9 @@ Emit signed SRS receipts from the real installed demo, then verify them with a
 **separately installed** ARCS Verify. Every command below is copy-pasteable by
 an authenticated operator with access to both private repositories. No receipt
 is hand-authored, no network fetch happens during emission or verification, and
-no private credential or committed fixture is used or modified.
+no operator-supplied or production signing credential is required — the demo
+generates its own ephemeral signing key for the run — and no committed fixture
+is used or modified.
 
 Run everything from an empty working directory of your choice.
 
@@ -30,8 +32,11 @@ python -m pip install --upgrade pip
 python -m pip install -e dagr-mcp
 ```
 
-This installs the `dagr-mcp` console command (and FastMCP `3.4.4`) from the
-local source tree — not from any package index.
+This installs the `dagr-mcp` console command from the local source tree — not
+from any package index — pulling in a compatible FastMCP 3.x release from the
+declared `fastmcp>=3.4.4,<4` range. The repository commits no lock file, so the
+exact FastMCP build is whatever your index resolves; the P2 acceptance run
+resolved FastMCP 3.4.4.
 
 ## 3. Emit receipts to a temporary output directory
 
@@ -48,13 +53,19 @@ matching trust bundle into `"$OUT"`:
 - `urn_srs_receipt_admission_*.json` — the `admission` receipt (`admitted`).
 - `urn_srs_receipt_outcome_*.json` — the `outcome` receipt (`result_returned`),
   linked to the admission receipt via `admission_receipt_ref`.
-- `issuer-keys.json` — a trust bundle holding only the run's **public** signing
-  key (no private material).
+- `issuer-keys.json` — a verifier trust bundle holding only the run's **public**
+  verification key plus its issuer/key identifiers, validity window, and trust
+  flag. It is a public-key artifact, not a private signing-key file.
 
-The demo mints a fresh ephemeral signing key and new identifiers/timestamps on
-every run, so the receipt `receipt_id`s, signatures, and file SHA-256s differ
-each time. It is not byte-reproducible; the reproducible golden fixtures under
-`tests/golden/` are produced separately by the test-only fixture generator.
+The demo generates a fresh ephemeral Ed25519 signing key and new
+identifiers/timestamps on every run. The private key exists only in process
+memory: it signs the receipts, is never serialized, and is never written to
+`"$OUT"` or anywhere else on disk — only the corresponding public key is
+published in `issuer-keys.json`. No operator-supplied or production signing
+credential is involved. Because each run mints a new key and new identifiers, the
+receipt `receipt_id`s, signatures, and file SHA-256s differ each time; it is not
+byte-reproducible, and the reproducible golden fixtures under `tests/golden/` are
+produced separately by the test-only fixture generator.
 
 ## 4. Inspect the coverage fields
 
