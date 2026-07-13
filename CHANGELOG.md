@@ -32,9 +32,21 @@ availability exists.
 - Emitted receipts verify independently under a separately installed ARCS Verify
   ([ARCS Verify](https://github.com/thelaplage/arcs-verify)): eight Boolean
   results plus a separate `chain_status`.
+- Governed Amnesiac tool surface bound through the same admission runtime:
+  the four MCP tools (`amnesiac.propose_candidates`, `amnesiac.record_outcome`,
+  `amnesiac.request_reopening`, `amnesiac.compile_context`) in
+  `dagr_mcp/amnesiac_contracts.py`, `dagr_mcp/amnesiac_stores.py`,
+  `dagr_mcp/amnesiac_native.py`, and `dagr_mcp/amnesiac_fastmcp.py`. The native
+  producer (`arcs-amnesiac`) is an **optional** integration installed via the
+  `amnesiac` extra (`pip install 'dagr-mcp[amnesiac]'`, pulling `arcs-amnesiac`
+  and `garp-sdk`); it is imported lazily and never at module load, so the base
+  package's import-direction guarantee holds. Without the extra the binding
+  still imports and fails closed with `capability_unavailable`. See
+  [docs/AMNESIAC_TOOLS.md](docs/AMNESIAC_TOOLS.md).
 - Apache-2.0 packaging metadata: the complete license text, trove classifiers,
   repository and issue URLs, and declared runtime dependencies (`cryptography`,
-  `fastmcp`, `rfc8785`).
+  `fastmcp`, `rfc8785`), plus the optional `amnesiac` extra
+  (`arcs-amnesiac>=0.2.0`, `garp-sdk>=0.1.0`).
 
 ### Notes
 - The final published distribution name and its install command are
