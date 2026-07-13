@@ -55,6 +55,22 @@ REGISTERED_BINDING_VERSIONS = frozenset({
     "direct-harness.v0.1",
     "fastmcp.middleware.v0.1",
 })
+# Additive binding-version registrations for bindings introduced after the A1
+# freeze. This is deliberately a SEPARATE frozen constant so the A1-frozen
+# ``REGISTERED_BINDING_VERSIONS`` literal (and its behavioral-freeze test) stays
+# byte-identical while a new, distinct binding identity can still emit through
+# the shared emitter. The receipt schema/profile is unchanged; only a second
+# binding identity is admitted. Sprint A5 registers the official Python MCP SDK
+# binding here.
+ADDITIONAL_BINDING_VERSIONS = frozenset({
+    "official-mcp-sdk.python.v0.1",
+})
+# The full accepted set the emitter gate consults: the frozen A1 registry plus
+# any additive post-freeze registrations. Membership here — not in either
+# component alone — is what ``_common`` requires.
+ALL_REGISTERED_BINDING_VERSIONS = (
+    REGISTERED_BINDING_VERSIONS | ADDITIONAL_BINDING_VERSIONS
+)
 CANCELLATION_FIELD_NAMES = frozenset({
     "request_cancelled",
     "execution_state_unknown",
@@ -279,7 +295,7 @@ class SignedReceiptEmitter:
         self._issued_at_factory = issued_at_factory or now_utc_iso
 
     def _common(self, context: ReceiptContext, *, receipt_kind: str, artifact_class: str) -> dict[str, Any]:
-        if context.binding_version not in REGISTERED_BINDING_VERSIONS:
+        if context.binding_version not in ALL_REGISTERED_BINDING_VERSIONS:
             raise ReceiptContentError(
                 f"unregistered binding_version: {context.binding_version}"
             )

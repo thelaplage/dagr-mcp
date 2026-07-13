@@ -14,6 +14,17 @@ and in package metadata does not by itself mean that a tag, a release, or public
 availability exists.
 
 ### Added
+- Second lifecycle binding over the official Python MCP SDK
+  (`dagr_mcp_sdk_binding`, binding version `official-mcp-sdk.python.v0.1`),
+  binding the `mcp.server.lowlevel.Server` call-tool handler seam onto the
+  Sprint A3 neutral lifecycle core. The FastMCP binding remains the default and
+  is unchanged. Includes an official-SDK binding mask, a supported server
+  construction surface, and a cross-binding conformance corpus proving both
+  bindings agree on every binding-neutral semantic field (the only permitted
+  difference is the intentionally-distinct binding-version stamp). The `mcp`
+  dependency is declared as the optional `official-sdk` extra; the receipt
+  schema/profile is unchanged. See
+  [docs/OFFICIAL_MCP_SDK_BINDING.md](docs/OFFICIAL_MCP_SDK_BINDING.md).
 - Public-canonical MCP admission runtime carved from the enforcement harness:
   disposition, policy profile, matter-scope lint, sink protocols and in-memory
   sinks, the refs-only record-custody gateway, and the SRS bridge.

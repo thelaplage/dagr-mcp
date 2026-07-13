@@ -10,4 +10,7 @@ prune tests
 prune docs
 prune tools
 prune .github
+# The second-binding inventory ships with the sdist so the official-SDK binding
+# carries its seam documentation (the broad docs/ tree stays pruned).
+include docs/OFFICIAL_MCP_SDK_BINDING.md
 global-exclude *.patch

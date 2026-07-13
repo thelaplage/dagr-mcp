@@ -41,3 +41,27 @@ jobs:
         run: python tools/generate_fastmcp_fixtures.py --check
       - run: pytest -q
       - run: python3 tools/check_public_release.py .
+
+  # Sprint A5 — a stable lane for the second binding, pinned to the exact
+  # official MCP SDK constraint proven by the Phase 1 inventory
+  # (docs/OFFICIAL_MCP_SDK_BINDING.md: mcp==1.28.1). It installs the declared
+  # `official-sdk` extra alongside the pinned FastMCP release so the full suite —
+  # including the official-SDK binding and the cross-binding conformance corpus —
+  # runs against a known-good SDK. This is a required stable gate; the
+  # fastmcp-main canary above stays advisory (allow-failure) and no
+  # official-SDK development-main branch is turned into a required gate.
+  official-sdk:
+    runs-on: ubuntu-latest
+    name: official-sdk / py3.13 / mcp==1.28.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -e '.[dev,official-sdk]' 'fastmcp==3.4.4' 'mcp==1.28.1'
+      - run: python -c "import mcp, fastmcp, sys; print('lane=official-sdk'); print('python=' + sys.version.split()[0]); print('mcp=' + __import__('importlib.metadata', fromlist=['version']).version('mcp')); print('fastmcp=' + getattr(fastmcp, '__version__', 'unknown'))"
+      - name: Official-SDK binding, mask, and cross-binding conformance
+        run: pytest -q tests/test_official_mcp_sdk_binding.py tests/test_official_mcp_sdk_mask.py tests/test_cross_binding_conformance.py
+      - name: Full suite (both bindings)
+        run: pytest -q
+      - run: python3 tools/check_public_release.py .
