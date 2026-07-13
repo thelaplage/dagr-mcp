@@ -421,11 +421,8 @@ async def test_review_object_creation_failure_is_refused_with_frozen_ground(
     assert receipts[0]["reason_code"] == "review_object_creation_failed"
 
 
-async def test_task_submitted_outcome(tmp_path: Path):
-    adapter, _identity, directory = build_sdk_adapter(
-        tmp_path, tool_classes={"submit": "write"}
-    )
-    task_result = mcp_types.CreateTaskResult(
+def _task_result() -> mcp_types.CreateTaskResult:
+    return mcp_types.CreateTaskResult(
         task=mcp_types.Task(
             taskId="task-1",
             status="working",
@@ -434,11 +431,86 @@ async def test_task_submitted_outcome(tmp_path: Path):
             ttl=None,
         )
     )
-    await run_call(adapter, "submit", task_result)
-    _admission, outcome = split_pair(read_receipts(directory))
-    assert outcome["outcome"] == "task_submitted"
-    assert "result_digest" not in outcome
-    assert srs_receipts.TASK_LIMIT in outcome["attestation_limits"]
+
+
+def test_bound_tools_call_seam_cannot_carry_create_task_result():
+    """The bound tools/call CLIENT seam cannot parse a CreateTaskResult (byte proof).
+
+    This is the byte-fact that justifies marking task_submitted unsupported: the
+    lowlevel Server.call_tool handler wraps a returned CreateTaskResult in a
+    ServerResult, but ClientSession.call_tool hardcodes result_type=CallToolResult,
+    whose ``content`` field is required and absent from a CreateTaskResult.
+    """
+
+    import inspect
+
+    from mcp.client.session import ClientSession
+
+    # ClientSession.call_tool is bound to the CallToolResult result type.
+    src = inspect.getsource(ClientSession.call_tool)
+    assert "types.CallToolResult," in src
+    assert "types.CreateTaskResult" not in src
+    # CallToolResult.content is required; CreateTaskResult has no content field.
+    assert mcp_types.CallToolResult.model_fields["content"].is_required()
+    assert "content" not in mcp_types.CreateTaskResult.model_fields
+    # Validating a serialized CreateTaskResult against CallToolResult therefore
+    # fails — exactly what ClientSession.call_tool would do with the response.
+    serialized = _task_result().model_dump(by_alias=True, mode="json", exclude_none=True)
+    with pytest.raises(Exception):
+        mcp_types.CallToolResult.model_validate(serialized)
+
+
+async def test_task_submission_is_unsupported_and_fails_closed(tmp_path: Path):
+    """A returned CreateTaskResult fails closed — no task_submitted, no coercion.
+
+    task_submitted is an explicit binding capability difference (Resolution B).
+    The adapter must neither stamp a task_submitted outcome nor coerce the value
+    into result_returned/error_returned; it raises and emits no outcome receipt.
+    """
+
+    adapter, _identity, directory = build_sdk_adapter(
+        tmp_path, tool_classes={"submit": "write"}
+    )
+    with pytest.raises(adapter_mod.TaskSubmissionUnsupported):
+        await run_call(adapter, "submit", _task_result())
+
+    receipts = read_receipts(directory)
+    # Only the admission receipt was written; no outcome receipt at all, and in
+    # particular nothing was coerced into result_returned/error_returned or falsely
+    # stamped task_submitted.
+    assert [r["receipt_kind"] for r in receipts] == ["admission"]
+    assert not any(r.get("outcome") == "task_submitted" for r in receipts)
+    assert not any(r.get("outcome") in ("result_returned", "error_returned") for r in receipts)
+
+
+async def test_task_submission_unsupported_over_real_transport(tmp_path: Path):
+    """Driven through the REAL in-process tools/call transport, task submission fails.
+
+    The delegate returns a genuine CreateTaskResult; the adapter fails closed, the
+    SDK call-tool wrapper converts the raised binding error into an isError result
+    for the client, and NO task_submitted receipt is emitted.
+    """
+
+    adapter, _identity, directory = build_sdk_adapter(
+        tmp_path, tool_classes={"submit": "write"}
+    )
+
+    async def submit(_args):
+        return _task_result()
+
+    server = build_governed_server(
+        "dagr-sdk", adapter=adapter, tools=[fixture_tool("submit", submit)]
+    )
+    async with connect(server) as client:
+        await client.initialize()
+        res = await client.call_tool("submit", {})
+
+    # The client never receives a task result; the fail-closed raise surfaces as an
+    # isError CallToolResult (the SDK wrapper's exception→isError conversion).
+    assert res.isError is True
+    receipts = read_receipts(directory)
+    assert [r["receipt_kind"] for r in receipts] == ["admission"]
+    assert not any(r.get("outcome") == "task_submitted" for r in receipts)
 
 
 # --------------------------------------------------------------------------- #

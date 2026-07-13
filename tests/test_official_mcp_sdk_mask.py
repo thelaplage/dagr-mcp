@@ -78,13 +78,36 @@ def test_neutral_outcomes_project_to_shared_profile_tokens():
     assert mask.project_outcome("result").binding_token == "result_returned"
     assert mask.project_outcome("error").binding_token == "error_returned"
     assert mask.project_outcome("exception").binding_token == "exception"
-    assert mask.project_outcome("task_submitted").binding_token == "task_submitted"
     assert mask.project_outcome("cancellation").binding_token == "indeterminate"
 
     # timeout is subsumed onto the exception family (not a dedicated token).
     timeout = mask.project_outcome("timeout")
     assert timeout.status == "subsumed"
     assert timeout.binding_token == "exception"
+
+
+def test_task_submitted_is_unsupported_capability_difference():
+    """task_submitted is a profile token this binding does not observe.
+
+    The mcp.types.CreateTaskResult type exists and the profile can stamp
+    task_submitted (the FastMCP binding does), but the bound tools/call client
+    seam cannot carry a CreateTaskResult, so this binding fails closed. It is a
+    genuine capability difference, not a normalization.
+    """
+
+    entry = mask.project_outcome("task_submitted")
+    assert entry.status == "unsupported"
+    assert entry.binding_token is None
+    # It is a real profile token (⊆ what the emitter can stamp) that this binding
+    # explicitly does not observe.
+    assert "task_submitted" in mask.BINDING_OUTCOME_TOKENS
+    assert mask.BINDING_UNSUPPORTED_OUTCOME_TOKENS == frozenset({"task_submitted"})
+    assert mask.BINDING_UNSUPPORTED_OUTCOME_TOKENS <= mask.BINDING_OUTCOME_TOKENS
+    # Byte-grounding: the type exists, but CallToolResult.content is required and a
+    # CreateTaskResult has no content, so the tools/call client seam cannot parse it.
+    assert hasattr(mcp_types, "CreateTaskResult")
+    assert mcp_types.CallToolResult.model_fields["content"].is_required()
+    assert "content" not in mcp_types.CreateTaskResult.model_fields
 
 
 def test_dispositions_project_to_the_shared_tokens():
@@ -149,6 +172,10 @@ def test_attestation_limits_are_identity_equal_to_shared_constants():
 
 def test_mask_is_grounded_in_installed_official_sdk():
     assert mask.SDK_IMPORT_ROOT == "mcp"
+    assert mask.SDK_INVENTORY_VERSION == "1.28.1"
+    from importlib.metadata import version
+
+    assert version("mcp") == mask.SDK_INVENTORY_VERSION
     assert "isError" in mcp_types.CallToolResult.model_fields
     assert hasattr(mcp_types, "CreateTaskResult")
     # Elicitation IS available in the SDK yet the mask marks input_required
@@ -183,8 +210,17 @@ def test_sdk_mask_is_separate_from_the_fastmcp_mask():
     assert mask is not fastmcp_mask
     assert mask.__name__ == "dagr_mcp_sdk_binding.mask"
     assert fastmcp_mask.__name__ == "dagr_mcp_lifecycle.binding_mask"
-    # Both nonetheless project onto the same shared profile outcome tokens.
+    # Both nonetheless share the same profile outcome-token set (the profile, not
+    # the binding, owns them).
     assert mask.BINDING_OUTCOME_TOKENS == fastmcp_mask.BINDING_OUTCOME_TOKENS
+    # …but they differ in which of those tokens each binding OBSERVES:
+    # task_submitted is a genuine capability difference. FastMCP maps it directly;
+    # the official-SDK binding marks it unsupported (its tools/call client seam
+    # cannot carry a CreateTaskResult). This is recorded, not normalized.
+    assert fastmcp_mask.project_outcome("task_submitted").status == "direct"
+    assert fastmcp_mask.project_outcome("task_submitted").binding_token == "task_submitted"
+    assert mask.project_outcome("task_submitted").status == "unsupported"
+    assert mask.BINDING_UNSUPPORTED_OUTCOME_TOKENS == frozenset({"task_submitted"})
 
 
 def test_receipt_cardinality_mirrors_the_neutral_contract():

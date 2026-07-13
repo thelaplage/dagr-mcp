@@ -64,7 +64,9 @@ SDK_INVENTORY_VERSION = "1.28.1"
 SDK_INTERCEPTION_SEAM = "mcp.server.lowlevel.Server.call_tool handler registration"
 
 # The receipt-profile outcome tokens the shared emitter can stamp. Identical to
-# the FastMCP mask's set because the *profile* — not the binding — owns them.
+# the FastMCP mask's set because the *profile* — not the binding — owns them. This
+# is the profile's capability, NOT this binding's: a token can be stampable by the
+# profile yet not observable by this binding (see BINDING_UNSUPPORTED_OUTCOME_TOKENS).
 BINDING_OUTCOME_TOKENS: frozenset[str] = frozenset(
     {
         "result_returned",
@@ -74,6 +76,16 @@ BINDING_OUTCOME_TOKENS: frozenset[str] = frozenset(
         "indeterminate",
     }
 )
+
+# Profile outcome tokens this binding deliberately does NOT observe — an explicit
+# binding capability difference, not a normalization. ``task_submitted`` is a
+# genuine profile token (the FastMCP binding stamps it), but the official-SDK
+# ``tools/call`` client seam cannot carry a ``CreateTaskResult`` (see the
+# OUTCOME_MASK note below and docs/OFFICIAL_MCP_SDK_BINDING.md §"tasks"), so this
+# binding fails closed rather than stamping it. Every member must be a real profile
+# token (⊆ BINDING_OUTCOME_TOKENS) and must be classified ``unsupported`` in
+# OUTCOME_MASK; verify_mask_matches_binding asserts both.
+BINDING_UNSUPPORTED_OUTCOME_TOKENS: frozenset[str] = frozenset({"task_submitted"})
 
 # The DAGR admission disposition tokens the shared emitter stamps in the
 # ``disposition`` field (profile-owned; identical across bindings).
@@ -175,9 +187,20 @@ OUTCOME_MASK: tuple[BindingMaskEntry, ...] = (
         "name only. No result_digest.",
     ),
     BindingMaskEntry(
-        "task_submitted", "task_submitted", "direct",
-        "The delegated tool returned a mcp.types.CreateTaskResult; submission "
-        "only, no execution or completion claim. No result_digest.",
+        "task_submitted", None, "unsupported",
+        "Explicit binding capability difference. The mcp.types.CreateTaskResult "
+        "type exists and the lowlevel Server.call_tool handler wraps a returned "
+        "CreateTaskResult in a ServerResult, but the bound tools/call CLIENT seam "
+        "(ClientSession.call_tool) hardcodes result_type=CallToolResult and "
+        "validates the response against it; CallToolResult.content is required and "
+        "a serialized CreateTaskResult has none, so the client raises a pydantic "
+        "ValidationError. CreateTaskResult is genuinely received only through the "
+        "SEPARATE, deprecated experimental tasks extension "
+        "(ClientSession.experimental.call_tool_as_task, a task-augmented "
+        "CallToolRequest parsed as CreateTaskResult). This binding therefore does "
+        "not observe task_submitted through tools/call; the adapter fails closed "
+        "and never coerces it into result/error. FastMCP task_submitted is "
+        "unchanged (a genuine capability difference, not a normalization).",
     ),
     BindingMaskEntry(
         "timeout", "exception", "subsumed",
@@ -515,14 +538,28 @@ def verify_mapping_total(
         live_dispositions,
     )
 
+    # Every profile token this binding OBSERVES is covered exactly once, and the
+    # only profile tokens it does not cover are the ones it explicitly marks
+    # unsupported (BINDING_UNSUPPORTED_OUTCOME_TOKENS). The unsupported tokens must
+    # be genuine profile tokens (⊆ live) and classified ``unsupported`` here.
+    assert BINDING_UNSUPPORTED_OUTCOME_TOKENS <= live_outcome_tokens, (
+        BINDING_UNSUPPORTED_OUTCOME_TOKENS,
+        live_outcome_tokens,
+    )
+    # Each binding-unsupported profile token corresponds to an unsupported neutral
+    # entry (the token name coincides with the neutral token by profile design).
+    for token in BINDING_UNSUPPORTED_OUTCOME_TOKENS:
+        entry = _OUTCOME_INDEX.get(token)
+        assert entry is not None and entry.status == "unsupported", (token, entry)
     covered_outcome_tokens = {
         e.binding_token
         for e in OUTCOME_MASK
         if e.status in ("direct", "subsumed") and e.binding_token is not None
     }
-    assert covered_outcome_tokens == live_outcome_tokens, (
+    observed_outcome_tokens = live_outcome_tokens - BINDING_UNSUPPORTED_OUTCOME_TOKENS
+    assert covered_outcome_tokens == observed_outcome_tokens, (
         covered_outcome_tokens,
-        live_outcome_tokens,
+        observed_outcome_tokens,
     )
 
     masked_cancellation_fields = {
@@ -582,6 +619,15 @@ def verify_mask_matches_binding() -> None:
             assert entry.binding_token in BINDING_OUTCOME_TOKENS, entry
     assert {e.neutral_token for e in OUTCOME_MASK} == set(contract.NEUTRAL_OUTCOMES)
 
+    # task_submitted is an explicit binding capability difference: it is a genuine
+    # profile token (the emitter can stamp it, the FastMCP binding does) that this
+    # binding does not observe, because the bound tools/call client seam cannot
+    # carry a CreateTaskResult.
+    assert BINDING_UNSUPPORTED_OUTCOME_TOKENS <= BINDING_OUTCOME_TOKENS
+    assert "task_submitted" in BINDING_UNSUPPORTED_OUTCOME_TOKENS
+    assert project_outcome("task_submitted").status == "unsupported"
+    assert project_outcome("task_submitted").binding_token is None
+
     # input_required is unsupported in both neutral modes.
     assert {e.neutral_token for e in INPUT_REQUIRED_MASK} == set(
         contract.INPUT_REQUIRED_MODES
@@ -606,11 +652,20 @@ def verify_mask_matches_binding() -> None:
 
     # Grounding in the actually-installed official SDK: the shapes this mask maps
     # onto exist in mcp.types. A CallToolResult carries isError (result/error
-    # discrimination); CreateTaskResult is the genuine task-submission shape;
-    # ElicitResult proves elicitation IS available yet is deliberately unsupported.
+    # discrimination); ElicitResult proves elicitation IS available yet is
+    # deliberately unsupported.
     assert "isError" in mcp_types.CallToolResult.model_fields
-    assert hasattr(mcp_types, "CreateTaskResult")
     assert hasattr(mcp_types, "ElicitResult")
+
+    # Grounding for the task_submitted capability difference. The CreateTaskResult
+    # TYPE exists (so the mask names a real shape), but the bound tools/call client
+    # seam cannot carry it: CallToolResult.content is REQUIRED and CreateTaskResult
+    # has no content field, so ClientSession.call_tool's
+    # CallToolResult.model_validate(response) raises on a CreateTaskResult. This is
+    # the exact byte-fact that makes task_submitted unobservable through tools/call.
+    assert hasattr(mcp_types, "CreateTaskResult")
+    assert mcp_types.CallToolResult.model_fields["content"].is_required()
+    assert "content" not in mcp_types.CreateTaskResult.model_fields
 
 
 __all__ = [
@@ -622,6 +677,7 @@ __all__ = [
     "SDK_INVENTORY_VERSION",
     "SDK_INTERCEPTION_SEAM",
     "BINDING_OUTCOME_TOKENS",
+    "BINDING_UNSUPPORTED_OUTCOME_TOKENS",
     "BINDING_DISPOSITION_TOKENS",
     "MappingStatus",
     "BindingMaskEntry",

@@ -102,6 +102,30 @@ class AdmissionReceiptUnavailable(SDKBindingError):
     """Raised (fail-closed) when a required admission receipt cannot be accepted."""
 
 
+class TaskSubmissionUnsupported(SDKBindingError):
+    """Raised (fail-closed) when a delegated tool returns a ``CreateTaskResult``.
+
+    The ``mcp.types.CreateTaskResult`` type exists, and the lowlevel
+    ``Server.call_tool`` handler wraps a returned ``CreateTaskResult`` in a
+    ``ServerResult``. But the *bound* ``tools/call`` client seam
+    (``mcp.client.session.ClientSession.call_tool``) hardcodes
+    ``result_type=CallToolResult`` and validates the response against it;
+    ``CallToolResult.content`` is a required field the serialized
+    ``CreateTaskResult`` does not carry, so the client raises a pydantic
+    ``ValidationError``. ``CreateTaskResult`` is genuinely received only through
+    the *separate*, deprecated experimental tasks extension
+    (``ClientSession.experimental.call_tool_as_task``, a task-augmented
+    ``CallToolRequest`` parsed with ``result_type=CreateTaskResult``).
+
+    This binding therefore does **not** observe ``task_submitted`` through the
+    ``tools/call`` seam it binds. Rather than falsely stamping a ``task_submitted``
+    outcome or coercing the value into ``result_returned`` / ``error_returned``, it
+    fails closed. The A5 mask marks ``task_submitted`` unsupported for this binding
+    (see :data:`dagr_mcp_sdk_binding.mask.BINDING_UNSUPPORTED_OUTCOME_TOKENS`), and
+    the FastMCP binding's ``task_submitted`` behavior is unchanged.
+    """
+
+
 # --------------------------------------------------------------------------- #
 # Construction contracts                                                       #
 # --------------------------------------------------------------------------- #
@@ -193,7 +217,12 @@ def _project_binding_outcome(neutral_outcome: str) -> str:
     from dagr_mcp_sdk_binding.mask import project_outcome
 
     token = project_outcome(neutral_outcome).binding_token
-    if token is None:  # pragma: no cover - plan_outcome_strict excludes unsupported.
+    if token is None:  # pragma: no cover - defensive; task_submitted fails closed earlier.
+        # A neutral outcome the A5 mask marks unsupported for this binding (e.g.
+        # task_submitted, see BINDING_UNSUPPORTED_OUTCOME_TOKENS) carries no binding
+        # token. The adapter never routes such an outcome here — task_submitted is
+        # rejected in governed_call before any emission — so this is a fail-closed
+        # backstop, never a coercion.
         raise SDKBindingError(
             f"neutral outcome {neutral_outcome!r} carries no binding token"
         )
@@ -395,17 +424,22 @@ class SdkLifecycleAdapter:
                 )
             raise
 
-        if admission_receipt_ref is None:
-            return result
-
+        # task_submitted is an explicit binding capability difference. The bound
+        # tools/call client seam cannot carry a CreateTaskResult (see
+        # TaskSubmissionUnsupported); this binding fails closed rather than
+        # falsely claiming a task_submitted observation or coercing the value into
+        # result_returned/error_returned. Checked before the fail-open early return
+        # so a returned CreateTaskResult never flows through the tools/call seam,
+        # regardless of admission-receipt state. FastMCP behavior is unchanged.
         if isinstance(result, mcp_types.CreateTaskResult):
-            self._emit_planned_outcome(
-                admission_plan,
-                receipt_context,
-                snapshot,
-                admission_receipt_ref,
-                ExecutionObservation("task_submitted"),
+            raise TaskSubmissionUnsupported(
+                "A delegated tool returned mcp.types.CreateTaskResult, but the "
+                "bound tools/call client seam does not carry it; task submission "
+                "requires the separate experimental tasks extension and is "
+                "unsupported by the official-SDK binding."
             )
+
+        if admission_receipt_ref is None:
             return result
 
         try:
@@ -682,8 +716,9 @@ class SdkLifecycleAdapter:
 
         The core decides the outcome record family, whether it carries a result
         digest, and (via ``plan_outcome_strict``) refuses any unsupported neutral
-        event rather than coercing it. Used for the ``result`` / ``error`` /
-        ``task_submitted`` families.
+        event rather than coercing it. Used for the ``result`` / ``error``
+        families. ``task_submitted`` is not routed here: it is a binding capability
+        difference the adapter fails closed on in :meth:`governed_call`.
         """
 
         record = plan_outcome_strict(admission_plan, observation).record
@@ -1034,6 +1069,7 @@ __all__ = [
     "ToolRefused",
     "ToolDeferred",
     "AdmissionReceiptUnavailable",
+    "TaskSubmissionUnsupported",
     "ToolHandler",
     "SdkActorResolver",
     "SdkPolicyResolver",

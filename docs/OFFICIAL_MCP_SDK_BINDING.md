@@ -22,7 +22,7 @@ binding; it does not replace FastMCP.
 | Version proven | **1.28.1** |
 | Import roots | `mcp`, `mcp.server.lowlevel`, `mcp.server.session`, `mcp.shared`, `mcp.types`, `mcp.server.auth` |
 | Python supported by this repo | 3.11 / 3.12 / 3.13 (`requires-python = ">=3.11"`); proven on 3.13.4 |
-| Direct vs transitive | Currently **transitive** through `fastmcp` (fastmcp depends on `mcp`). A5 imports it **directly**, so it is declared as an explicit, bounded **optional extra** `official-sdk = ["mcp>=1.16,<2"]` rather than relied on accidentally (see §8). |
+| Direct vs transitive | Currently **transitive** through `fastmcp` (fastmcp depends on `mcp`). A5 imports it **directly**, so it is declared as an explicit **optional extra** pinned to the exact proven version — `official-sdk = ["mcp==1.28.1"]` — rather than relied on accidentally (see §8). |
 
 `fastmcp_binding.py` already imports one symbol from the official SDK
 (`mcp.types.CreateTaskResult`), so the official SDK is not new to the tree; A5
@@ -47,7 +47,7 @@ protocol surface.)
 | returned tool content | Handler may return unstructured content (`list[ContentBlock]`), structured content (`dict`), a `(content, structured)` tuple, or a full `mcp.types.CallToolResult`. The wrapper builds a `CallToolResult(content, structuredContent, isError=False)`. |
 | returned tool errors | A `CallToolResult` with `isError=True`. The wrapper also converts a raised (ordinary) `Exception` into `isError=True` via `_make_error_result(str(e))` (**it does not propagate**). Input/output-schema validation failures also become `isError=True` results. |
 | raised exceptions | Ordinary `Exception` raised in the handler → converted to an `isError=True` result by the wrapper (see above). `BaseException` (e.g. `CancelledError`) propagates. |
-| tasks / task-submitted | `@server.call_tool()` accepts a returned `mcp.types.CreateTaskResult` (fields `meta`, `task`) and passes it through as task-submission. This is a **genuine** SDK shape (the same `CreateTaskResult` the A4 binding already recognizes). Note: the SDK marks the *experimental tasks API* deprecated for mcp 2.0, but the `CreateTaskResult` **type** and its pass-through in the call-tool wrapper are present and stable in 1.28.1. |
+| tasks / task-submitted | **Not carried by the bound `tools/call` seam.** The `mcp.types.CreateTaskResult` type exists, and the lowlevel `@server.call_tool()` handler does wrap a returned `CreateTaskResult` in a `ServerResult`. But the client seam this binding is exercised through — `mcp.client.session.ClientSession.call_tool` — hardcodes `result_type=CallToolResult` and validates the response against it; `CallToolResult.content` is **required** and a serialized `CreateTaskResult` carries none, so `CallToolResult.model_validate(response)` raises a pydantic `ValidationError` on the client. `CreateTaskResult` is genuinely received only through the **separate, deprecated** experimental tasks extension (`ClientSession.experimental.call_tool_as_task`, a *task-augmented* `CallToolRequest` parsed with `result_type=CreateTaskResult`). This binding therefore marks `task_submitted` **unsupported** and fails closed (`TaskSubmissionUnsupported`) on a returned `CreateTaskResult`; it never coerces it into `result_returned`/`error_returned`. See §6 and "tasks" below. |
 | elicitation / input-required | Present: `mcp.types.ElicitRequest`/`ElicitResult` (session-driven `elicit`, resumable) and `mcp.shared.exceptions.UrlElicitationRequiredError` (URL elicitation → protocol error `-32042`, non-resumable in-band). See §6/§10. |
 
 ---
@@ -111,14 +111,47 @@ the sprint contract).
 | raised exception (observed by adapter) | The adapter catches the delegated tool's raised `Exception` **before** the SDK wrapper converts it, records `exception_class`, then lets the SDK project the transport error | `exception` |
 | cancellation | `asyncio.CancelledError` / `anyio` cancelled (BaseException, propagates) | `indeterminate` (+ 3 governance Booleans) |
 | timeout | A raised `TimeoutError` — an ordinary inner exception (no dedicated SDK timeout state) | `exception` (subsumed, `exception_class="TimeoutError"`, §14) |
-| task-submitted | `CreateTaskResult` | `task_submitted` |
+| task-submitted | `CreateTaskResult` (only via the separate experimental tasks extension, not the bound `tools/call` client seam) | **unsupported** — fails closed, never coerced (see "tasks" below) |
 | input-required / elicitation | `ElicitRequest`/`ElicitResult` (continuable) and `UrlElicitationRequiredError` (interrupted) | **unsupported** in both modes (§10) |
 
 The receipt outcome tokens (`result_returned`, `error_returned`, `exception`,
 `task_submitted`, `indeterminate`) belong to the **shared receipt profile**
 `srs.mcp.sdk_enforcement/v0.1`, not to either binding — so both bindings project
-neutral outcomes onto the *same* profile tokens. Only the **binding-version
-stamp** differs (see the mask, §"binding identity").
+neutral outcomes onto the *same* profile token set. Only the **binding-version
+stamp** differs (see the mask, §"binding identity"). Which of those profile
+tokens each binding actually *observes* is a separate matter: `task_submitted` is
+a profile token the FastMCP binding stamps but this binding does **not** observe
+(see "tasks").
+
+### tasks — an explicit binding capability difference
+
+`mcp.types.CreateTaskResult` is a real SDK type, but it is **not** a genuine
+result of the `tools/call` client seam this binding binds:
+
+- The lowlevel `Server.call_tool` handler wraps a returned `CreateTaskResult` in
+  `ServerResult(CreateTaskResult)`.
+- But `ClientSession.call_tool(...)` calls
+  `send_request(..., result_type=types.CallToolResult)`, and `send_request`
+  finishes with `CallToolResult.model_validate(response.result)`.
+  `CallToolResult.content` is a **required** field; a serialized
+  `CreateTaskResult` has no `content`, so the client raises a pydantic
+  `ValidationError`. This was verified end-to-end over the real in-process
+  transport.
+- `CreateTaskResult` is genuinely received only through the **separate,
+  deprecated** experimental tasks extension:
+  `ClientSession.experimental.call_tool_as_task(...)` sends a *task-augmented*
+  `CallToolRequest` (a `task` param on `CallToolRequestParams`) and parses the
+  response with `result_type=CreateTaskResult`. The SDK itself deprecates this
+  API for mcp 2.0 ("tasks (SEP-1686) were removed from the MCP specification and
+  are expected to return as a separate MCP extension").
+
+Accordingly, the A5 mask marks `task_submitted` **unsupported**
+(`mask.BINDING_UNSUPPORTED_OUTCOME_TOKENS == {"task_submitted"}`) and the adapter
+fails closed with `TaskSubmissionUnsupported` if a delegated tool returns a
+`CreateTaskResult` — it never stamps a `task_submitted` receipt and never coerces
+the value into `result_returned`/`error_returned`. The **FastMCP** binding's
+`task_submitted` behavior is unchanged; the cross-binding corpus records this as
+an explicit capability difference rather than normalizing it.
 
 ---
 
@@ -136,19 +169,29 @@ was proven during this inventory (list → `["echo"]`, call → `isError=False`)
 ## 8. Dependency status and declaration
 
 The repository reaches `mcp` only transitively through `fastmcp` today. Because
-A5 imports it **directly**, `pyproject.toml` declares an explicit, bounded
-optional extra:
+A5 imports it **directly**, `pyproject.toml` declares an explicit optional extra,
+**pinned to the exact version proven** by this inventory, the dedicated CI
+official-SDK lane, and the clean-wheel official-SDK smoke:
 
 ```toml
 [project.optional-dependencies]
-official-sdk = ["mcp>=1.16,<2"]
+official-sdk = ["mcp==1.28.1"]
 ```
 
-This keeps the base install unchanged (FastMCP remains the default binding),
-avoids depending on a transitive version *accidentally*, and lets the CI
-official-SDK lane pin the **exact proven constraint `mcp==1.28.1`**. The binding
-imports the SDK lazily so that importing package metadata or the neutral core
-never eagerly imports `mcp` or `fastmcp`.
+This keeps the base install unchanged (FastMCP remains the default binding) and
+avoids depending on a transitive version *accidentally*. The extra is pinned to
+`mcp==1.28.1` — the **only** SDK version exercised against this binding, its
+mask, the real in-process `tools/list` + `tools/call` path, and the cross-binding
+corpus — rather than advertising a broader range (e.g. `>=1.16,<2`) that no test
+covers. A wider range is a future task that must first prove each claimed
+compatibility boundary (earliest/maximum supported version) in a clean
+environment with its own stable CI lane; until then the honest contract is the
+single proven pin. The dedicated CI official-SDK lane installs this exact pin
+(`mcp==1.28.1`). A wheel-metadata test
+(`tests/test_official_sdk_dependency_metadata.py`) asserts the built wheel's
+declared `official-sdk` requirement is exactly `mcp==1.28.1`, matching this
+document and the CI lane. The binding imports the SDK lazily so that importing
+package metadata or the neutral core never eagerly imports `mcp` or `fastmcp`.
 
 ---
 
@@ -162,6 +205,8 @@ never eagerly imports `mcp` or `fastmcp`.
 - Public seam used: `@server.call_tool()` + `@server.list_tools()` handler
   registration on `mcp.server.lowlevel.Server`.
 - Supported lifecycle states: admitted, refused, deferred, result, error,
-  exception, task_submitted, cancellation, timeout (subsumed → exception).
-- Explicitly unsupported states: `input_required` (both `continuable` and
-  `interrupted` modes) — failed explicitly, never normalized (§10).
+  exception, cancellation, timeout (subsumed → exception).
+- Explicitly unsupported states: `task_submitted` (the `CreateTaskResult` type
+  exists in `mcp.types` but is not a genuine result of the bound `tools/call`
+  seam — see "tasks"); `input_required` (both `continuable` and `interrupted`
+  modes) — each failed explicitly, never normalized (§10).

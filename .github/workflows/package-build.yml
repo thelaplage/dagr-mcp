@@ -26,6 +26,28 @@ jobs:
         run: python -m build --sdist --wheel --outdir dist
       - name: Check metadata
         run: python -m twine check dist/*
+      - name: Assert the official-sdk extra is pinned to the exact proven version
+        # The built wheel's declared official-sdk requirement must be exactly
+        # mcp==1.28.1 — the version proven by docs/OFFICIAL_MCP_SDK_BINDING.md, the
+        # official-sdk CI lane, and the clean-wheel official-SDK smoke below. No
+        # broader (untested) range is advertised.
+        run: |
+          python - <<'PY'
+          import glob, re, zipfile
+          from email.parser import Parser
+          wheel = sorted(glob.glob("dist/*.whl"))[0]
+          with zipfile.ZipFile(wheel) as zf:
+              name = next(n for n in zf.namelist() if n.endswith(".dist-info/METADATA"))
+              meta = zf.read(name).decode("utf-8")
+          reqs = Parser().parsestr(meta).get_all("Requires-Dist") or []
+          official = []
+          for line in reqs:
+              req, _, marker = line.partition(";")
+              if re.search(r'extra\s*==\s*[\'"]official-sdk[\'"]', marker):
+                  official.append(re.sub(r"\s+", "", req))
+          assert official == ["mcp==1.28.1"], (official, reqs)
+          print("wheel official-sdk requirement OK:", official)
+          PY
       - name: Install the built wheel in a fresh environment
         run: |
           python -m venv /tmp/smoke
@@ -35,3 +57,13 @@ jobs:
         run: |
           /tmp/smoke/bin/dagr-mcp --help
           /tmp/smoke/bin/python -c "import importlib.metadata as m; print('dagr-mcp', m.version('dagr-mcp'))"
+      - name: Clean-wheel official-SDK in-process tools/list + tools/call smoke
+        # Install the wheel WITH the official-sdk extra (pulling the pinned SDK) into
+        # a separate clean env, then drive the second binding over the SDK's real
+        # in-process transport. Run from /tmp so the installed wheel — not the repo
+        # working tree — is exercised.
+        run: |
+          python -m venv /tmp/smoke-sdk
+          /tmp/smoke-sdk/bin/python -m pip install --upgrade pip
+          /tmp/smoke-sdk/bin/python -m pip install "$(ls dist/*.whl)[official-sdk]"
+          cd /tmp && /tmp/smoke-sdk/bin/python "$GITHUB_WORKSPACE/tools/smoke_official_sdk.py"

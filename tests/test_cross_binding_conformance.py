@@ -63,7 +63,11 @@ from dagr_mcp_lifecycle.core import plan_admission, plan_outcome_strict
 from dagr_mcp_lifecycle.models import AdmissionRequest, ExecutionObservation
 from dagr_mcp_sdk_binding import mask as sdk_mask
 from dagr_mcp_sdk_binding import neutral
-from dagr_mcp_sdk_binding.adapter import SdkBindingConfig, SdkLifecycleAdapter
+from dagr_mcp_sdk_binding.adapter import (
+    SdkBindingConfig,
+    SdkLifecycleAdapter,
+    TaskSubmissionUnsupported,
+)
 
 # Fixed identity + clock so the ONLY difference between the two bindings' bytes is
 # the binding-version stamp (and its signature).
@@ -254,7 +258,11 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario("error_returned", "reader", "read", result=RESULT_ERR),
     Scenario("raised_exception", "writer", "write", result=ValueError("boom")),
     Scenario("raised_timeout", "writer", "write", result=TimeoutError("slow")),
-    Scenario("task_submitted", "writer", "write", result=TASK_RESULT),
+    # NOTE: task_submitted is deliberately NOT in the byte-equality corpus. It is a
+    # genuine binding capability difference (FastMCP observes it; the official-SDK
+    # tools/call client seam cannot carry a CreateTaskResult), proven separately by
+    # ``test_task_submitted_is_an_explicit_binding_capability_difference`` below.
+    # Normalizing it into this corpus would falsely claim the two bindings agree.
     Scenario("cancellation", "writer", "write", result=asyncio.CancelledError()),
     Scenario(
         "required_sink_unavailable", "writer", "write",
@@ -294,14 +302,10 @@ def _expected_neutral(scenario: Scenario) -> dict[str, Any]:
         else:
             obs = ExecutionObservation("exception", exception_class=type(scenario.result).__name__)
         outcome = plan_outcome_strict(admission, obs)
-    elif admission.execution_proceeds and isinstance(scenario.result, mcp_types.CreateTaskResult):
-        outcome = plan_outcome_strict(admission, ExecutionObservation("task_submitted"))
     return {"admission": admission, "outcome": outcome}
 
 
 def _is_error_result(result: Any) -> bool:
-    if isinstance(result, mcp_types.CreateTaskResult):
-        return False
     return bool(getattr(result, "is_error", getattr(result, "isError", False)))
 
 
@@ -522,6 +526,73 @@ async def test_fail_open_and_fail_closed_parity(tmp_path: Path):
 # --------------------------------------------------------------------------- #
 # Unsupported input_required is unsupported in BOTH bindings                   #
 # --------------------------------------------------------------------------- #
+
+
+async def test_task_submitted_is_an_explicit_binding_capability_difference(tmp_path: Path):
+    """task_submitted differs across bindings; the corpus records it, never normalizes it.
+
+    FastMCP observes a returned ``CreateTaskResult`` as ``task_submitted`` (admission
+    + task_submitted outcome). The official-SDK binding's bound ``tools/call`` client
+    seam cannot carry a ``CreateTaskResult``, so it fails closed: it raises
+    ``TaskSubmissionUnsupported`` and emits *only* the admission receipt — it does
+    NOT coerce the value into ``result_returned`` / ``error_returned`` and does NOT
+    stamp ``task_submitted``. The admission receipts still match byte-for-byte (both
+    bindings admitted the same write); the divergence is confined to the outcome.
+    """
+
+    scenario = Scenario("task_submitted", "writer", "write", result=TASK_RESULT)
+
+    # FastMCP: admission + a genuine task_submitted outcome (unchanged behavior).
+    fastmcp_receipts = await drive_fastmcp(scenario, tmp_path / "fastmcp")
+    fk = _by_kind(fastmcp_receipts)
+    assert set(fk) == {"admission", "outcome"}
+    assert fk["outcome"]["outcome"] == "task_submitted"
+    assert "result_digest" not in fk["outcome"]
+
+    # official-SDK: fails closed. Drive the adapter directly to observe the raise
+    # (the shared drive_sdk swallows exceptions), using the same fixed emitter
+    # config so the admission receipt is byte-comparable to FastMCP's.
+    directory = tmp_path / "sdk"
+    emitter = _emitter(directory, _identity())
+    adapter = SdkLifecycleAdapter(
+        emitter=emitter,
+        config=SdkBindingConfig(
+            runtime_instance_id="rt:conf",
+            boundary_id="b:conf",
+            policy_pack_id="p:conf",
+            policy_pack_version="1",
+            tool_classes={scenario.tool: scenario.tool_class},
+            policy_resolver=lambda _s, _a: neutral.BindingPolicy(
+                disposition=scenario.disposition, tool_class=scenario.tool_class
+            ),
+            subject_ref_override="subject:conf",
+            logical_call_id_override="call:conf",
+            additional_attestation_limits=(neutral.DEFAULT_BOUNDARY_LIMIT,),
+        ),
+    )
+
+    async def delegate(_arguments):
+        return TASK_RESULT
+
+    with pytest.raises(TaskSubmissionUnsupported):
+        await adapter.governed_call(scenario.tool, {}, delegate, request_context=None)
+
+    sdk_receipts = read_receipts(directory)
+    sk = _by_kind(sdk_receipts)
+    # The recorded capability difference: FastMCP has a task_submitted outcome; the
+    # official-SDK binding has NO outcome receipt at all (and nothing coerced).
+    assert set(sk) == {"admission"}
+    assert not any(r.get("outcome") == "task_submitted" for r in sdk_receipts)
+    assert not any(
+        r.get("outcome") in ("result_returned", "error_returned") for r in sdk_receipts
+    )
+
+    # The admission receipts nonetheless agree byte-for-byte (both admitted the same
+    # write); only the outcome family is a capability difference.
+    assert _strip_permitted(fk["admission"]) == _strip_permitted(sk["admission"])
+    assert rfc8785.dumps(_strip_permitted(fk["admission"])) == rfc8785.dumps(
+        _strip_permitted(sk["admission"])
+    )
 
 
 def test_input_required_unsupported_in_both_bindings():
