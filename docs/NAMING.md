@@ -26,6 +26,29 @@ or a badge base) are added when the documentation that needs them is added, and
 not before. The verifier's own published name is resolved in the ARCS Verify
 repository, not here.
 
+## Go-day substitution locations
+
+The package is deliberately kept locally buildable *before* substitution: the
+current values below are byte-grounded facts, not the final published names, and
+the package builds and installs from them today. At go-day a single substitution
+commit rewrites only the following locations to the operator-cleared published
+distribution name; nothing else needs to change.
+
+| Location | Current byte-grounded value | Substituted at go-day? |
+|---|---|---|
+| `pyproject.toml` → `[project].name` | `dagr-mcp` | **Yes** — this is the exact metadata field the go-day commit may change to the resolved published distribution name. |
+| README / quickstart package-index install command | Not present; the documented install path is the source-clone `pip install -e .` (the `@@RUNTIME_DISTRIBUTION@@` token above stands in for the eventual `pip install <name>` line). | Only when the index-install line is added at/after go-day. |
+| Package-index URL field (e.g. a future `[project.urls]` "PyPI"/index entry) | Not present. | Only when such a field is added at go-day. |
+| Import root | `dagr_mcp` | **No** — the import root is stable and is not a distribution name. |
+| Console entry points | `dagr-mcp`, `dagr-mcp-demo` | **No** — command names are not the distribution name and are not substituted here. |
+| Repository clone URL | `https://github.com/thelaplage/dagr-mcp` | **No** — retained unless G1 explicitly changes the repository slug. |
+
+The `[project.urls]` entries currently declared (`Repository`, `Issues`) point at
+the existing canonical GitHub repository and are not package-index URLs; they are
+not substitution locations. The binding identifier `fastmcp.middleware.v0.1` and
+the SRS envelope/profile identifiers are protocol identifiers, not distribution
+names, and are never rewritten by the naming substitution.
+
 ## Rules
 
 - No candidate final distribution name, package-index name, or domain appears
