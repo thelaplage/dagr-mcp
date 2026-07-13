@@ -1,0 +1,14 @@
+{
+  "issuers": [
+    {
+      "algorithm": "Ed25519",
+      "issuer_id": "issuer:dagr:behavioral-freeze",
+      "key_id": "issuer.dagr.behavioral-freeze/receipt-signing/v1",
+      "not_after": "2036-01-01T00:00:00Z",
+      "not_before": "2026-01-01T00:00:00Z",
+      "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+      "trusted": true
+    }
+  ],
+  "trust_bundle_version": "srs.trust_bundle.v0.1"
+}
