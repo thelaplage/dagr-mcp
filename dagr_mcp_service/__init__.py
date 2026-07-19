@@ -22,26 +22,29 @@ explicitly:
   operator-configured selector key to a registered binding identity,
   fail-closed on an unknown or unavailable binding (§5.2).
 
-**What this sprint explicitly does NOT add.** No ``adapter.py``
-(``execute_governed_call`` orchestration, A8), no ``connectors/`` (client-side
-transport forwarders, A9), no ``access.py`` (receipt-handle resolution seam,
-A10). No transport, execution, binding invocation, receipt emission, or real
-actor/tenant resolution exists anywhere in this package —
-``select_binding(...)`` resolves a *selector key* to a *binding identity*
-only; it never imports, constructs, or calls a binding. No idempotency,
-deduplication, or exactly-once guarantee is encoded here or claimed by it
-(see scope §11 — those questions remain open).
+**What Sprint A8 adds.** Two more submodules — the first executable,
+in-process Gateway composition seam:
+
+* :mod:`dagr_mcp_service.adapter` — ``execute_governed_call``: orchestrates
+  one governed call over a selected binding (shape A/C in-process, no
+  network transport), reusing both existing bindings' own resolver seams and
+  the neutral lifecycle core unchanged.
+* :mod:`dagr_mcp_service.connectors` — the in-process (``memory``) local-target
+  connector. A client-side *remote* transport connector remains A9 scope.
+
+**What this package still does NOT add.** No ``access.py`` (receipt-handle
+resolution seam, A10). No idempotency, deduplication, or exactly-once
+guarantee is encoded here or claimed by it (see scope §11 — those questions
+remain open).
 
 **Import discipline.** This package must be importable with neither ``mcp``
 nor ``fastmcp`` (nor any HTTP/ASGI/database/queue library) installed, and
 importing it must never start a transport or bind a socket — the same
 discipline :mod:`dagr_mcp_lifecycle` and :mod:`dagr_mcp_sdk_binding` already
-guarantee via PEP 562 lazy submodules. Neither ``contract`` nor
-``resolution`` needs such a library in A7; both are declared as lazily bound
-submodules anyway, both for consistency with the sibling packages' convention
-and so later work packages (A8's ``adapter.py``, A9's ``connectors/``) can be
-added beside them under the same lazy-loading discipline without changing
-this file's shape.
+guarantee via PEP 562 lazy submodules. ``adapter`` imports the concrete
+binding module a given call actually selects lazily, inside the function
+that drives that one call — never at this package's or ``adapter``'s own
+module-load time.
 """
 
 from __future__ import annotations
@@ -59,9 +62,11 @@ __all__ = [
     "SERVICE_PACKAGE_VERSION",
     "contract",
     "resolution",
+    "adapter",
+    "connectors",
 ]
 
-_LAZY_SUBMODULES = frozenset({"contract", "resolution"})
+_LAZY_SUBMODULES = frozenset({"contract", "resolution", "adapter", "connectors"})
 
 
 def __getattr__(name: str):
@@ -79,4 +84,4 @@ def __dir__() -> list[str]:
 
 
 if TYPE_CHECKING:  # pragma: no cover - import-time typing only, not eager at runtime.
-    from dagr_mcp_service import contract, resolution
+    from dagr_mcp_service import adapter, connectors, contract, resolution
