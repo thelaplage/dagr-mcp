@@ -385,7 +385,7 @@ def _fallback_nine_verdicts(receipt: dict[str, object], bundle: dict[str, object
     }
 
 
-def test_combined_extension_receipt_passes_all_nine_verdicts(tmp_path):
+def test_combined_extension_receipt_passes_all_boolean_verdicts_with_chain_status(tmp_path):
     identity, _sink, emitter = build(tmp_path)
     receipt_id = emitter.emit_outcome(
         context=context(
