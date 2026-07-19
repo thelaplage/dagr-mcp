@@ -8,7 +8,7 @@ implemented by this document or the PR that introduces it.
 **Base:** `9874486e36dbe543dab903e2de7df46ec60004bb`
 (`feat: add official Python MCP SDK lifecycle binding (#11)`).
 
-This document is a byte-grounded inventory and an implementation-ready contract
+This document is a byte-grounded inventory and an implementation-scoping contract
 and decision record. Every existing symbol it names was verified against the
 repository at the base commit. Where it proposes a name, signature, module, or
 transport, it says so explicitly and marks the decision as *ratification
@@ -27,7 +27,7 @@ Cross-references (all resolve in this repository):
 
 ## Executive finding
 
-**What exists.** DAGR has two production lifecycle *bindings* that both defer
+**What exists.** DAGR has two implemented lifecycle *bindings* that both defer
 every lifecycle decision to a single binding-neutral core, plus a shared signed
 receipt emitter, a refs-only custody-projection contract, a policy-profile
 projection, sink protocols with in-memory implementations, and a synchronous
@@ -561,7 +561,7 @@ HTTP+SSE is explicitly not a target.**
 - **stdio** is retained as a simpler co-located option for a non-Bossy
   end-to-end proof, but is not the demonstrator target.
 
-This is a recommendation, not an implementation. The transport is ratified in
+This is a recommendation, not an implementation. The transport remains unratified pending
 A9's PR, not here.
 
 ---
@@ -885,7 +885,7 @@ by this document:
 - [x] **Explicit proven-empty service finding** — Executive finding + §2.11 +
   §2.13: no production service adapter, no transport, no forwarding, no
   idempotency.
-- [x] **Ratified conceptual request/response contracts** — §3 (request), §4
+- [x] **Defined conceptual request/response contracts** — §3 (request), §4
   (response), with the naming caveat flagged.
 - [x] **Binding-resolution posture** — §5, including capability differences and
   fail-closed behavior.
