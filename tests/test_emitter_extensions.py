@@ -322,7 +322,7 @@ def test_each_new_fact_is_signature_covered(tmp_path):
             verify_signature(mutation, identity)
 
 
-def _fallback_nine_verdicts(receipt: dict[str, object], bundle: dict[str, object]) -> dict[str, object]:
+def _fallback_all_boolean_verdicts_with_chain_status(receipt: dict[str, object], bundle: dict[str, object]) -> dict[str, object]:
     schema_bytes = SCHEMA_PATH.read_bytes()
     schema_digest = hashlib.sha256(schema_bytes).hexdigest() == (
         "d03aad1d5517e2acb65d5c866905aed7219bcbbfadd1a4a97eac546dd23f0333"
@@ -407,8 +407,8 @@ def test_combined_extension_receipt_passes_all_boolean_verdicts_with_chain_statu
     try:
         from arcs_verify.verifier import verify_receipt
     except ModuleNotFoundError:
-        report = _fallback_nine_verdicts(receipt, bundle)
-        print("arcs-verify unavailable; used frozen-rule nine-verdict fallback")
+        report = _fallback_all_boolean_verdicts_with_chain_status(receipt, bundle)
+        print("arcs-verify unavailable; used frozen-rule boolean-verdicts-with-chain-status fallback")
     else:
         verified = verify_receipt(
             receipt,
