@@ -323,6 +323,108 @@ this lane's verification runs (`mcp==1.28.1` was installed throughout).
   selects is imported lazily, inside `_execute_via_fastmcp`/
   `_execute_via_sdk` only.
 
+## Corrective pass — independent review findings (JUL19, same day)
+
+An independent read-only review of this lane, prior to marking it ready,
+reproduced two defects in the original `dagr_mcp_service/adapter.py`. Both
+are fixed in a follow-up corrective commit on this same branch; no other
+file in the original diff list changed.
+
+**Finding 1 — a pre-admission operator/resolver failure was misclassified as
+a sink outage.** The original `_classify` treated *any* raised exception
+with zero captured receipts as `required_sink_unavailable` -- including the
+case where a configured `policy_resolver` (or another pre-admission
+resolver) raises *before* the binding ever attempts a receipt write. Since
+neither binding wraps its `_resolve_policy`/`_resolve_actor` call in a
+try/except, such a failure propagates as the resolver's own exception with
+`captured == []`, which the old code could not distinguish from "the
+durable admission write itself raised." The result was a false
+`required_sink_unavailable` governance diagnostic for a condition that never
+touched the sink at all.
+
+Fix: `_CapturingSink` now tracks `write_failed`, set only when its own
+`write(envelope)` call to the inner sink raises. `_execute_via_fastmcp` and
+`_execute_via_sdk` now guard the generic `except Exception` branch: when
+`not captured and not capturing_sink.write_failed`, the caught exception is
+re-raised (`raise`) rather than passed to `_classify` -- no target
+execution, no fabricated receipt, no response at all, and therefore no
+possibility of a false diagnostic. `_classify`'s `not captured` branch (and
+its docstring) now documents that it may only be reached once a caller has
+already confirmed a grounded sink-write failure via `write_failed`; the
+pre-existing genuine sink-failure path (`_AlwaysFailingSink`,
+`test_required_pre_execution_sink_failure_prevents_execution`) is
+unchanged and still returns `required_sink_unavailable`. No exception
+message, stack, or resolver internals are placed on any
+`GovernedCallResponse` -- the raw exception simply propagates out of
+`execute_governed_call` as a Python exception, never as response content.
+Applied identically to both `_execute_via_fastmcp` and `_execute_via_sdk`.
+
+**Finding 2 — `ReceiptHandle.receipt_id` was read back from the pre-write
+envelope instead of the sink's own return value.** `_CapturingSink.write`
+called `receipt_id = inner.write(envelope)` but then captured a copy of the
+*envelope* and later built `ReceiptHandle.receipt_id` from
+`envelope["receipt_id"]` -- silently assuming the sink's returned identifier
+always equals the envelope's own field. Every sink shipped in this
+repository happens to satisfy that assumption (`RawEnvelopeFileSink.write`
+returns `str(envelope["receipt_id"])`), so the bug was latent, not
+observed, in this lane's own test suite.
+
+Fix: introduced a narrow, immutable `_CapturedReceipt` record
+(`receipt_id`, `receipt_kind`, `disposition`, `outcome`, `reason_code`,
+`review_object_ref` -- the minimum fields `_classify` needs) built from the
+sink's own return value (`str(receipt_id)`), not the envelope. Nothing is
+appended to `captured` when the sink write raises. `_receipt_handle` now
+takes a `_CapturedReceipt` and reads `.receipt_id` directly. Per-call
+capture isolation (a fresh `list`/`_CapturingSink` per `execute_governed_call`
+invocation) and admission-before-outcome ordering are both unchanged.
+
+**Regression tests added** (`tests/test_gateway_service_adapter.py`, both
+bindings unless noted):
+
+- `test_pre_admission_resolver_failure_executes_no_target_and_is_not_sink_unavailable`
+  -- a raising `policy_resolver` executes no target, writes no receipt, and
+  propagates its own exception type rather than returning any response.
+- `test_pre_admission_resolver_failure_and_genuine_sink_failure_stay_distinguishable`
+  -- drives both failure causes back to back and asserts they never
+  collapse into the same (or an indistinguishable) outcome: one raises, the
+  other returns a grounded `required_sink_unavailable` refusal.
+- `test_receipt_handle_uses_the_sink_returned_identifier` -- a custom
+  `_RemappingIdSink` returns an identifier distinct from the envelope's own
+  `receipt_id`; asserts `response.receipts[*].receipt_id` matches the
+  sink's return value and is disjoint from the on-disk envelope's own ids.
+
+## Corrective-pass test results
+
+```
+$HOME/Developer/repos/dagr-mcp/.venv/bin/pytest tests/test_gateway_service_adapter.py -q
+47 passed in 2.02s
+
+$HOME/Developer/repos/dagr-mcp/.venv/bin/pytest tests/test_gateway_service_adapter.py tests/test_gateway_service_memory_connector.py -q
+55 passed in 1.39s
+
+$HOME/Developer/repos/dagr-mcp/.venv/bin/pytest tests/test_gateway_service_contract.py tests/test_gateway_service_resolution.py -q
+73 passed in 0.73s
+
+$HOME/Developer/repos/dagr-mcp/.venv/bin/pytest tests/test_fastmcp_binding.py tests/test_official_mcp_sdk_binding.py -q
+50 passed in 2.03s
+
+$HOME/Developer/repos/dagr-mcp/.venv/bin/pytest -q
+656 passed, 2 skipped in 8.58s
+
+$HOME/Developer/repos/dagr-mcp/.venv/bin/python tools/check_public_release.py .
+PASS: 0 finding(s)
+```
+
+Wheel (`dagr_mcp-0.1.0-py3-none-any.whl`) and sdist
+(`dagr_mcp-0.1.0.tar.gz`) rebuilt cleanly via `python -m build`; wheel
+content inspection confirms all six `dagr_mcp_service`/`.connectors`
+modules are present with the corrected `adapter.py`. A fresh clean-wheel
+smoke test (new venv, `pip install dagr_mcp-0.1.0-py3-none-any.whl
+[official-sdk]`, no repository checkout on `sys.path`) drove one admitted
+governed call through each binding successfully. `git diff --check`
+reported no whitespace errors. All build/cache artifacts were removed
+before staging.
+
 ## A9 boundary
 
 A9 ("one selected remote transport / client connector") is the next work

@@ -673,6 +673,85 @@ async def test_required_pre_execution_sink_failure_prevents_execution(
 
 
 # --------------------------------------------------------------------------- #
+# 21a — a pre-admission operator/resolver failure is not a fabricated sink    #
+# outage: no receipt write was ever attempted, so it must not be classified  #
+# as required_sink_unavailable, and it must remain distinguishable from a    #
+# genuine sink failure.                                                      #
+# --------------------------------------------------------------------------- #
+
+
+class _RaisingPolicyResolverError(RuntimeError):
+    """A distinctive, narrow marker exception for the raising resolver below."""
+
+
+def _raising_policy_resolver(_snapshot: Any, _actor: Any) -> Any:
+    raise _RaisingPolicyResolverError("boom from policy resolver, before any receipt write")
+
+
+@pytest.mark.parametrize("binding_version", BOTH_BINDINGS)
+async def test_pre_admission_resolver_failure_executes_no_target_and_is_not_sink_unavailable(
+    tmp_path: Path, binding_version: str
+) -> None:
+    calls: list[Any] = []
+
+    async def counting(_arguments: dict[str, Any]) -> dict[str, Any]:
+        calls.append(1)
+        return {}
+
+    connector = InMemoryToolConnector({"mem:fixture": {"echo": counting}})
+    config, _identity, directory = _build_config(
+        tmp_path,
+        connector=connector,
+        binding_version=binding_version,
+        policy_resolver=_raising_policy_resolver,
+    )
+    request = _resolved_request(arguments={"x": 1})
+
+    with pytest.raises(_RaisingPolicyResolverError):
+        await execute_governed_call(request, arguments={"x": 1}, config=config)
+
+    # No target execution, no fabricated receipt, and -- because this never
+    # produces a GovernedCallResponse at all -- no possibility of a false
+    # required_sink_unavailable (or any other) diagnostic.
+    assert not calls
+    assert read_receipts(directory) == []
+
+
+@pytest.mark.parametrize("binding_version", BOTH_BINDINGS)
+async def test_pre_admission_resolver_failure_and_genuine_sink_failure_stay_distinguishable(
+    tmp_path: Path, binding_version: str
+) -> None:
+    connector = InMemoryToolConnector({"mem:fixture": {"echo": _echo}})
+    request = _resolved_request(arguments={"x": 1})
+
+    resolver_config, _identity, resolver_directory = _build_config(
+        tmp_path / "resolver",
+        connector=connector,
+        binding_version=binding_version,
+        policy_resolver=_raising_policy_resolver,
+    )
+    with pytest.raises(_RaisingPolicyResolverError):
+        await execute_governed_call(request, arguments={"x": 1}, config=resolver_config)
+    assert read_receipts(resolver_directory) == []
+
+    sink_config, _identity2, _sink_directory = _build_config(
+        tmp_path / "sink",
+        connector=connector,
+        binding_version=binding_version,
+        sink=_AlwaysFailingSink(),
+        tool_classes={"echo": "write"},
+    )
+    sink_response = await execute_governed_call(request, arguments={"x": 1}, config=sink_config)
+
+    # The two failure causes never collapse into the same, or an
+    # indistinguishable, outcome: one propagates the operator's own
+    # exception (no response at all), the other returns a grounded refusal.
+    assert sink_response.decision.disposition == "refused"
+    assert sink_response.diagnostic_code == "required_sink_unavailable"
+    assert sink_response.receipts == ()
+
+
+# --------------------------------------------------------------------------- #
 # 22 — post-execution receipt failure preserves alert_and_return_result       #
 # --------------------------------------------------------------------------- #
 
@@ -744,6 +823,54 @@ async def test_receipt_handles_expose_no_signer_or_storage_path(
     assert field_names == {"receipt_id", "receipt_kind", "location_handle"}
     for handle in response.receipts:
         assert handle.location_handle is None
+
+
+# --------------------------------------------------------------------------- #
+# 23a — ReceiptHandle carries the sink-returned identifier, not the           #
+# pre-write envelope's own field                                              #
+# --------------------------------------------------------------------------- #
+
+
+class _RemappingIdSink:
+    """Delegates to a real sink but returns an identifier the envelope never carries."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self._calls = 0
+
+    def write(self, envelope: dict[str, Any]) -> str:
+        self._inner.write(envelope)
+        self._calls += 1
+        return f"sink-assigned-id-{self._calls}"
+
+    def write_trust_bundle(self, *args: Any, **kwargs: Any) -> Any:
+        return self._inner.write_trust_bundle(*args, **kwargs)
+
+
+@pytest.mark.parametrize("binding_version", BOTH_BINDINGS)
+async def test_receipt_handle_uses_the_sink_returned_identifier(
+    tmp_path: Path, binding_version: str
+) -> None:
+    directory = tmp_path / "receipts"
+    remapping_sink = _RemappingIdSink(RawEnvelopeFileSink(directory))
+
+    connector = InMemoryToolConnector({"mem:fixture": {"echo": _echo}})
+    config, _identity, _directory = _build_config(
+        tmp_path, connector=connector, binding_version=binding_version, sink=remapping_sink
+    )
+    request = _resolved_request(arguments={"x": 1})
+
+    response = await execute_governed_call(request, arguments={"x": 1}, config=config)
+
+    assert [handle.receipt_id for handle in response.receipts] == [
+        "sink-assigned-id-1",
+        "sink-assigned-id-2",
+    ]
+    # The durably written envelopes still carry their own minted receipt_id
+    # (the emitter's, not the sink's) -- proving the response handle came
+    # from the sink's return value, not read back off the envelope.
+    on_disk_ids = {receipt["receipt_id"] for receipt in read_receipts(directory)}
+    assert on_disk_ids.isdisjoint({"sink-assigned-id-1", "sink-assigned-id-2"})
 
 
 # --------------------------------------------------------------------------- #

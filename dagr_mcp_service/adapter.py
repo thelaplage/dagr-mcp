@@ -135,21 +135,57 @@ class GatewayAdapterConfig:
     is_binding_available: Callable[[str], bool] | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class _CapturedReceipt:
+    """Narrow, immutable record of one receipt the sink actually wrote.
+
+    ``receipt_id`` is the identifier ``inner.write(envelope)`` itself
+    returned, never read back from the pre-write envelope -- the sink is
+    free to mint or rewrite the identifier it durably stores under. Only the
+    additional fields :func:`_classify` needs are retained; the full
+    envelope is never held past the ``write`` call that produced it.
+    """
+
+    receipt_id: str
+    receipt_kind: str
+    disposition: str | None = None
+    outcome: str | None = None
+    reason_code: str | None = None
+    review_object_ref: str | None = None
+
+
 class _CapturingSink:
-    """Forwards every write unchanged; also records the envelope written.
+    """Forwards every write unchanged; also records what the sink wrote.
 
     Never alters the envelope, never intercepts ``write_trust_bundle``
     behavior, and never withholds a write from the real sink. This is a pure
-    observation seam (§9), not a second receipt store.
+    observation seam (§9), not a second receipt store. ``write_failed``
+    tracks whether a write this sink attempted raised, so a caller can tell
+    "the sink write failed" apart from "no write was ever attempted" -- the
+    latter is not grounded evidence of a sink failure.
     """
 
-    def __init__(self, inner: Any, captured: list[dict[str, Any]]) -> None:
+    def __init__(self, inner: Any, captured: list[_CapturedReceipt]) -> None:
         self._inner = inner
         self._captured = captured
+        self.write_failed = False
 
     def write(self, envelope: Mapping[str, Any]) -> str:
-        receipt_id = self._inner.write(envelope)
-        self._captured.append(dict(envelope))
+        try:
+            receipt_id = self._inner.write(envelope)
+        except Exception:
+            self.write_failed = True
+            raise
+        self._captured.append(
+            _CapturedReceipt(
+                receipt_id=str(receipt_id),
+                receipt_kind=envelope["receipt_kind"],
+                disposition=envelope.get("disposition"),
+                outcome=envelope.get("outcome"),
+                reason_code=envelope.get("reason_code"),
+                review_object_ref=envelope.get("review_object_ref"),
+            )
+        )
         return receipt_id
 
     def write_trust_bundle(self, *args: Any, **kwargs: Any) -> Any:
@@ -162,10 +198,10 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
-def _receipt_handle(envelope: Mapping[str, Any]) -> ReceiptHandle:
+def _receipt_handle(record: _CapturedReceipt) -> ReceiptHandle:
     return ReceiptHandle(
-        receipt_id=str(envelope["receipt_id"]),
-        receipt_kind=envelope["receipt_kind"],
+        receipt_id=record.receipt_id,
+        receipt_kind=record.receipt_kind,
         location_handle=None,
     )
 
@@ -186,7 +222,7 @@ def _refusal_diagnostic(reason_code: str | None) -> str:
 
 def _classify(
     request: GovernedCallRequest,
-    captured: list[dict[str, Any]],
+    captured: list[_CapturedReceipt],
     *,
     raw_result: Any = None,
     raised: BaseException | None = None,
@@ -194,34 +230,41 @@ def _classify(
     """Build the response from captured receipt structure, never raw content.
 
     Exactly one of ``raw_result``/``raised`` is meaningful, selected by
-    whether the binding call returned normally or raised. The receipt
-    envelopes captured along the way are the authoritative source for which
-    response class applies — never the raised exception's message/type.
+    whether the binding call returned normally or raised. The receipts
+    captured along the way are the authoritative source for which response
+    class applies — never the raised exception's message/type.
+
+    Callers must only invoke this with ``raised`` set and zero ``captured``
+    entries when they have already confirmed (via
+    ``_CapturingSink.write_failed``) that a sink write was actually
+    attempted and failed; otherwise a pre-admission failure that never
+    reached a receipt write would be misreported as a sink outage (see the
+    call sites in ``_execute_via_fastmcp``/``_execute_via_sdk``).
     """
 
-    receipts = tuple(_receipt_handle(envelope) for envelope in captured)
+    receipts = tuple(_receipt_handle(record) for record in captured)
 
     if raised is None:
-        # The outcome envelope (when one was durably captured) is the
+        # The outcome record (when one was durably captured) is the
         # authoritative source for the outcome family, including
         # ``task_submitted`` — a family a raw is_error/isError inspection of
         # ``raw_result`` cannot detect. When the outcome receipt itself
         # could not be durably written (best-effort post-execution failure;
-        # only the admission envelope is captured), fall back to inspecting
+        # only the admission record is captured), fall back to inspecting
         # ``raw_result`` directly the same way both bindings' own projectors
         # do, since that is the only signal left.
-        outcome_envelope = (
-            captured[1] if len(captured) >= 2 and captured[1].get("receipt_kind") == "outcome" else None
+        outcome_record = (
+            captured[1] if len(captured) >= 2 and captured[1].receipt_kind == "outcome" else None
         )
-        if outcome_envelope is not None and outcome_envelope.get("outcome") == "task_submitted":
+        if outcome_record is not None and outcome_record.outcome == "task_submitted":
             return GovernedCallResponse(
                 request_ref=request.request_ref,
                 logical_call_id=request.request_ref,
                 decision=GovernedDecision(disposition="admitted", outcome="task_submitted"),
                 receipts=receipts,
             )
-        if outcome_envelope is not None:
-            is_error = outcome_envelope.get("outcome") == "error_returned"
+        if outcome_record is not None:
+            is_error = outcome_record.outcome == "error_returned"
         else:
             is_error = bool(
                 getattr(raw_result, "is_error", getattr(raw_result, "isError", False))
@@ -263,9 +306,9 @@ def _classify(
         )
 
     if not captured:
-        # The durable admission write itself failed (fail-closed tool class);
-        # nothing was ever captured because the sink write raised before this
-        # module's capturing proxy could record anything.
+        # Reached only for a confirmed sink-write failure (see the call
+        # sites' ``write_failed`` guard): the durable admission write itself
+        # raised before this module's capturing proxy could record anything.
         return GovernedCallResponse(
             request_ref=request.request_ref,
             logical_call_id=request.request_ref,
@@ -275,7 +318,7 @@ def _classify(
         )
 
     admission = captured[0]
-    disposition_token = admission.get("disposition")
+    disposition_token = admission.disposition
 
     if disposition_token == _REFUSED_DISPOSITION_TOKEN:
         return GovernedCallResponse(
@@ -283,7 +326,7 @@ def _classify(
             logical_call_id=request.request_ref,
             decision=GovernedDecision(disposition="refused"),
             receipts=receipts,
-            diagnostic_code=_refusal_diagnostic(admission.get("reason_code")),
+            diagnostic_code=_refusal_diagnostic(admission.reason_code),
         )
 
     if disposition_token == _DEFERRED_DISPOSITION_TOKEN:
@@ -292,7 +335,7 @@ def _classify(
             logical_call_id=request.request_ref,
             decision=GovernedDecision(disposition="deferred"),
             receipts=receipts,
-            review_object_ref=admission.get("review_object_ref"),
+            review_object_ref=admission.review_object_ref,
             retry_instruction=DEFERRAL_CONTINUATION_CONTRACT,
             diagnostic_code="deferred_for_review",
         )
@@ -361,10 +404,9 @@ async def _execute_via_fastmcp(
 
     from dagr_mcp.fastmcp_binding import ActorResolution, DAGRMiddleware, DAGRMiddlewareConfig
 
-    captured: list[dict[str, Any]] = []
-    emitter = SignedReceiptEmitter(
-        identity=config.identity, sink=_CapturingSink(config.sink, captured)
-    )
+    captured: list[_CapturedReceipt] = []
+    capturing_sink = _CapturingSink(config.sink, captured)
+    emitter = SignedReceiptEmitter(identity=config.identity, sink=capturing_sink)
 
     def _actor_resolver(_context: Any, _snapshot: Any) -> ActorResolution:
         return ActorResolution(**_actor_resolution_kwargs(request))
@@ -390,6 +432,12 @@ async def _execute_via_fastmcp(
     except asyncio.CancelledError as exc:
         return _classify(request, captured, raised=exc)
     except Exception as exc:  # noqa: BLE001 - classified structurally, content never leaked.
+        if not captured and not capturing_sink.write_failed:
+            # No receipt write was ever attempted -- this is a pre-admission
+            # operator/internal failure (e.g. a raising ``policy_resolver``),
+            # not grounded evidence of a sink outage. Propagate it rather
+            # than fabricate a ``required_sink_unavailable`` diagnostic.
+            raise
         return _classify(request, captured, raised=exc)
 
     return _classify(request, captured, raw_result=raw_result)
@@ -408,10 +456,9 @@ async def _execute_via_sdk(
         TaskSubmissionUnsupported,
     )
 
-    captured: list[dict[str, Any]] = []
-    emitter = SignedReceiptEmitter(
-        identity=config.identity, sink=_CapturingSink(config.sink, captured)
-    )
+    captured: list[_CapturedReceipt] = []
+    capturing_sink = _CapturingSink(config.sink, captured)
+    emitter = SignedReceiptEmitter(identity=config.identity, sink=capturing_sink)
 
     def _actor_resolver(_request_context: Any, _snapshot: Any) -> ActorResolution:
         return ActorResolution(**_actor_resolution_kwargs(request))
@@ -443,10 +490,16 @@ async def _execute_via_sdk(
             request_ref=request.request_ref,
             logical_call_id=request.request_ref,
             decision=GovernedDecision(disposition="admitted"),
-            receipts=tuple(_receipt_handle(envelope) for envelope in captured),
+            receipts=tuple(_receipt_handle(record) for record in captured),
             diagnostic_code="unsupported_lifecycle_state",
         )
     except Exception as exc:  # noqa: BLE001 - classified structurally, content never leaked.
+        if not captured and not capturing_sink.write_failed:
+            # No receipt write was ever attempted -- this is a pre-admission
+            # operator/internal failure (e.g. a raising ``policy_resolver``),
+            # not grounded evidence of a sink outage. Propagate it rather
+            # than fabricate a ``required_sink_unavailable`` diagnostic.
+            raise
         return _classify(request, captured, raised=exc)
 
     return _classify(request, captured, raw_result=raw_result)
