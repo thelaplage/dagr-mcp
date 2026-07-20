@@ -573,16 +573,19 @@ def test_fresh_import_of_service_package_does_not_pull_in_transport_or_storage_l
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
-def test_no_adapter_execution_or_access_module_exists_yet() -> None:
-    # A7's prohibited scope (scope §15): no connector, no transport, no
-    # receipt emission, no execute_governed_call orchestration. Proven by
-    # these modules simply not existing in the package yet.
-    import dagr_mcp_service
-
-    for forbidden_submodule in ("adapter", "connectors", "access"):
-        with pytest.raises(ModuleNotFoundError):
-            __import__(f"dagr_mcp_service.{forbidden_submodule}")
-    assert not hasattr(dagr_mcp_service, "execute_governed_call")
+def test_no_access_module_exists_yet() -> None:
+    # A10's receipt-handle access/composition seam remains out of scope
+    # through A8 (scope §15): "access.py — resolve returned receipt handles
+    # to receipts from the configured sink" is prerequisite on A8 (and A9 for
+    # remote handles), neither of which this repository state satisfies for
+    # a durable resolution seam. A8 (dagr-mcp gateway in-process adapter)
+    # legitimately adds ``dagr_mcp_service.adapter`` /
+    # ``dagr_mcp_service.connectors`` (see ``tests/test_gateway_service_adapter.py``
+    # and ``tests/test_gateway_service_memory_connector.py``); this test was
+    # narrowed from its A7-era form (which also asserted those two modules'
+    # absence) to keep asserting only what A8 does not add.
+    with pytest.raises(ModuleNotFoundError):
+        __import__("dagr_mcp_service.access")
 
 
 def test_no_idempotency_or_exactly_once_surface_on_the_contract_types() -> None:
