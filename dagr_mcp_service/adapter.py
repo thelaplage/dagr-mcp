@@ -49,6 +49,19 @@ depends on parsing an exception message.
 imports ``mcp``, ``fastmcp``, or a transport library. The concrete binding
 module for whichever binding a given call actually selects is imported
 lazily, inside the function that drives that one call.
+
+**Sprint A9 additions.** Two narrow, additive changes support
+:mod:`dagr_mcp_service.connectors.remote` without altering any A8-tested
+behavior: (1) an optional ``connector.bind_trusted_context(...)`` rebinding
+step, called only when a connector defines it, that lets a connector see the
+caller's already-resolved trusted actor/tenant context without changing the
+frozen two-argument ``connector.resolve(target_handle, tool_name)`` seam; and
+(2) :func:`_classify` now distinguishes a connector-raised plain builtin
+``ConnectionError`` (``diagnostic_code="remote_unavailable"`` — no socket-level
+connection was ever established) from every other admitted-call exception
+(``diagnostic_code="remote_exception"``, unchanged). Neither change alters
+behavior for :mod:`dagr_mcp_service.connectors.memory`, which defines no
+``bind_trusted_context`` and never raises ``ConnectionError``.
 """
 
 from __future__ import annotations
@@ -346,12 +359,24 @@ def _classify(
         # best-effort outcome-receipt write failure leaving only the
         # admission receipt captured). Either way the neutral outcome family
         # is "exception" per both bindings' own frozen projection.
+        #
+        # A9 addition: a connector may raise a plain builtin ``ConnectionError``
+        # to report that no connection could be established at all (see
+        # ``dagr_mcp_service.connectors.remote._translate_transport_failure``)
+        # — a strictly narrower, more accurately grounded claim than the
+        # generic "an exception occurred" bucket, and the only case this
+        # module can honestly distinguish as ``remote_unavailable`` rather
+        # than ``remote_exception``. No other exception type changes this
+        # branch's existing, A8-frozen behavior.
+        diagnostic_code = (
+            "remote_unavailable" if isinstance(raised, ConnectionError) else "remote_exception"
+        )
         return GovernedCallResponse(
             request_ref=request.request_ref,
             logical_call_id=request.request_ref,
             decision=GovernedDecision(disposition="admitted", outcome="exception"),
             receipts=receipts,
-            diagnostic_code="remote_exception",
+            diagnostic_code=diagnostic_code,
         )
 
     raise RuntimeError(
@@ -574,6 +599,27 @@ async def execute_governed_call(
             logical_call_id=logical_call_id,
             decision=GovernedDecision(disposition="refused"),
             diagnostic_code=resolved_target.reason,
+        )
+
+    # A9 addition: an *optional* hook a connector may define to receive the
+    # caller's already-resolved trusted actor/tenant context (e.g. a remote
+    # connector's credential provider seam). ``resolve(target_handle,
+    # tool_name)`` itself is the frozen A8 seam and stays exactly two
+    # positional arguments — it structurally cannot carry per-call trust —
+    # so this is an additive rebinding step, not a signature change.
+    # ``dagr_mcp_service.connectors.memory.InMemoryToolConnector`` defines no
+    # such method, so ``getattr(..., None)`` is ``None`` and this is a no-op
+    # for every existing A8 deployment/test.
+    bind_trusted_context = getattr(config.connector, "bind_trusted_context", None)
+    if bind_trusted_context is not None:
+        resolved_target = bind_trusted_context(
+            resolved_target,
+            target_handle=request.target_server_ref.handle,
+            tool_name=request.tool_name,
+            actor_ref=request.actor_ref.ref,
+            tenant_ref=request.tenant_ref.ref if request.tenant_ref is not None else None,
+            parent_receipt_ref=request.parent_receipt_ref,
+            request_ref=request.request_ref,
         )
 
     if resolved_binding.binding_version == FASTMCP_BINDING_VERSION:
