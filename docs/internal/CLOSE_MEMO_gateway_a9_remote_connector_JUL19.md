@@ -427,3 +427,50 @@ This lane has not undergone independent adversarial review. Per the
 governing instructions for this lane, the PR opened from this branch is
 kept as a draft and is not marked ready; independent review is required
 before that status changes.
+
+## Independent-review correction — verified argument snapshot
+
+The independent adversarial review of PR #17 at
+`ceca8f015fbab8745198e5047986669ddf5fc5f8` reproduced a material
+FastMCP-specific argument-integrity race.
+
+Before correction, the service verified the digest of a temporary top-level
+copy but retained the original caller-owned mutable mapping. The FastMCP
+binding could await actor, policy, or review resolution before invoking its
+execution delegate. A concurrent mutation during that interval could therefore
+change the payload transmitted to the remote MCP server while the admission
+receipt continued to attest the original digest.
+
+The correction creates one fully detached JSON-compatible execution snapshot
+synchronously before the first await. The digest is computed from that
+snapshot, and the same snapshot is passed through both governance bindings.
+Neither binding rereads the caller-owned mapping after verification. The
+remote connector's later defensive copy remains a serialization-boundary
+defense and is no longer described as protecting the entire
+digest-to-transmission interval.
+
+A shallow top-level copy was insufficient because nested dictionaries and
+lists would remain shared. Regression coverage therefore mutates both
+top-level and nested values during an awaited FastMCP policy-resolution window.
+It proves that the remote execution content, returned result, and signed
+admission digest remain aligned with the detached verified snapshot.
+
+The new regressions were demonstrated to fail when the correction was
+temporarily removed and to pass after it was restored. Official-SDK parity is
+also covered through the common top-level snapshot boundary.
+
+Corrected validation:
+
+- focused A9 suites: `90 passed`;
+- full stable suite: `746 passed, 2 skipped`;
+- public-release checker: passed with zero findings;
+- wheel and sdist: built successfully;
+- clean-wheel loopback smoke: passed through
+  `fastmcp.middleware.v0.1` and
+  `official-mcp-sdk.python.v0.1`;
+- `git diff --check`: clean.
+
+The A10 boundary is unchanged: A9 does not resolve receipt handles to content.
+The actor/tenant wire format, JWT propagation, Bossy/RLS double-control proof,
+retry, idempotency, deduplication, replay, and exactly-once guarantees remain
+outside this work package.

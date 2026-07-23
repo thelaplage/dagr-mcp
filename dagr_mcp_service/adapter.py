@@ -68,12 +68,20 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from dagr_mcp.srs_receipts import SignedReceiptEmitter, SigningIdentity, sha256_digest
+import rfc8785
+
+from dagr_mcp.srs_receipts import (
+    ReceiptContentError,
+    SignedReceiptEmitter,
+    SigningIdentity,
+    sha256_digest,
+)
 from dagr_mcp_service.contract import (
     ALL_DIAGNOSTIC_CODES,
     DEFERRAL_CONTINUATION_CONTRACT,
@@ -203,6 +211,34 @@ class _CapturingSink:
 
     def write_trust_bundle(self, *args: Any, **kwargs: Any) -> Any:
         return self._inner.write_trust_bundle(*args, **kwargs)
+
+
+def _freeze_arguments(arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """Detach ``arguments`` into an independent, JSON-compatible snapshot.
+
+    Serializes the caller-owned mapping to RFC 8785 canonical JSON bytes and
+    decodes those bytes back into a fresh value graph, so every nested dict
+    and list reachable from the return value is a brand-new object sharing
+    no structure with ``arguments`` -- nothing the caller still holds a
+    reference to can reach it. This is what :func:`execute_governed_call`
+    calls, synchronously and before any ``await``, to build the one
+    detached snapshot that is both digested and passed to whichever binding
+    is selected; neither binding is ever given the original mapping back.
+
+    Canonicalization failure (a value outside the existing JSON-compatible
+    argument domain :func:`~dagr_mcp.srs_receipts.sha256_digest` itself
+    already requires) raises the same
+    :class:`~dagr_mcp.srs_receipts.ReceiptContentError`, so a value
+    ``copy.deepcopy`` could copy but ``sha256_digest`` could never digest is
+    rejected here exactly as it always was, rather than silently admitted
+    through a broader copy mechanism.
+    """
+
+    try:
+        canonical = rfc8785.dumps(dict(arguments))
+    except Exception as exc:
+        raise ReceiptContentError("value is not RFC 8785 canonicalizable") from exc
+    return json.loads(canonical)
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -542,17 +578,25 @@ async def execute_governed_call(
     :class:`~dagr_mcp_service.contract.GovernedCallRequest` — never a caller
     mapping or :class:`~dagr_mcp_service.contract.CallerGovernedCallRequest`.
     ``arguments`` is the transient, keyword-only raw-argument mapping this
-    one call needs to actually invoke the resolved in-process target; it is
-    verified against ``request.argument_digest`` and then held only for the
-    duration of this call — never stored on the request, a receipt, or the
-    response.
+    one call needs to actually invoke the resolved in-process target.
+    Before anything else -- synchronously, before any ``await`` in this
+    function or in either binding -- it is detached into one independent
+    snapshot via :func:`_freeze_arguments`; that same snapshot is what gets
+    digested, what gets verified against ``request.argument_digest``, and
+    the *only* argument mapping either binding path ever receives. Neither
+    binding rereads ``arguments`` itself, so a caller mutating its own
+    mapping after this function returns control (e.g. during an awaited
+    policy resolver) can never change what is actually digested, executed,
+    or receipted. The snapshot is held only for the duration of this call —
+    never stored on the request, a receipt, or the response.
 
     Order of operations, each fail-closed with zero tool executions on
-    refusal: (1) verify ``arguments`` matches ``request.argument_digest``;
-    (2) resolve the configured binding (§5); (3) resolve the in-process
-    target via ``config.connector``; (4) drive exactly one governed call
-    through the selected binding, which alone decides admission/outcome via
-    the neutral core.
+    refusal: (1) detach ``arguments`` into one snapshot and verify it
+    matches ``request.argument_digest``; (2) resolve the configured binding
+    (§5); (3) resolve the in-process target via ``config.connector``; (4)
+    drive exactly one governed call, through the selected binding on the
+    detached snapshot, which alone decides admission/outcome via the
+    neutral core.
     """
 
     if not isinstance(request, GovernedCallRequest):
@@ -562,7 +606,9 @@ async def execute_governed_call(
 
     logical_call_id = request.request_ref
 
-    computed_digest = sha256_digest(dict(arguments))
+    snapshot_arguments = _freeze_arguments(arguments)
+
+    computed_digest = sha256_digest(snapshot_arguments)
     if computed_digest != request.argument_digest:
         return GovernedCallResponse(
             request_ref=request.request_ref,
@@ -623,9 +669,9 @@ async def execute_governed_call(
         )
 
     if resolved_binding.binding_version == FASTMCP_BINDING_VERSION:
-        return await _execute_via_fastmcp(request, arguments, resolved_target, config)
+        return await _execute_via_fastmcp(request, snapshot_arguments, resolved_target, config)
     if resolved_binding.binding_version == SDK_BINDING_VERSION:
-        return await _execute_via_sdk(request, arguments, resolved_target, config)
+        return await _execute_via_sdk(request, snapshot_arguments, resolved_target, config)
 
     raise RuntimeError(  # pragma: no cover - select_binding only returns supported versions.
         f"select_binding returned an unsupported binding_version: "

@@ -391,12 +391,16 @@ async def _call_remote_tool(
     """Open one connection, call one tool, close the connection (§9's
     "Connection lifecycle", § "Argument integrity" steps 4-6).
 
-    ``arguments`` has already passed :func:`dagr_mcp_service.adapter.
-    execute_governed_call`'s digest verification and the selected binding's
-    own ``dict(arguments)`` copy at its ``call_next``/``delegate`` seam; this
-    function takes one further defensive copy immediately before
-    serialization, so nothing between digest verification and the actual
-    remote transmission can still be mutated out from under it.
+    ``arguments`` is already a detached value reachable only from the one
+    snapshot :func:`dagr_mcp_service.adapter.execute_governed_call` freezes
+    synchronously, before any ``await``, and digests against
+    ``request.argument_digest`` -- that snapshot, not any copy taken along
+    the way, is the actual integrity boundary: nothing reachable from it is
+    ever shared with a caller-owned mapping, so there is nothing left for a
+    caller to mutate out from under it by the time it reaches this
+    function. The ``dict(arguments)`` copy below is only one further
+    serialization-boundary convenience immediately before the call, not
+    what makes the value trustworthy.
     """
 
     import httpx

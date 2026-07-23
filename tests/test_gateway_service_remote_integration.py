@@ -315,13 +315,28 @@ async def test_digest_mismatch_performs_no_credential_lookup_or_network_operatio
     tmp_path: Path, loopback_mcp_server: LoopbackMcpServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     provider_calls: list[TrustedOutboundContext] = []
+    policy_calls: list[Any] = []
 
     async def provider(context: TrustedOutboundContext) -> RemoteCredential:
         provider_calls.append(context)
         return RemoteCredential(headers={"Authorization": "Bearer should-never-be-used"})
 
+    def _policy_resolver(snapshot: Any, actor: Any) -> Any:
+        from types import SimpleNamespace
+
+        policy_calls.append((snapshot, actor))
+        return SimpleNamespace(
+            disposition="admitted",
+            tool_class="read",
+            reason_code=None,
+            parent_receipt_ref=None,
+            additional_attestation_limits=(),
+        )
+
     connector = _remote_connector(loopback_mcp_server.base_url, credential_provider=provider)
-    config, _identity, _directory = _build_config(tmp_path, connector=connector)
+    config, _identity, directory = _build_config(
+        tmp_path, connector=connector, policy_resolver=_policy_resolver
+    )
     request = _resolved_request(arguments={"x": "hello"})
 
     def _forbidden(*args: Any, **kwargs: Any) -> None:
@@ -330,7 +345,11 @@ async def test_digest_mismatch_performs_no_credential_lookup_or_network_operatio
     monkeypatch.setattr(socket, "socket", _forbidden)
 
     # Deliberately mismatched: the request's digest was computed over
-    # {"x": "hello"}, but a different mapping is supplied at call time.
+    # {"x": "hello"}, but a different mapping is supplied at call time. This
+    # must fail closed at the synchronous snapshot/digest step in
+    # ``execute_governed_call`` -- before binding selection, before the
+    # policy resolver, before the credential provider, before any receipt
+    # write, and before any socket.
     response = await execute_governed_call(
         request, arguments={"x": "tampered"}, config=config
     )
@@ -338,7 +357,9 @@ async def test_digest_mismatch_performs_no_credential_lookup_or_network_operatio
     assert response.decision.disposition == "refused"
     assert response.diagnostic_code == "malformed_request"
     assert response.receipts == ()
+    assert policy_calls == []
     assert provider_calls == []
+    assert read_receipts(directory) == []
 
 
 async def test_unknown_binding_opens_no_socket(
@@ -495,9 +516,22 @@ async def test_the_exact_verified_argument_snapshot_is_what_reaches_the_remote_t
 
 
 @pytest.mark.parametrize("binding_version", BOTH_BINDINGS)
-async def test_mutable_arguments_cannot_change_after_digest_verification(
+async def test_arguments_mutated_before_the_call_have_no_bearing_on_the_call(
     tmp_path: Path, binding_version: str, loopback_mcp_server: LoopbackMcpServer
 ) -> None:
+    """Narrow, call-time-only sanity check -- NOT proof of race safety.
+
+    This only proves that mutating the caller's own dict *before*
+    ``execute_governed_call`` is invoked has no bearing on the call, since a
+    different, already-settled mapping is what is actually passed in. It
+    says nothing about a mutation racing the awaited admission window
+    between digest verification and transmission -- that is what
+    ``test_fastmcp_top_level_mutation_during_awaited_admission_is_not_transmitted``
+    and
+    ``test_fastmcp_nested_mutation_during_awaited_admission_is_not_transmitted``
+    below actually reproduce and close.
+    """
+
     connector = _remote_connector(loopback_mcp_server.base_url)
     config, _identity, _directory = _build_config(
         tmp_path, connector=connector, binding_version=binding_version
@@ -505,19 +539,206 @@ async def test_mutable_arguments_cannot_change_after_digest_verification(
     mutable_arguments = {"x": "original"}
     request = _resolved_request(arguments=mutable_arguments)
 
-    # Mutate after the request's digest was computed but before the call.
-    mutable_arguments["x"] = "mutated-after-digest"
+    # Mutate before execute_governed_call is ever invoked.
+    mutable_arguments["x"] = "mutated-before-call"
 
     response = await execute_governed_call(
         request, arguments={"x": "original"}, config=config
     )
 
-    # The call succeeds because {"x": "original"} (matching the digest) was
-    # what was actually passed to execute_governed_call -- the mutation to
-    # the caller's own dict after request construction has no bearing here;
-    # this proves the transmitted value is whatever was verified, not
-    # whatever the caller's mapping happens to hold later.
     assert response.business_result.payload.content[0].text == "echo:original"
+
+
+async def test_fastmcp_top_level_mutation_during_awaited_admission_is_not_transmitted(
+    tmp_path: Path, loopback_mcp_server: LoopbackMcpServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reproduces and closes the independent-review finding.
+
+    A real async policy resolver (a real awaited admission extension point)
+    suspends mid-call; while it is suspended, a second task mutates the
+    caller-owned ``mutable_arguments`` mapping in place. Before the fix,
+    ``execute_governed_call`` verified the digest over the pre-mutation
+    value but the FastMCP binding's ``call_next`` closure re-read the same
+    shared mapping later, after the suspension -- transmitting the mutated
+    value to the real remote tool while the admission receipt kept
+    attesting the original, verified digest. Capturing at
+    ``dagr_mcp_service.connectors.remote._call_remote_tool`` (the actual
+    wire boundary) proves what was really sent.
+    """
+
+    import dagr_mcp_service.connectors.remote as remote_module
+
+    transmitted: list[dict[str, Any]] = []
+    original_call_remote_tool = remote_module._call_remote_tool
+
+    async def _capturing_call_remote_tool(
+        target: Any, tool_name: str, arguments: Any, *, context: Any
+    ) -> Any:
+        transmitted.append(dict(arguments))
+        return await original_call_remote_tool(target, tool_name, arguments, context=context)
+
+    monkeypatch.setattr(remote_module, "_call_remote_tool", _capturing_call_remote_tool)
+
+    resume = asyncio.Event()
+
+    async def _suspending_policy_resolver(_snapshot: Any, _actor: Any) -> Any:
+        from types import SimpleNamespace
+
+        await resume.wait()
+        return SimpleNamespace(
+            disposition="admitted",
+            tool_class="read",
+            reason_code=None,
+            parent_receipt_ref=None,
+            additional_attestation_limits=(),
+        )
+
+    connector = _remote_connector(loopback_mcp_server.base_url)
+    config, _identity, directory = _build_config(
+        tmp_path,
+        connector=connector,
+        binding_version=FASTMCP_BINDING_VERSION,
+        policy_resolver=_suspending_policy_resolver,
+    )
+    mutable_arguments = {"x": "verified-value"}
+    request = _resolved_request(arguments=mutable_arguments)
+
+    call_task = asyncio.ensure_future(
+        execute_governed_call(request, arguments=mutable_arguments, config=config)
+    )
+    # Yield enough turns for the task to reach the suspended policy
+    # resolver -- everything before it (snapshot/digest verification,
+    # binding selection, connector resolution) is synchronous.
+    await asyncio.sleep(0.05)
+    mutable_arguments["x"] = "mutated-during-admission"
+    resume.set()
+    response = await call_task
+
+    assert transmitted == [{"x": "verified-value"}]
+    assert response.decision.disposition == "admitted"
+    assert response.decision.outcome == "result"
+    assert response.business_result.payload.content[0].text == "echo:verified-value"
+
+    envelopes = read_receipts(directory)
+    admission = next(e for e in envelopes if e["receipt_kind"] == "admission")
+    assert admission["argument_digest"] == sha256_digest({"x": "verified-value"})
+    assert "mutated-during-admission" not in json.dumps(envelopes)
+
+
+async def test_fastmcp_nested_mutation_during_awaited_admission_is_not_transmitted(
+    tmp_path: Path, loopback_mcp_server: LoopbackMcpServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same race as the top-level test, but on nested mutable content.
+
+    A top-level-only ``dict(arguments)`` copy would still share the nested
+    ``dict``/``list`` objects with the caller's mapping and would leak this
+    mutation straight through; a shallow-copy implementation must fail this
+    test.
+    """
+
+    import dagr_mcp_service.connectors.remote as remote_module
+
+    transmitted: list[dict[str, Any]] = []
+    original_call_remote_tool = remote_module._call_remote_tool
+
+    async def _capturing_call_remote_tool(
+        target: Any, tool_name: str, arguments: Any, *, context: Any
+    ) -> Any:
+        transmitted.append(json.loads(json.dumps(dict(arguments))))
+        return await original_call_remote_tool(target, tool_name, arguments, context=context)
+
+    monkeypatch.setattr(remote_module, "_call_remote_tool", _capturing_call_remote_tool)
+
+    resume = asyncio.Event()
+
+    async def _suspending_policy_resolver(_snapshot: Any, _actor: Any) -> Any:
+        from types import SimpleNamespace
+
+        await resume.wait()
+        return SimpleNamespace(
+            disposition="admitted",
+            tool_class="read",
+            reason_code=None,
+            parent_receipt_ref=None,
+            additional_attestation_limits=(),
+        )
+
+    connector = _remote_connector(loopback_mcp_server.base_url)
+    config, _identity, directory = _build_config(
+        tmp_path,
+        connector=connector,
+        binding_version=FASTMCP_BINDING_VERSION,
+        policy_resolver=_suspending_policy_resolver,
+    )
+    verified_snapshot = {
+        "x": "outer",
+        "items": {"list": [1, 2, {"inner": "orig"}], "flag": True},
+    }
+    mutable_arguments = json.loads(json.dumps(verified_snapshot))
+    request = _resolved_request(arguments=mutable_arguments)
+
+    call_task = asyncio.ensure_future(
+        execute_governed_call(request, arguments=mutable_arguments, config=config)
+    )
+    await asyncio.sleep(0.05)
+    # Mutate only nested containers -- never the top-level dict itself.
+    mutable_arguments["items"]["list"].append("smuggled")
+    mutable_arguments["items"]["list"][2]["inner"] = "mutated-during-admission"
+    mutable_arguments["items"]["flag"] = False
+    resume.set()
+    response = await call_task
+
+    assert transmitted == [verified_snapshot]
+    assert response.decision.disposition == "admitted"
+
+    envelopes = read_receipts(directory)
+    admission = next(e for e in envelopes if e["receipt_kind"] == "admission")
+    assert admission["argument_digest"] == sha256_digest(verified_snapshot)
+    serialized_envelopes = json.dumps(envelopes)
+    assert "smuggled" not in serialized_envelopes
+    assert "mutated-during-admission" not in serialized_envelopes
+
+
+async def test_sdk_binding_receives_the_same_detached_snapshot_not_the_original_mapping(
+    tmp_path: Path, loopback_mcp_server: LoopbackMcpServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Narrow official-SDK parity check for the same detached-snapshot fix.
+
+    Proves ``_execute_via_sdk`` is handed the exact snapshot
+    ``execute_governed_call`` froze and verified -- never the caller-owned
+    ``mutable_arguments`` object -- without re-running the full FastMCP race
+    suite above.
+    """
+
+    import dagr_mcp_service.adapter as adapter_module
+
+    captured: list[Any] = []
+    original_execute_via_sdk = adapter_module._execute_via_sdk
+
+    async def _capturing_execute_via_sdk(
+        request: Any, arguments: Any, handler: Any, config: Any
+    ) -> Any:
+        captured.append(arguments)
+        return await original_execute_via_sdk(request, arguments, handler, config)
+
+    monkeypatch.setattr(adapter_module, "_execute_via_sdk", _capturing_execute_via_sdk)
+
+    connector = _remote_connector(loopback_mcp_server.base_url)
+    config, _identity, _directory = _build_config(
+        tmp_path, connector=connector, binding_version=SDK_BINDING_VERSION
+    )
+    mutable_arguments = {"x": "sdk-verified-value"}
+    request = _resolved_request(arguments=mutable_arguments)
+
+    response = await execute_governed_call(request, arguments=mutable_arguments, config=config)
+
+    assert len(captured) == 1
+    assert captured[0] == {"x": "sdk-verified-value"}
+    assert captured[0] is not mutable_arguments
+
+    mutable_arguments["x"] = "mutated-after-call"
+    assert captured[0] == {"x": "sdk-verified-value"}
+    assert response.business_result.payload.content[0].text == "echo:sdk-verified-value"
 
 
 # --------------------------------------------------------------------------- #
