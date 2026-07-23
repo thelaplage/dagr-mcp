@@ -29,13 +29,22 @@ in-process Gateway composition seam:
   one governed call over a selected binding (shape A/C in-process, no
   network transport), reusing both existing bindings' own resolver seams and
   the neutral lifecycle core unchanged.
-* :mod:`dagr_mcp_service.connectors` — the in-process (``memory``) local-target
-  connector. A client-side *remote* transport connector remains A9 scope.
+* :mod:`dagr_mcp_service.connectors` — the in-process (``memory``) and
+  client-side remote (``remote``) target connectors.
 
-**What this package still does NOT add.** No ``access.py`` (receipt-handle
-resolution seam, A10). No idempotency, deduplication, or exactly-once
-guarantee is encoded here or claimed by it (see scope §11 — those questions
-remain open).
+**What Sprint A10 adds.** One more submodule — the receipt-handle
+resolution and composition seam:
+
+* :mod:`dagr_mcp_service.access` — ``resolve_receipt``/``compose_receipts``:
+  resolves a returned ``ReceiptHandle`` back to its exact, existing signed
+  receipt envelope through an operator-configured provider, verifies it with
+  the repository's own parse/schema/signature discipline, and composes a
+  verified admission/outcome pair. Reads only; mints no new receipt.
+
+**What this package still does NOT add.** No idempotency, deduplication, or
+exactly-once guarantee is encoded here or claimed by it (see scope §11 —
+those questions remain open). No subscription endpoint, receipt streaming,
+or public Gateway host.
 
 **Import discipline.** This package must be importable with neither ``mcp``
 nor ``fastmcp`` (nor any HTTP/ASGI/database/queue library) installed, and
@@ -64,9 +73,10 @@ __all__ = [
     "resolution",
     "adapter",
     "connectors",
+    "access",
 ]
 
-_LAZY_SUBMODULES = frozenset({"contract", "resolution", "adapter", "connectors"})
+_LAZY_SUBMODULES = frozenset({"contract", "resolution", "adapter", "connectors", "access"})
 
 
 def __getattr__(name: str):
@@ -84,4 +94,4 @@ def __dir__() -> list[str]:
 
 
 if TYPE_CHECKING:  # pragma: no cover - import-time typing only, not eager at runtime.
-    from dagr_mcp_service import adapter, connectors, contract, resolution
+    from dagr_mcp_service import access, adapter, connectors, contract, resolution
