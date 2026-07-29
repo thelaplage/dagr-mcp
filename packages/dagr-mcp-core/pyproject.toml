@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dagr-mcp-core"
+version = "0.2.0"
+description = "Protocol-neutral DAGR signed-receipt and lifecycle substrate (no mcp, no fastmcp)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Vega Commons Project, Inc." }]
+keywords = ["mcp", "receipt", "srs", "admission", "ed25519"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security :: Cryptography",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+  "cryptography>=46.0.4,<47",
+  "rfc8785==0.1.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9,<10", "jsonschema>=4.26,<5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dagr_mcp_core*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
