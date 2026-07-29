@@ -2,6 +2,11 @@
 
 `DAGRMiddleware` is the `fastmcp.middleware.v0.1` binding for FastMCP tool calls. It consumes the public signed receipt emitter and records admission and outcome receipts without changing the MCP protocol, FastMCP tool handlers, the frozen SRS profile, or the WP3 emitter contract.
 
+> For the official MCP SDK bindings (not FastMCP), see
+> [OFFICIAL_MCP_SDK_BINDING.md](OFFICIAL_MCP_SDK_BINDING.md) (`v0.1`, `mcp==1.29.0`)
+> and [DAGR_MCP_SDK_V2_BINDING.md](DAGR_MCP_SDK_V2_BINDING.md) (`v0.2`,
+> `mcp==2.0.0`, built on the [`dagr-mcp-core` extraction fork](CORE_EXTRACTION_FORK.md)).
+
 ## Middleware Order
 
 Install DAGR once at the institutional trust boundary. In FastMCP order terms, add it before middleware whose behavior should be observed as part of the governed call.
