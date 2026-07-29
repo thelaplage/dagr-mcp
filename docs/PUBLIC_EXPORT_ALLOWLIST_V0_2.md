@@ -89,8 +89,8 @@ amnesiac_native.py
 amnesiac_stores.py
 private-engine imports
 internal planning documents
-retired Steiner material
-Bossy-specific material
+retired named-reviewer-attributed material
+codename-specific material
 ```
 
 Confirmed by direct search: no file under `packages/`, `examples/http_proof_v2/`,
