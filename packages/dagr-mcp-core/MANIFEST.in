@@ -1,0 +1,11 @@
+# Matches the root dagr-mcp package's MANIFEST.in convention: the sdist ships
+# the installable package, its license, its readme, and its fork-provenance
+# manifest. Development-only test code is pruned so no partial/broken test
+# tree enters the distribution (setuptools' default sdist file-finder only
+# picks up test_*.py-shaped files, silently dropping this package's non-test-
+# prefixed test helper modules and fixture data -- pruning tests/ entirely
+# avoids shipping that half-included, unrunnable state).
+include LICENSE
+include README.md
+include EXTRACTION_MANIFEST.json
+prune tests
