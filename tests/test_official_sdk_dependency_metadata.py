@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-PROVEN_SDK_VERSION = "1.28.1"
+PROVEN_SDK_VERSION = "1.29.0"
 EXPECTED_REQUIREMENT = f"mcp=={PROVEN_SDK_VERSION}"
 
 

@@ -47,11 +47,11 @@ amnesiac = ["arcs-amnesiac>=0.2.0", "garp-sdk>=0.1.0"]
 # The base package reaches ``mcp`` only transitively through fastmcp; this
 # optional extra declares the direct dependency explicitly. It is pinned to the
 # EXACT version proven by the Phase 1 inventory, the dedicated CI official-sdk
-# lane, and the clean-wheel official-SDK smoke (mcp==1.28.1). No broader range is
+# lane, and the clean-wheel official-SDK smoke (mcp==1.29.0). No broader range is
 # advertised, because no other SDK version has been exercised against this
 # binding, its mask, the real in-process tools/list + tools/call path, or the
 # cross-binding corpus. See docs/OFFICIAL_MCP_SDK_BINDING.md §1/§8.
-official-sdk = ["mcp==1.28.1"]
+official-sdk = ["mcp==1.29.0"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

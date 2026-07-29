@@ -57,7 +57,7 @@ BINDING_VERSION = "official-mcp-sdk.python.v0.1"
 # The official SDK import root this binding targets, and the exact SDK version
 # proven by the Phase 1 inventory (docs/OFFICIAL_MCP_SDK_BINDING.md).
 SDK_IMPORT_ROOT = "mcp"
-SDK_INVENTORY_VERSION = "1.28.1"
+SDK_INVENTORY_VERSION = "1.29.0"
 
 # The public interception seam used by this binding (handler registration on the
 # lowlevel server — there is no FastMCP-style middleware API on it).

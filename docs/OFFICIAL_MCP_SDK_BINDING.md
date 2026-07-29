@@ -19,10 +19,21 @@ binding; it does not replace FastMCP.
 | Fact | Value |
 | --- | --- |
 | Distribution name | `mcp` (the official *Model Context Protocol* Python SDK) |
-| Version proven | **1.28.1** |
+| Version proven | **1.29.0** |
 | Import roots | `mcp`, `mcp.server.lowlevel`, `mcp.server.session`, `mcp.shared`, `mcp.types`, `mcp.server.auth` |
 | Python supported by this repo | 3.11 / 3.12 / 3.13 (`requires-python = ">=3.11"`); proven on 3.13.4 |
-| Direct vs transitive | Currently **transitive** through `fastmcp` (fastmcp depends on `mcp`). A5 imports it **directly**, so it is declared as an explicit **optional extra** pinned to the exact proven version — `official-sdk = ["mcp==1.28.1"]` — rather than relied on accidentally (see §8). |
+| Direct vs transitive | Currently **transitive** through `fastmcp` (fastmcp depends on `mcp`). A5 imports it **directly**, so it is declared as an explicit **optional extra** pinned to the exact proven version — `official-sdk = ["mcp==1.29.0"]` — rather than relied on accidentally (see §8). |
+
+**2026-07-29 compatibility note:** bumped from `1.28.1` to `1.29.0`. This was
+independently inventoried, not re-derived from scratch — the Phase 1 seam
+inventory above is unchanged. Every `mcp`-package source file this binding
+imports from (`types.py`, `client/session.py`, `client/streamable_http.py`,
+`shared/context.py`, `shared/memory.py`, `shared/exceptions.py`,
+`server/lowlevel/server.py`, `server/auth/middleware/auth_context.py`) is
+byte-identical between the two tags; `1.29.0` is a narrow `v1.x` maintenance
+backport (docs, CI, and server-side Streamable HTTP hardening not reachable
+from this binding's seam). No binding-relevant behavior, field shape, or
+exception type changed.
 
 `fastmcp_binding.py` already imports one symbol from the official SDK
 (`mcp.types.CreateTaskResult`), so the official SDK is not new to the tree; A5
@@ -175,21 +186,21 @@ official-SDK lane, and the clean-wheel official-SDK smoke:
 
 ```toml
 [project.optional-dependencies]
-official-sdk = ["mcp==1.28.1"]
+official-sdk = ["mcp==1.29.0"]
 ```
 
 This keeps the base install unchanged (FastMCP remains the default binding) and
 avoids depending on a transitive version *accidentally*. The extra is pinned to
-`mcp==1.28.1` — the **only** SDK version exercised against this binding, its
+`mcp==1.29.0` — the **only** SDK version exercised against this binding, its
 mask, the real in-process `tools/list` + `tools/call` path, and the cross-binding
 corpus — rather than advertising a broader range (e.g. `>=1.16,<2`) that no test
 covers. A wider range is a future task that must first prove each claimed
 compatibility boundary (earliest/maximum supported version) in a clean
 environment with its own stable CI lane; until then the honest contract is the
 single proven pin. The dedicated CI official-SDK lane installs this exact pin
-(`mcp==1.28.1`). A wheel-metadata test
+(`mcp==1.29.0`). A wheel-metadata test
 (`tests/test_official_sdk_dependency_metadata.py`) asserts the built wheel's
-declared `official-sdk` requirement is exactly `mcp==1.28.1`, matching this
+declared `official-sdk` requirement is exactly `mcp==1.29.0`, matching this
 document and the CI lane. The binding imports the SDK lazily so that importing
 package metadata or the neutral core never eagerly imports `mcp` or `fastmcp`.
 
