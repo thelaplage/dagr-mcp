@@ -28,7 +28,7 @@ jobs:
         run: python -m twine check dist/*
       - name: Assert the official-sdk extra is pinned to the exact proven version
         # The built wheel's declared official-sdk requirement must be exactly
-        # mcp==1.28.1 — the version proven by docs/OFFICIAL_MCP_SDK_BINDING.md, the
+        # mcp==1.29.0 — the version proven by docs/OFFICIAL_MCP_SDK_BINDING.md, the
         # official-sdk CI lane, and the clean-wheel official-SDK smoke below. No
         # broader (untested) range is advertised.
         run: |
@@ -45,7 +45,7 @@ jobs:
               req, _, marker = line.partition(";")
               if re.search(r'extra\s*==\s*[\'"]official-sdk[\'"]', marker):
                   official.append(re.sub(r"\s+", "", req))
-          assert official == ["mcp==1.28.1"], (official, reqs)
+          assert official == ["mcp==1.29.0"], (official, reqs)
           print("wheel official-sdk requirement OK:", official)
           PY
       - name: Install the built wheel in a fresh environment

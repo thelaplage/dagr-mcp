@@ -172,7 +172,7 @@ def test_attestation_limits_are_identity_equal_to_shared_constants():
 
 def test_mask_is_grounded_in_installed_official_sdk():
     assert mask.SDK_IMPORT_ROOT == "mcp"
-    assert mask.SDK_INVENTORY_VERSION == "1.28.1"
+    assert mask.SDK_INVENTORY_VERSION == "1.29.0"
     from importlib.metadata import version
 
     assert version("mcp") == mask.SDK_INVENTORY_VERSION
