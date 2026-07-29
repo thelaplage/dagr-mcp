@@ -33,6 +33,8 @@ import pytest
 import rfc8785
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+pytest.importorskip("dagr_mcp_core")
+
 import dagr_mcp.srs_receipts as legacy_srs
 import dagr_mcp_core.srs_receipts as core_srs
 

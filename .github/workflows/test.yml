@@ -118,7 +118,12 @@ jobs:
     runs-on: ubuntu-latest
     name: core-extraction-parity / py3.13
     steps:
+      # Full history (not the default depth-1 shallow clone): the manifest
+      # checker resolves the pinned fork_commit's git blob via `git show`,
+      # which requires that commit to be present locally.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
