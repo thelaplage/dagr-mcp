@@ -55,6 +55,12 @@ official-sdk = ["mcp==1.29.0"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Scoped to the legacy package's own test tree so a root-level `pytest` run never
+# sweeps up packages/*/tests (each new isolated distribution under packages/ has
+# its own pyproject.toml and is meant to be tested in its own environment; see
+# docs/CORE_EXTRACTION_FORK.md). This does not change what the legacy suite
+# itself collects or how it runs.
+testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
 include = ["dagr_mcp*"]

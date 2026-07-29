@@ -1,5 +1,10 @@
 # Versioning policy
 
+> This document covers the root `dagr-mcp` distribution. `packages/dagr-mcp-core`
+> and `packages/dagr-mcp-sdk-v2` are separate distributions with their own
+> `[project].version`; see [CORE_EXTRACTION_FORK.md](CORE_EXTRACTION_FORK.md) for
+> how they relate to (and are deliberately independent of) this one.
+
 ## Semantic Versioning
 
 This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
