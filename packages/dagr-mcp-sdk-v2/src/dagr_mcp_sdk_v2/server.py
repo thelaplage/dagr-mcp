@@ -1,9 +1,13 @@
 """Supported construction surface for the official-SDK-v2 DAGR binding.
 
-Wires an :class:`dagr_mcp_sdk_v2.adapter.SdkV2LifecycleAdapter` onto an
-``mcp.server.lowlevel.Server`` using the SDK's public, documented low-level
+Wires an :class:`dagr_mcp_sdk_v2.adapter.SdkV2LifecycleAdapter` onto the
+official low-level ``mcp.server.Server`` using the SDK's public, documented
 handler-composition surface -- constructor-kwarg registration
-(``Server(..., on_call_tool=..., on_list_tools=...)``), never the private
+(``Server(..., on_call_tool=..., on_list_tools=...)``), never the removed v1
+decorator registration API, never ``Server.add_request_handler`` (which is for
+actual custom vendor methods, not the standard ``tools/list`` and
+``tools/call``), never the high-level ``MCPServer`` layer or its
+``mcp.server.mcpserver.Context``, never the private
 ``mcp.server._streamable_http_modern`` module and never
 ``handle_modern_request``. The governed ASGI app is built with the public
 ``Server.streamable_http_app(stateless_http=True)`` (see
@@ -27,8 +31,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from mcp import types as mcp_types
-from mcp.server.context import ServerRequestContext
-from mcp.server.lowlevel import Server
+from mcp.server import Server, ServerRequestContext
 
 from dagr_mcp_sdk_v2.adapter import SdkV2LifecycleAdapter, ToolHandler
 
