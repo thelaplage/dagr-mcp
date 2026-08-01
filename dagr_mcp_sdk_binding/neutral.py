@@ -67,6 +67,10 @@ class RequestSnapshot:
     arguments_digest: str
     logical_call_id: str
     subject_ref: str
+    # How ``subject_ref`` was obtained, from the closed v0.2.1 vocabulary. It is
+    # ``None`` only for a snapshot built outside the adapter's own request
+    # snapshot, which declares nothing rather than guessing a class.
+    subject_ref_origin: str | None = None
     session_ref: str | None = None
     request_ref: str | None = None
     meta_digest: str | None = None

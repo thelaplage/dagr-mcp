@@ -84,6 +84,10 @@ class RequestSnapshot:
     arguments_digest: str
     logical_call_id: str
     subject_ref: str
+    # How ``subject_ref`` was obtained, from the closed v0.2.1 vocabulary. It is
+    # ``None`` only for a snapshot built outside :meth:`_snapshot_request`, which
+    # declares nothing rather than guessing a class on the caller's behalf.
+    subject_ref_origin: str | None = None
     session_ref: str | None = None
     request_ref: str | None = None
     meta_digest: str | None = None
@@ -409,18 +413,32 @@ class DAGRMiddleware(Middleware):
             or request_ref
             or f"call:{uuid.uuid4()}"
         )
-        subject_ref = (
-            self.config.subject_ref_override
-            or session_ref
-            or request_ref
-            or f"tool-call:{logical_call_id}"
-        )
+        # Each branch below both obtains the subject reference and declares how it
+        # was obtained. The last two branches build the same subject string but
+        # are not the same decision: one derives it from a correlation the
+        # operator supplied, the other from a call id this binding minted.
+        if self.config.subject_ref_override:
+            subject_ref = self.config.subject_ref_override
+            subject_ref_origin = "supplied_subject"
+        elif session_ref:
+            subject_ref = session_ref
+            subject_ref_origin = "derived_from_session"
+        elif request_ref:
+            subject_ref = request_ref
+            subject_ref_origin = "derived_from_request"
+        elif self.config.logical_call_id_override:
+            subject_ref = f"tool-call:{logical_call_id}"
+            subject_ref_origin = "derived_from_supplied_correlation"
+        else:
+            subject_ref = f"tool-call:{logical_call_id}"
+            subject_ref_origin = "binding_minted"
 
         return RequestSnapshot(
             tool_name=tool_name,
             arguments_digest=sha256_digest(arguments),
             logical_call_id=logical_call_id,
             subject_ref=subject_ref,
+            subject_ref_origin=subject_ref_origin,
             session_ref=session_ref,
             request_ref=request_ref,
             meta_digest=sha256_digest(meta) if meta is not None else None,
@@ -465,6 +483,7 @@ class DAGRMiddleware(Middleware):
             policy_pack_id=self.config.policy_pack_id,
             policy_pack_version=self.config.policy_pack_version,
             subject_ref=snapshot.subject_ref,
+            subject_ref_origin=snapshot.subject_ref_origin,
             logical_call_id=snapshot.logical_call_id,
             actor_ref=actor.actor_ref,
             tenant_id=actor.tenant_id,

@@ -32,13 +32,28 @@ class HarnessSRSBridge:
         parent_receipt_ref: str | None = None,
     ) -> ReceiptContext:
         logical = harness_context.request_ref or f"call-{uuid.uuid4()}"
-        subject = harness_context.session_ref or harness_context.request_ref or f"tool-call:{logical}"
+        # The subject reference is obtained at exactly one of three branches
+        # here, and each declares its own origin. The bridge takes no operator
+        # subject or correlation override, so the `supplied_subject` and
+        # `derived_from_supplied_correlation` classes do not arise on this path.
+        if harness_context.session_ref:
+            subject = harness_context.session_ref
+            subject_ref_origin = "derived_from_session"
+        elif harness_context.request_ref:
+            subject = harness_context.request_ref
+            subject_ref_origin = "derived_from_request"
+        else:
+            # Neither reference exists, so `logical` above is the uuid4 this
+            # bridge just minted and the subject is built from it.
+            subject = f"tool-call:{logical}"
+            subject_ref_origin = "binding_minted"
         return ReceiptContext(
             runtime_instance_id=self.config.runtime_instance_id,
             boundary_id=self.config.boundary_id,
             policy_pack_id=self.config.policy_pack_id,
             policy_pack_version=self.config.policy_pack_version,
             subject_ref=subject,
+            subject_ref_origin=subject_ref_origin,
             logical_call_id=logical,
             actor_ref=harness_context.actor_ref,
             binding_version=(

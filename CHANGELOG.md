@@ -14,6 +14,21 @@ and in package metadata does not by itself mean that a tag, a release, or public
 availability exists.
 
 ### Added
+- Optional `subject_ref_origin` disclosure on emitted receipts, from the closed
+  five-value SRS envelope v0.2.1 vocabulary (`supplied_subject`,
+  `derived_from_session`, `derived_from_request`,
+  `derived_from_supplied_correlation`, `binding_minted`). Every emitter path —
+  the direct-harness bridge, the FastMCP binding, and the official-SDK binding —
+  declares it at its own decision branch, so a receipt states how its subject
+  reference was actually obtained rather than leaving it to be inferred. No
+  fallback and no subject-reference or logical-call behavior changed; the field
+  is purely additive. A value outside the vocabulary is refused before signing
+  rather than degraded into absence, and `not_declared` is a reader rendering of
+  a genuinely absent field, never an emitted value. The v0.2.1 envelope schema is
+  vendored alongside the retained v0.2.0 pin
+  (`srs-envelope@0.2.1+sha256:2afa1ec9f093fd7c06c4f5db7bfd37cc63e64e3dcbe47c963f4df586a1c18ca1`)
+  and is the schema emitted envelopes are validated against for this field;
+  receipts declare no envelope schema version of their own.
 - Second lifecycle binding over the official Python MCP SDK
   (`dagr_mcp_sdk_binding`, binding version `official-mcp-sdk.python.v0.1`),
   binding the `mcp.server.lowlevel.Server` call-tool handler seam onto the
