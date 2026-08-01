@@ -35,12 +35,13 @@
     "algorithm": "Ed25519",
     "canonicalization": "RFC8785-JCS",
     "key_id": "issuer.dagr.fastmcp-fixture/receipt-signing/v1",
-    "signature": "tj4V3FToBIE3T902CMNyZaOUlkdYwovH6DpawMuMpDNhwnf2Q7oskPhSLBowo-6AYBvTtnPGmbitl11QG-LsBw"
+    "signature": "0iEFWlirzDVjz_H2CeXwyMh8l1KoJrz5VPEyNDM2nKuYIccGTz2jKNA5JpOzqbhBfXJXe0YsgCJ91EqhxMzSBQ"
   },
   "receipt_type": "sdk_enforcement",
   "receipt_version": "srs.core.v5.1",
   "result_digest": "sha256:f443bb788204bc89c29c077ad77d7a2c436bc88c4533f81541a02390f43471d2",
   "retention_class_applied": "hash_only",
   "runtime_instance_id": "runtime:dagr:fastmcp-fixture",
-  "subject_ref": "tool-call:call:dagr:fastmcp-fixture:1"
+  "subject_ref": "tool-call:call:dagr:fastmcp-fixture:1",
+  "subject_ref_origin": "supplied_subject"
 }
