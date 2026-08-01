@@ -36,7 +36,7 @@
     "algorithm": "Ed25519",
     "canonicalization": "RFC8785-JCS",
     "key_id": "issuer.dagr.fastmcp-fixture/receipt-signing/v1",
-    "signature": "cxiS-MeGcx_bLg0Y73-uCC55uub7EjeQa5C9Z4xh5sCSsok_pJfNA5gEerb4EfC48qwBKFmbsTQyhEQOpqjgBQ"
+    "signature": "clCgEAhfx35vtvv4WYknVVu4A_snxugSaYaiP0Sc10v3Co0XgunNf5Lz723yy81Pjq8XB4xsTRd7gAmQGLnsAw"
   },
   "receipt_type": "sdk_enforcement",
   "receipt_version": "srs.core.v5.1",
@@ -44,5 +44,6 @@
   "retention_class_applied": "hash_only",
   "runtime_instance_id": "runtime:dagr:fastmcp-fixture",
   "subject_ref": "tool-call:call:dagr:fastmcp-fixture:1",
+  "subject_ref_origin": "supplied_subject",
   "tool_resolution_status": "not_observed"
 }

@@ -1,5 +1,5 @@
 diff --git a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/admission-admitted.json b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/admission-admitted.json
-index 7358091..be7e761 100644
+index 7358091..41cb834 100644
 --- a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/admission-admitted.json
 +++ b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/admission-admitted.json
 @@ -11,7 +11,8 @@
@@ -12,7 +12,7 @@ index 7358091..be7e761 100644
    ],
    "boundary_id": "boundary:dagr:fastmcp",
    "boundary_type": "mcp_tool_call",
-@@ -21,27 +22,27 @@
+@@ -21,27 +22,28 @@
        "binding_version": "fastmcp.middleware.v0.1"
      }
    },
@@ -36,7 +36,7 @@ index 7358091..be7e761 100644
 -    "key_id": "issuer.dagr.implementation-fixture/receipt-signing/2026-07",
 -    "signature": "kwAbXLlcdxLJBtKVDLPlT717if5Vsnxl1AIu5DERnNo4fgdynDv3_0HQ_eAH3C_6Lb3WAvI5I1wqS1KZLlTfDA"
 +    "key_id": "issuer.dagr.fastmcp-fixture/receipt-signing/v1",
-+    "signature": "cxiS-MeGcx_bLg0Y73-uCC55uub7EjeQa5C9Z4xh5sCSsok_pJfNA5gEerb4EfC48qwBKFmbsTQyhEQOpqjgBQ"
++    "signature": "clCgEAhfx35vtvv4WYknVVu4A_snxugSaYaiP0Sc10v3Co0XgunNf5Lz723yy81Pjq8XB4xsTRd7gAmQGLnsAw"
    },
    "receipt_type": "sdk_enforcement",
    "receipt_version": "srs.core.v5.1",
@@ -46,6 +46,7 @@ index 7358091..be7e761 100644
 -  "subject_ref": "tool-call:call:implementation-demo-1",
 +  "runtime_instance_id": "runtime:dagr:fastmcp-fixture",
 +  "subject_ref": "tool-call:call:dagr:fastmcp-fixture:1",
++  "subject_ref_origin": "supplied_subject",
    "tool_resolution_status": "not_observed"
  }
 diff --git a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/expectations.json b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/expectations.json
@@ -116,7 +117,7 @@ index 391ceb2..b7a19b8 100644
      }
    ],
 diff --git a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json
-index c9be254..9015b6b 100644
+index c9be254..9acb6cd 100644
 --- a/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json
 +++ b/packs/srs.mcp.sdk_enforcement/v0.1/implementation/dagr-mcp-fastmcp-demo/outcome-result-returned.json
 @@ -1,6 +1,6 @@
@@ -137,7 +138,7 @@ index c9be254..9015b6b 100644
    ],
    "boundary_id": "boundary:dagr:fastmcp",
    "boundary_type": "mcp_tool_call",
-@@ -21,25 +22,25 @@
+@@ -21,25 +22,26 @@
        "binding_version": "fastmcp.middleware.v0.1"
      }
    },
@@ -160,7 +161,7 @@ index c9be254..9015b6b 100644
 -    "key_id": "issuer.dagr.implementation-fixture/receipt-signing/2026-07",
 -    "signature": "eBDXz8BIRXhIO9i0mt04zcrARHllgTqsK852vo-mvz1_n1yN0Yg8QDH-tLI3U-9mhp1EQ7OBj0fR9XlMZphHBg"
 +    "key_id": "issuer.dagr.fastmcp-fixture/receipt-signing/v1",
-+    "signature": "tj4V3FToBIE3T902CMNyZaOUlkdYwovH6DpawMuMpDNhwnf2Q7oskPhSLBowo-6AYBvTtnPGmbitl11QG-LsBw"
++    "signature": "0iEFWlirzDVjz_H2CeXwyMh8l1KoJrz5VPEyNDM2nKuYIccGTz2jKNA5JpOzqbhBfXJXe0YsgCJ91EqhxMzSBQ"
    },
    "receipt_type": "sdk_enforcement",
    "receipt_version": "srs.core.v5.1",
@@ -170,5 +171,6 @@ index c9be254..9015b6b 100644
 -  "runtime_instance_id": "runtime:dagr:implementation-fixture",
 -  "subject_ref": "tool-call:call:implementation-demo-1"
 +  "runtime_instance_id": "runtime:dagr:fastmcp-fixture",
-+  "subject_ref": "tool-call:call:dagr:fastmcp-fixture:1"
++  "subject_ref": "tool-call:call:dagr:fastmcp-fixture:1",
++  "subject_ref_origin": "supplied_subject"
  }
