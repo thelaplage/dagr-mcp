@@ -38,7 +38,11 @@ dagr-mcp = "dagr_mcp.demo:main"
 dagr-mcp-demo = "dagr_mcp.demo:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=9,<10", "pytest-asyncio>=1.3,<2", "jsonschema>=4.26,<5"]
+# `build` is a test-only dependency of tests/test_packaging_inventories.py, which
+# builds the two distributions under packages/ and asserts their inventories.
+# Without it that guard silently skips, which is how the sdist test surface came
+# to be broken in the first place.
+dev = ["pytest>=9,<10", "pytest-asyncio>=1.3,<2", "jsonschema>=4.26,<5", "build>=1.2"]
 # The Amnesiac tools are an optional native integration, not an unconditional
 # base dependency. Without this extra the binding still imports and fails closed
 # with capability_unavailable; with it, the native producer-backed path runs.

@@ -42,16 +42,17 @@ from dagr_mcp_sdk_v2.adapter import (
 
 from harness import build_governed_test_app, call_tool, ok_result
 
-# The pinned v0.2.1 envelope lives with the core package's own vendored copies;
-# this binding validates against the same bytes the core does.
-SCHEMA_V0_2_1 = json.loads(
-    (
-        Path(__file__).resolve().parents[2]
-        / "dagr-mcp-core"
-        / "tests"
-        / "vendor"
-        / "srs-envelope-v0.2.1.schema.json"
-    ).read_text(encoding="utf-8")
+# The pinned v0.2.1 envelope, vendored beside this package's own tests rather
+# than read across the repository from dagr-mcp-core. This distribution ships a
+# runnable test surface, so a shipped test may only depend on files that travel
+# inside its own sdist; a sibling-package path resolves in a repository checkout
+# and nowhere else. The digest assertion below is what keeps the two copies from
+# drifting apart -- they are the same pinned bytes, not merely similar files.
+SCHEMA_V0_2_1_PATH = Path(__file__).parent / "vendor" / "srs-envelope-v0.2.1.schema.json"
+SCHEMA_V0_2_1 = json.loads(SCHEMA_V0_2_1_PATH.read_text(encoding="utf-8"))
+
+VENDORED_V0_2_1_SHA256 = (
+    "2afa1ec9f093fd7c06c4f5db7bfd37cc63e64e3dcbe47c963f4df586a1c18ca1"
 )
 
 DECLARED_ORIGINS = (
@@ -102,6 +103,17 @@ def _ctx(request_id: object | None):
 # --------------------------------------------------------------------------- #
 # Vocabulary and partition                                                    #
 # --------------------------------------------------------------------------- #
+
+
+def test_vendored_schema_matches_the_pin():
+    """The locally vendored copy is the pinned v0.2.1 bytes, not a lookalike."""
+
+    import hashlib
+
+    assert (
+        hashlib.sha256(SCHEMA_V0_2_1_PATH.read_bytes()).hexdigest()
+        == VENDORED_V0_2_1_SHA256
+    )
 
 
 def test_vocabulary_matches_the_pinned_schema_enum():
