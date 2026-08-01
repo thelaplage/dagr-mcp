@@ -1,0 +1,85 @@
+{
+  "manifest_version": "v0.1",
+  "fork_commit": "4b30f9fd8b863b6909b0d83090a785811e32cd0e",
+  "policy": "one_way_extraction_fork",
+  "policy_doc": "docs/CORE_EXTRACTION_FORK.md",
+  "notes": [
+    "This manifest pins two independent facts per entry: (1) source_sha256 is the",
+    "SHA-256 of the ORIGINAL file's git blob at fork_commit, re-checked against the",
+    "file's current content at HEAD on every run of",
+    "tools/check_core_extraction_manifest.py -- an unnoticed edit to the frozen",
+    "legacy file changes this hash and fails the check. (2) dest_sha256 is the",
+    "SHA-256 of the extracted file's current content -- an unnoticed edit to the",
+    "extracted baseline changes this hash and fails the check. Neither hash",
+    "asserts source_sha256 == dest_sha256; source and destination content legally",
+    "differ per documented_deltas (import-path rewrites, module docstrings, and",
+    "the single ADDITIONAL_BINDING_VERSIONS addition in srs_receipts.py).",
+    "Behavioral (receipt-byte) parity is proved separately by",
+    "packages/dagr-mcp-core/tests/test_core_lifecycle_equivalence.py and",
+    "tests/test_core_extraction_byte_parity.py."
+  ],
+  "extractions": [
+    {
+      "source_path": "dagr_mcp/srs_receipts.py",
+      "source_sha256": "10258dcecc92f74c4bca214174cca840f7ef7d2e75b95dfc2567c3d99458a25a",
+      "dest_path": "packages/dagr-mcp-core/src/dagr_mcp_core/srs_receipts.py",
+      "dest_sha256": "02d6cf2a3068864d53061603d92eb247cf1c88adde09715bc6ad4400cd17b215",
+      "documented_deltas": [
+        "module docstring replaced with fork-provenance notice",
+        "ADDITIONAL_BINDING_VERSIONS gains \"official-mcp-sdk.python.v0.2\" (does not serialize into receipt bytes; gates emitter admission only)"
+      ]
+    },
+    {
+      "source_path": "dagr_mcp_lifecycle/contract.py",
+      "source_sha256": "c4bba72644f876a851ba14666e3238a9e397ec52709024a4ea0e08b13199407d",
+      "dest_path": "packages/dagr-mcp-core/src/dagr_mcp_core/lifecycle/contract.py",
+      "dest_sha256": "cebe1020be59b67f5a9449ec84e2fdfc3628fa22254250e2930f2dd7117a2efc",
+      "documented_deltas": [
+        "module docstring replaced with fork-provenance notice (drops references to dagr_mcp_lifecycle.binding_mask, which is not forked)"
+      ]
+    },
+    {
+      "source_path": "dagr_mcp_lifecycle/models.py",
+      "source_sha256": "2611b27bd7e68660ede647b18e85f7139f6458a1c7638944cca5eacf56734d5a",
+      "dest_path": "packages/dagr-mcp-core/src/dagr_mcp_core/lifecycle/models.py",
+      "dest_sha256": "62542638ac9144b7345eab1bd58892c8df8c2538922f537144457f583abd40a0",
+      "documented_deltas": [
+        "module docstring replaced with fork-provenance notice",
+        "import path dagr_mcp_lifecycle -> dagr_mcp_core.lifecycle"
+      ]
+    },
+    {
+      "source_path": "dagr_mcp_lifecycle/core.py",
+      "source_sha256": "bdc601ca6644520acd11e534dcd91509d4a9bf6052af56652495d3ae49afd6eb",
+      "dest_path": "packages/dagr-mcp-core/src/dagr_mcp_core/lifecycle/core.py",
+      "dest_sha256": "1e7dfc63fe0a3c4704c3d537d7c9866a0cbf97fdf3ce474426e0106ce0425e2b",
+      "documented_deltas": [
+        "module docstring replaced with fork-provenance notice (drops Sprint A3/A1/A2 cross-references specific to the legacy repo history)",
+        "import path dagr_mcp_lifecycle -> dagr_mcp_core.lifecycle",
+        "inline comments referencing 'the A2 mask' generalized to 'the binding-specific mask' since binding_mask.py is not forked"
+      ]
+    }
+  ],
+  "not_forked": [
+    {
+      "path": "dagr_mcp_lifecycle/binding_mask.py",
+      "reason": "imports dagr_mcp.fastmcp_binding directly at module level; FastMCP-binding-specific despite its location in the dagr_mcp_lifecycle directory"
+    },
+    {
+      "path": "dagr_mcp/sdk_spine.py",
+      "reason": "review-object/async-sink machinery not needed: the v0.2 acceptance matrix has no deferred/review-object case, and now_utc_iso is already present in srs_receipts.py"
+    }
+  ],
+  "previous_fork_commit": "292f7abeb66bad3c42a678c5a5c933aec511c986",
+  "reconciliation": [
+    "2026-08-01: the fork point moved from 292f7ab (#19) to 4b30f9f (#23) when",
+    "PR #22 was reconciled onto the then-current authorized base. #23 added the",
+    "optional subject_ref_origin disclosure (SRS envelope v0.2.1) to",
+    "dagr_mcp/srs_receipts.py, so the extracted core was regenerated from the",
+    "post-merge legacy file and now carries that disclosure too. The three",
+    "dagr_mcp_lifecycle/* sources are byte-identical at both commits; only",
+    "srs_receipts.py actually moved. The documented_deltas below are unchanged:",
+    "the fork still differs from the legacy file ONLY by the fork-provenance",
+    "docstring and the ADDITIONAL_BINDING_VERSIONS registration."
+  ]
+}

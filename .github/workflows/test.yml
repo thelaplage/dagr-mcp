@@ -75,3 +75,90 @@ jobs:
       - name: Full suite (both bindings)
         run: pytest -q
       - run: python3 tools/check_public_release.py .
+
+  # dagr-mcp-core in total isolation: only cryptography + rfc8785 installed.
+  # Proves the extraction fork is genuinely dependency-free of mcp/fastmcp, not
+  # merely untested against them. See docs/CORE_EXTRACTION_FORK.md.
+  core-only:
+    runs-on: ubuntu-latest
+    name: core-only / py3.13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -e 'packages/dagr-mcp-core[dev]'
+      - name: Assert mcp and fastmcp are NOT installed
+        run: |
+          python -c "
+          import sys
+          for name in ('mcp', 'fastmcp'):
+              try:
+                  __import__(name)
+              except ModuleNotFoundError:
+                  print(name, 'absent: OK')
+              else:
+                  print(name, 'UNEXPECTEDLY IMPORTABLE', file=sys.stderr)
+                  sys.exit(1)
+          "
+      - run: pytest -q packages/dagr-mcp-core/tests
+
+  # Proves the one-way extraction fork's fidelity: (1) the manifest's recorded
+  # hashes still match both the frozen legacy files and the extracted copies
+  # (tools/check_core_extraction_manifest.py), and (2) the fork's receipt
+  # emitter and lifecycle core are behaviorally byte-identical to the legacy
+  # emitter for the same fixed inputs (tests/test_core_extraction_byte_parity.py,
+  # packages/dagr-mcp-core/tests/test_core_lifecycle_equivalence.py). This lane
+  # installs the legacy package (fastmcp) AND dagr-mcp-core side by side on
+  # purpose — dagr-mcp-core has no mcp/fastmcp dependency, so this is not the
+  # "install legacy FastMCP 3 and MCP SDK 2 into the same environment" case the
+  # task spec forbids; only mcp==2.0.0 (dagr-mcp-sdk-v2, tested in its own lane
+  # below) is mutually exclusive with the legacy stack.
+  core-extraction-parity:
+    runs-on: ubuntu-latest
+    name: core-extraction-parity / py3.13
+    steps:
+      # Full history (not the default depth-1 shallow clone): the manifest
+      # checker resolves the pinned fork_commit's git blob via `git show`,
+      # which requires that commit to be present locally.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -e '.[dev]' 'fastmcp==3.4.4' -e 'packages/dagr-mcp-core[dev]'
+      - run: python3 tools/check_core_extraction_manifest.py
+      - run: pytest -q tests/test_core_extraction_byte_parity.py packages/dagr-mcp-core/tests/test_core_lifecycle_equivalence.py
+
+  # official-mcp-sdk.python.v0.2: dagr-mcp-core + dagr-mcp-sdk-v2 + mcp==2.0.0
+  # ONLY. Never the root dagr-mcp distribution, never fastmcp, never mcp<2 --
+  # mcp 1.x and 2.x are not designed to coexist. See
+  # docs/DAGR_MCP_SDK_V2_BINDING.md and docs/CORE_EXTRACTION_FORK.md.
+  sdk-v2:
+    runs-on: ubuntu-latest
+    name: sdk-v2 / py3.13 / mcp==2.0.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -e 'packages/dagr-mcp-core[dev]' -e 'packages/dagr-mcp-sdk-v2[dev]'
+      - name: Assert fastmcp is NOT installed and mcp is exactly 2.0.0
+        run: |
+          python -c "
+          import sys
+          from importlib.metadata import version
+          try:
+              import fastmcp
+              print('fastmcp UNEXPECTEDLY IMPORTABLE', file=sys.stderr); sys.exit(1)
+          except ModuleNotFoundError:
+              print('fastmcp absent: OK')
+          v = version('mcp')
+          assert v == '2.0.0', v
+          print('mcp pin OK', v)
+          "
+      - name: dagr-mcp-sdk-v2 test suite (acceptance matrix, result-digest golden, input_required fail-closed)
+        run: pytest -q packages/dagr-mcp-sdk-v2/tests
+      - name: Genuine stateless HTTP proof (CI-safe counterpart)
+        run: pytest -q tests/test_http_proof_v2.py

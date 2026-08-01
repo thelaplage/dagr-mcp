@@ -1,0 +1,49 @@
+{
+  "structured_only": {
+    "digest": "sha256:60e8b07c0b59317ae3d0dc4111e2cb211ee4ab5fe33db6a805be60244696d1f5",
+    "projection": {
+      "_meta": null,
+      "content": [],
+      "is_error": false,
+      "result_type": "complete",
+      "structured_content": {
+        "count": 3,
+        "ok": true
+      }
+    }
+  },
+  "text_error": {
+    "digest": "sha256:a06d13d42be567927d7d24e8b0d8f83c61c1efdb443158ae5be014d5fb64287c",
+    "projection": {
+      "_meta": null,
+      "content": [
+        {
+          "_meta": null,
+          "annotations": null,
+          "text": "nope",
+          "type": "text"
+        }
+      ],
+      "is_error": true,
+      "result_type": "complete",
+      "structured_content": null
+    }
+  },
+  "text_ok": {
+    "digest": "sha256:64789d913fa131f7c9645f43aa324899dfcedac71541a699439cb839a5993339",
+    "projection": {
+      "_meta": null,
+      "content": [
+        {
+          "_meta": null,
+          "annotations": null,
+          "text": "hi",
+          "type": "text"
+        }
+      ],
+      "is_error": false,
+      "result_type": "complete",
+      "structured_content": null
+    }
+  }
+}

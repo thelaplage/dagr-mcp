@@ -1,0 +1,30 @@
+# Source-distribution contents for dagr-mcp-sdk-v2.
+#
+# This sdist ships a runnable test surface, so every helper and fixture the
+# shipped tests import must travel with them:
+#
+#   tests/harness.py            imported by the acceptance matrix, the
+#                               subject-reference-origin proofs, the
+#                               input_required fail-closed test, and the ARCS
+#                               Verify acceptance proofs;
+#   tests/golden/*.json         the frozen result-digest vectors read by
+#                               tests/test_result_digest_golden.py;
+#   tests/vendor/*.json         the pinned SRS envelope v0.2.1 the origin proofs
+#                               validate against.
+#
+# setuptools' default sdist rules pick up `tests/test*.py` and nothing else, so
+# harness.py was silently omitted and every test module that imports it failed
+# to collect from an extracted sdist.
+#
+# Scope is this package directory only: MANIFEST.in cannot reach above it, so no
+# unrelated repository material can enter this distribution.
+
+recursive-include tests *.py
+recursive-include tests/golden *.json
+recursive-include tests/vendor *.json
+
+# Never ship caches, build output, or editor/OS droppings.
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store
+prune tests/__pycache__

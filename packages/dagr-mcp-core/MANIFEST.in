@@ -1,0 +1,24 @@
+# Source-distribution contents for dagr-mcp-core.
+#
+# This sdist deliberately ships a runnable test surface (see
+# tests/receipt_verification.py, whose whole reason for existing is that the
+# core suite can be run from a standalone checkout of this package). That intent
+# only holds if every helper and fixture the shipped tests import travels with
+# them.
+#
+# setuptools' default sdist rules pick up `tests/test*.py` and nothing else, so
+# tests/receipt_verification.py and tests/vendor/ were silently omitted and the
+# shipped suite could not import its own helper. These directives are what make
+# the shipped tests self-contained.
+#
+# Scope is this package directory only: MANIFEST.in cannot reach above it, so no
+# unrelated repository material can enter this distribution.
+
+recursive-include tests *.py
+recursive-include tests/vendor *.json
+
+# Never ship caches, build output, or editor/OS droppings.
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store
+prune tests/__pycache__
