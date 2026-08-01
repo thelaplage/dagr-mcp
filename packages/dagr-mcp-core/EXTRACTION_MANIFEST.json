@@ -1,6 +1,6 @@
 {
   "manifest_version": "v0.1",
-  "fork_commit": "292f7abeb66bad3c42a678c5a5c933aec511c986",
+  "fork_commit": "4b30f9fd8b863b6909b0d83090a785811e32cd0e",
   "policy": "one_way_extraction_fork",
   "policy_doc": "docs/CORE_EXTRACTION_FORK.md",
   "notes": [
@@ -21,9 +21,9 @@
   "extractions": [
     {
       "source_path": "dagr_mcp/srs_receipts.py",
-      "source_sha256": "aa091003b50e907df7e812e04ee13b9e7d6d2cd4726375be780b50f23d1ead0d",
+      "source_sha256": "10258dcecc92f74c4bca214174cca840f7ef7d2e75b95dfc2567c3d99458a25a",
       "dest_path": "packages/dagr-mcp-core/src/dagr_mcp_core/srs_receipts.py",
-      "dest_sha256": "1ef5874b69a47c961824d81590dc06a02564a98e3028258cde78f6b53a279832",
+      "dest_sha256": "02d6cf2a3068864d53061603d92eb247cf1c88adde09715bc6ad4400cd17b215",
       "documented_deltas": [
         "module docstring replaced with fork-provenance notice",
         "ADDITIONAL_BINDING_VERSIONS gains \"official-mcp-sdk.python.v0.2\" (does not serialize into receipt bytes; gates emitter admission only)"
@@ -69,5 +69,17 @@
       "path": "dagr_mcp/sdk_spine.py",
       "reason": "review-object/async-sink machinery not needed: the v0.2 acceptance matrix has no deferred/review-object case, and now_utc_iso is already present in srs_receipts.py"
     }
+  ],
+  "previous_fork_commit": "292f7abeb66bad3c42a678c5a5c933aec511c986",
+  "reconciliation": [
+    "2026-08-01: the fork point moved from 292f7ab (#19) to 4b30f9f (#23) when",
+    "PR #22 was reconciled onto the then-current authorized base. #23 added the",
+    "optional subject_ref_origin disclosure (SRS envelope v0.2.1) to",
+    "dagr_mcp/srs_receipts.py, so the extracted core was regenerated from the",
+    "post-merge legacy file and now carries that disclosure too. The three",
+    "dagr_mcp_lifecycle/* sources are byte-identical at both commits; only",
+    "srs_receipts.py actually moved. The documented_deltas below are unchanged:",
+    "the fork still differs from the legacy file ONLY by the fork-provenance",
+    "docstring and the ADDITIONAL_BINDING_VERSIONS registration."
   ]
 }

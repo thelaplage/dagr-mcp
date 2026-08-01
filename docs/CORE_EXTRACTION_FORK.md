@@ -6,7 +6,17 @@ convention, and not a shim that re-imports the root package's modules.
 
 ## Fork point
 
-- **Fork commit**: `292f7abeb66bad3c42a678c5a5c933aec511c986`
+- **Fork commit**: `4b30f9fd8b863b6909b0d83090a785811e32cd0e`
+- **Previous fork commit**: `292f7abeb66bad3c42a678c5a5c933aec511c986`. The fork
+  point moved on 2026-08-01, when this work was reconciled onto the then-current
+  authorized base. `4b30f9f` (#23) added the optional `subject_ref_origin`
+  disclosure to `dagr_mcp/srs_receipts.py`, so the extracted copy was
+  regenerated from the post-merge legacy file and carries that disclosure too.
+  The three `dagr_mcp_lifecycle/*` sources are byte-identical at both commits;
+  only `srs_receipts.py` actually moved. The manifest records the superseded
+  commit as `previous_fork_commit` rather than silently dropping it — an
+  obsolete fork claim is worse than no claim, because the drift check would
+  keep passing against a commit nobody forked from.
 - **Manifest**: [`packages/dagr-mcp-core/EXTRACTION_MANIFEST.json`](../packages/dagr-mcp-core/EXTRACTION_MANIFEST.json)
   — one entry per extracted file, recording the SHA-256 of the *original* file's
   git blob at the fork commit and the SHA-256 of the *extracted* file's current

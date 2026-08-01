@@ -88,6 +88,24 @@ ADDITIONAL_BINDING_VERSIONS = frozenset({
 ALL_REGISTERED_BINDING_VERSIONS = (
     REGISTERED_BINDING_VERSIONS | ADDITIONAL_BINDING_VERSIONS
 )
+# Optional subject-reference origin disclosure (SRS envelope v0.2.1). The
+# vocabulary is closed and carries exact-membership rejection: a sixth value is a
+# rejection, not an extension. Each member names how the subject reference was
+# actually obtained at the emitting binding's decision branch — one supplied
+# class, three derived classes, one minted.
+SUBJECT_REF_ORIGINS = frozenset({
+    "supplied_subject",
+    "derived_from_session",
+    "derived_from_request",
+    "derived_from_supplied_correlation",
+    "binding_minted",
+})
+# The reader-and-report rendering of a *genuinely absent* field. It is not a
+# member of the vocabulary above, is not an enum member of the v0.2.1 schema, and
+# is never emitted. Absence means not declared, full stop; it supports no
+# inference about emitter vintage and may never be collapsed into a declared
+# class.
+SUBJECT_REF_ORIGIN_NOT_DECLARED = "not_declared"
 CANCELLATION_FIELD_NAMES = frozenset({
     "request_cancelled",
     "execution_state_unknown",
@@ -100,8 +118,8 @@ CANCELLATION_FIELD_NAMES = frozenset({
 _CORE_RECEIPT_FIELDS = frozenset({
     "receipt_version", "profile_id", "profile_version", "receipt_id",
     "receipt_type", "receipt_kind", "boundary_type", "protocol_binding",
-    "subject_ref", "issuer_id", "runtime_instance_id", "boundary_id",
-    "logical_call_id", "issued_at", "artifact_classes_covered",
+    "subject_ref", "subject_ref_origin", "issuer_id", "runtime_instance_id",
+    "boundary_id", "logical_call_id", "issued_at", "artifact_classes_covered",
     "artifact_classes_excluded", "attestation_limits",
     "retention_class_applied", "extensions", "receipt_signature",
     "admission_receipt_ref", "outcome", "result_digest",
@@ -142,6 +160,29 @@ def fastmcp_tool_result_digest(
         "isError": is_error,
     }
     return sha256_digest(projection)
+
+
+def read_subject_ref_origin(receipt: Mapping[str, Any]) -> str:
+    """Render the subject-reference origin a receipt declares, for readers.
+
+    Returns a member of :data:`SUBJECT_REF_ORIGINS` when the receipt declares
+    one, and :data:`SUBJECT_REF_ORIGIN_NOT_DECLARED` when the field is genuinely
+    absent. The absent reading is a *sixth, distinct* reading, not a synonym for
+    any declared class and not a claim about when the receipt was issued.
+
+    A present-but-malformed value is refused rather than rendered as absence: a
+    receipt asserting something outside the closed vocabulary is not a receipt
+    that declared nothing.
+    """
+
+    if "subject_ref_origin" not in receipt:
+        return SUBJECT_REF_ORIGIN_NOT_DECLARED
+    origin = receipt["subject_ref_origin"]
+    if not isinstance(origin, str) or origin not in SUBJECT_REF_ORIGINS:
+        raise ReceiptContentError(
+            f"subject_ref_origin outside the closed vocabulary: {origin!r}"
+        )
+    return origin
 
 
 def _walk(value: Any):
@@ -231,6 +272,12 @@ class ReceiptContext:
     policy_pack_version: str
     subject_ref: str
     logical_call_id: str
+    # Optional faithful disclosure of how ``subject_ref`` was obtained. ``None``
+    # means the caller declares nothing, and the emitted receipt carries no
+    # ``subject_ref_origin`` field at all — genuine absence, never a declared
+    # class. A caller that does declare must pass a member of
+    # ``SUBJECT_REF_ORIGINS``; anything else is refused before signing.
+    subject_ref_origin: str | None = None
     actor_ref: str | None = None
     tenant_id: str | None = None
     workspace_id: str | None = None
@@ -316,6 +363,17 @@ class SignedReceiptEmitter:
             raise ReceiptContentError(
                 f"unregistered binding_version: {context.binding_version}"
             )
+        origin = context.subject_ref_origin
+        if origin is not None and (
+            not isinstance(origin, str) or origin not in SUBJECT_REF_ORIGINS
+        ):
+            # Exact-membership rejection. A declared value outside the closed
+            # vocabulary — including the reader-only ``not_declared`` rendering —
+            # is refused before signing; it never degrades into absence, because
+            # absence is itself a distinct, meaningful reading.
+            raise ReceiptContentError(
+                f"subject_ref_origin outside the closed vocabulary: {origin!r}"
+            )
         envelope: dict[str, Any] = {
             "receipt_version": RECEIPT_VERSION,
             "profile_id": PROFILE_ID,
@@ -337,6 +395,8 @@ class SignedReceiptEmitter:
             "retention_class_applied": "hash_only",
             "extensions": {"mcp": {"binding_version": context.binding_version}},
         }
+        if origin is not None:
+            envelope["subject_ref_origin"] = origin
         if context.actor_ref:
             envelope["actor_ref"] = context.actor_ref
         if context.tenant_id:
