@@ -43,9 +43,9 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, TypeAlias
 
 from mcp import types as mcp_types
-from mcp.server.context import ServerRequestContext
+from mcp.server import ServerRequestContext
 from mcp.shared.exceptions import MCPError
-from mcp_types import INVALID_REQUEST
+from mcp.types import INVALID_REQUEST
 
 from dagr_mcp_core.lifecycle.core import plan_admission, plan_outcome_strict
 from dagr_mcp_core.lifecycle.models import (
@@ -148,6 +148,14 @@ class SdkV2BindingConfig:
     policy_pack_version: str
     tool_classes: Mapping[str, GovernedToolClass] = field(default_factory=dict)
     actor_resolver: SdkV2ActorResolver | None = None
+    # Operator correlation overrides, matching the FastMCP and v0.1 SDK bindings
+    # field-for-field. They exist here for the same reason they exist there: an
+    # operator that already has its own subject or call-correlation identity can
+    # supply it instead of letting the binding derive or mint one. They also make
+    # the ``supplied_subject`` and ``derived_from_supplied_correlation`` origin
+    # classes structurally reachable on this path (see ``_receipt_context``).
+    logical_call_id_override: str | None = None
+    subject_ref_override: str | None = None
     pre_execution_receipt_failure: Mapping[GovernedToolClass, ReceiptFailureMode] = field(
         default_factory=lambda: {
             "read": "fail_open",
@@ -291,14 +299,43 @@ class SdkV2LifecycleAdapter:
     ) -> ReceiptContext:
         request_id = getattr(ctx, "request_id", None)
         request_ref = f"request:{request_id}" if request_id is not None else None
-        logical_call_id = request_ref or f"call:{uuid.uuid4()}"
-        subject_ref = request_ref or f"tool-call:{logical_call_id}"
+        logical_call_id = (
+            self.config.logical_call_id_override
+            or request_ref
+            or f"call:{uuid.uuid4()}"
+        )
+        # Each branch below both obtains the subject reference and declares how it
+        # was obtained. The last two branches build the same subject string but
+        # are not the same decision: one derives it from a correlation the
+        # operator supplied, the other from a call id this binding minted.
+        #
+        # There is deliberately no ``derived_from_session`` branch here. Protocol
+        # 2026-07-28 — the only protocol this binding serves — is a self-contained
+        # POST with no ``initialize`` handshake and no ``Mcp-Session-Id``, and the
+        # SDK's ``ServerRequestContext.session`` (a ``ServerSession``) exposes no
+        # session identifier at all. That class is therefore structurally
+        # unreachable on this path as a matter of the protocol, not an omission,
+        # and is never substituted for by another class. See
+        # docs/DAGR_MCP_SDK_V2_BINDING.md.
+        if self.config.subject_ref_override:
+            subject_ref = self.config.subject_ref_override
+            subject_ref_origin = "supplied_subject"
+        elif request_ref:
+            subject_ref = request_ref
+            subject_ref_origin = "derived_from_request"
+        elif self.config.logical_call_id_override:
+            subject_ref = f"tool-call:{logical_call_id}"
+            subject_ref_origin = "derived_from_supplied_correlation"
+        else:
+            subject_ref = f"tool-call:{logical_call_id}"
+            subject_ref_origin = "binding_minted"
         return ReceiptContext(
             runtime_instance_id=self.config.runtime_instance_id,
             boundary_id=self.config.boundary_id,
             policy_pack_id=self.config.policy_pack_id,
             policy_pack_version=self.config.policy_pack_version,
             subject_ref=subject_ref,
+            subject_ref_origin=subject_ref_origin,
             logical_call_id=logical_call_id,
             actor_ref=actor.actor_ref,
             tenant_id=actor.tenant_id,

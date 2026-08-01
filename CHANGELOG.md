@@ -14,6 +14,18 @@ and in package metadata does not by itself mean that a tag, a release, or public
 availability exists.
 
 ### Added
+- `subject_ref_origin` disclosure on the `official-mcp-sdk.python.v0.2` binding
+  path, carried into `dagr-mcp-core` and `dagr-mcp-sdk-v2` when the SDK-v2 work
+  was reconciled onto the base that introduced the field. Four of the five
+  vocabulary classes are structurally reachable on this path and each is proved
+  at the binding's own decision branch; `derived_from_session` is structurally
+  **unreachable** and documented as such, because protocol `2026-07-28` is a
+  self-contained POST with no `initialize` handshake and no `Mcp-Session-Id`,
+  and the SDK's `ServerSession` exposes no session identifier for a session
+  branch to read. The binding declares no session origin rather than
+  substituting another class for it. `SdkV2BindingConfig` gains the
+  `subject_ref_override` and `logical_call_id_override` fields the FastMCP and
+  v0.1 SDK bindings already carry, with identical precedence.
 - Optional `subject_ref_origin` disclosure on emitted receipts, from the closed
   five-value SRS envelope v0.2.1 vocabulary (`supplied_subject`,
   `derived_from_session`, `derived_from_request`,

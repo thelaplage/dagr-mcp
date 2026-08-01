@@ -9,22 +9,66 @@ Package: `packages/dagr-mcp-sdk-v2` (`dagr_mcp_sdk_v2` on the import path).
 
 ## 1. Exact stable SDK APIs used
 
-* `mcp.server.lowlevel.Server` (also importable as `mcp.server.Server`),
-  constructed with `on_call_tool=` / `on_list_tools=` constructor kwargs — the
-  SDK's public, documented handler-composition surface. No decorator API, no
-  monkeypatching.
+* `from mcp.server import Server, ServerRequestContext` — the public top-level
+  entry point for both. `Server` is constructed with `on_call_tool=` /
+  `on_list_tools=` constructor kwargs — the SDK's public, documented
+  handler-composition surface. No decorator API (the v1 decorator registration
+  API was removed in v2), no monkeypatching, and **not**
+  `Server.add_request_handler`, which is for actual custom vendor methods rather
+  than the standard `tools/list` and `tools/call`.
 * `Server.streamable_http_app(stateless_http=True, json_response=True, ...)` —
   the public builder for the Streamable HTTP ASGI app.
-* `mcp.server.context.ServerRequestContext` — the per-request context type the
-  handler receives. The adapter reads only `ctx.method` and `ctx.request_id`
-  (via `getattr`) from it; it never reaches into transport/session internals.
+* `ServerRequestContext` — the per-request context type the handler receives.
+  The adapter reads only `ctx.method` and `ctx.request_id` (via `getattr`) from
+  it; it never reaches into transport/session internals.
 * `mcp_types.CallToolRequestParams`, `mcp_types.CallToolResult`,
   `mcp_types.InputRequiredResult` — the SDK-facing request/result types.
 * `mcp.shared.exceptions.MCPError` — the public seam for signaling a specific,
   message-carrying JSON-RPC error from a handler (see §4).
 
 **Never used**: `mcp.server._streamable_http_modern` (private),
-`handle_modern_request` (private), `fastmcp`, `mcp<2`.
+`handle_modern_request` (private), the high-level `MCPServer` layer and its
+`mcp.server.mcpserver.Context`, `mcp.server.request_state` (see §4 — MRTR and
+dual-era request-state operation are out of scope for this lane), `fastmcp`,
+`mcp<2`.
+
+Protocol types come from `mcp.types`, which this package reaches through its
+declared `mcp==2.0.0` dependency. The separately-distributed `mcp_types`
+top-level package is *not* imported directly: `mcp` hard-depends on
+`mcp-types==2.0.0`, so importing it directly would be relying on a transitive
+distribution this package never declares. `mcp.types` re-exports what the
+binding needs (e.g. `INVALID_REQUEST`).
+
+## 1a. Subject-reference origin (`subject_ref_origin`)
+
+Every receipt this binding emits declares how its `subject_ref` was obtained,
+from the closed five-value SRS envelope v0.2.1 vocabulary, assigned at the
+branch that actually determines the subject reference
+(`SdkV2LifecycleAdapter._receipt_context`) and never normalized afterwards.
+
+| Origin class | Reachable here? | When |
+| --- | --- | --- |
+| `supplied_subject` | yes | `SdkV2BindingConfig.subject_ref_override` is set |
+| `derived_from_session` | **no — structurally unreachable** | see below |
+| `derived_from_request` | yes | `ctx.request_id` is present (every ordinary HTTP call) |
+| `derived_from_supplied_correlation` | yes | no request id, but `logical_call_id_override` is set |
+| `binding_minted` | yes | no request id and no operator correlation |
+
+`derived_from_session` cannot arise on this path, and that is a property of the
+protocol rather than an omission in this binding. Protocol `2026-07-28` — the
+only protocol this binding serves — is a self-contained POST with no
+`initialize` handshake and no `Mcp-Session-Id`, and the SDK's `ServerSession`
+(what `ServerRequestContext.session` holds) correspondingly exposes no session
+identifier of any kind. There is nothing for a session branch to read, so the
+binding declares no session origin rather than substituting another class for
+it. `packages/dagr-mcp-sdk-v2/tests/test_subject_ref_origin_v2.py` asserts this
+mechanically — both that `ServerSession` exposes no session identifier, and
+that no combination of inputs the binding reads ever yields that class.
+
+Absence remains a distinct reading: a receipt with no `subject_ref_origin`
+reads as `not_declared`, which is never emitted and is not a member of the
+vocabulary. A value outside the vocabulary is refused by the neutral core
+before signing rather than degraded into absence.
 
 ## 2. The governed `tools/call` handler contract
 

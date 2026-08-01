@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from mcp import types as mcp_types
-from mcp.server.lowlevel import Server
+from mcp.server import Server
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.testclient import TestClient
 
@@ -114,6 +114,8 @@ def build_governed_test_app(
     pre_execution_receipt_failure: Mapping[str, str] | None = None,
     emitter: SignedReceiptEmitter | None = None,
     receipts_dir: Path | None = None,
+    subject_ref_override: str | None = None,
+    logical_call_id_override: str | None = None,
 ) -> GovernedTestApp:
     """Build a real governed v2 Server + stateless ASGI app for one test.
 
@@ -139,6 +141,8 @@ def build_governed_test_app(
             pre_execution_receipt_failure  # type: ignore[arg-type]
             or {"read": "fail_open", "write": "fail_closed", "destructive": "fail_closed"}
         ),
+        subject_ref_override=subject_ref_override,
+        logical_call_id_override=logical_call_id_override,
     )
     adapter = SdkV2LifecycleAdapter(emitter=emitter, config=config)
 
