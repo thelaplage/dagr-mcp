@@ -51,7 +51,19 @@ from server import build_app  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOST = "127.0.0.1"
 PORT = 8799
-SCHEMA_PATH = REPO_ROOT / "dagr_mcp" / "vendor" / "srs" / "srs-envelope-v0.2.0.schema.json"
+# The v0.2.1 envelope, taken from the dagr-mcp-core package this binding
+# actually depends on -- never the legacy dagr-mcp distribution, which this
+# lane does not install. v0.2.1 is the schema that declares
+# ``subject_ref_origin``; validating against the permissive v0.2.0 would
+# prove nothing about the field these receipts now carry.
+SCHEMA_PATH = (
+    REPO_ROOT
+    / "packages"
+    / "dagr-mcp-core"
+    / "tests"
+    / "vendor"
+    / "srs-envelope-v0.2.1.schema.json"
+)
 
 
 def _wait_for_server(host: str, port: int, timeout: float = 15.0) -> None:
@@ -68,27 +80,54 @@ def _wait_for_server(host: str, port: int, timeout: float = 15.0) -> None:
     raise RuntimeError("server did not start listening in time")
 
 
-def _verify_receipt(receipt: dict, bundle: dict, schema: dict) -> str:
-    """Verify *receipt*, raising on failure. Returns which verifier ran."""
+def _verify_receipt(receipt: dict, bundle: dict, schema_path: Path) -> str:
+    """Verify *receipt*, raising on failure. Returns which verifier ran.
+
+    The fallback is selected ONLY when ``arcs_verify`` is genuinely absent. Any
+    other failure -- including the real verifier rejecting the receipt, or this
+    script calling it wrongly -- propagates. Silently degrading to the in-repo
+    checker would let a broken arcs-verify path masquerade as a passing proof.
+    """
 
     try:
-        from arcs_verify.verifier import verify_receipt as _v  # type: ignore[import-not-found]
-
-        _v(receipt, bundle, schema)
-        return "arcs-verify"
+        from arcs_verify.verifier import (  # type: ignore[import-not-found]
+            MCP_PROFILE,
+            verify_receipt as _v,
+        )
     except ModuleNotFoundError:
         sys.path.insert(0, str(REPO_ROOT / "tests"))
-        from receipt_verification import verify_receipt as _v  # type: ignore[import-not-found]
+        from receipt_verification import verify_receipt as _fallback  # type: ignore[import-not-found]
 
-        _v(receipt, bundle, schema)
+        _fallback(receipt, bundle, json.loads(schema_path.read_text()))
         return "in-repo jsonschema+Ed25519 fallback verifier (arcs-verify not installed)"
+
+    report = _v(receipt, bundle, schema_path=schema_path, selected_profile=MCP_PROFILE)
+    verdicts = {
+        name: getattr(report, name)
+        for name in (
+            "schema_digest",
+            "envelope",
+            "profile",
+            "raw_content_exclusion",
+            "signature_valid",
+            "issuer_key_resolved",
+            "issuer_key_trusted",
+            "attestation_limits_present",
+        )
+    }
+    if not all(verdicts.values()):
+        failed = sorted(name for name, ok in verdicts.items() if not ok)
+        raise AssertionError(
+            f"arcs-verify rejected the receipt: failed verdicts={failed} "
+            f"failure_codes={list(report.failure_codes)}"
+        )
+    return "arcs-verify"
 
 
 def main() -> int:
     receipts_dir = Path(tempfile.mkdtemp(prefix="dagr-http-proof-v2-"))
     app, identity, _ = build_app(receipts_dir, allowed_hosts=[f"{HOST}:{PORT}"])
     bundle = identity.trust_bundle()
-    schema = json.loads(SCHEMA_PATH.read_text())
 
     config = uvicorn.Config(app, host=HOST, port=PORT, log_level="warning")
     uvicorn_server = uvicorn.Server(config)
@@ -150,8 +189,8 @@ def main() -> int:
         print("  admission receipt:", admission["receipt_id"])
         print("  outcome receipt:  ", outcome["receipt_id"], "outcome=", outcome["outcome"])
 
-        verifier_used = _verify_receipt(admission, bundle, schema)
-        _verify_receipt(outcome, bundle, schema)
+        verifier_used = _verify_receipt(admission, bundle, SCHEMA_PATH)
+        _verify_receipt(outcome, bundle, SCHEMA_PATH)
         print(f"  both receipts independently verified ({verifier_used})")
 
         # The tamper demonstration: flip a SEMANTIC field inside the signed
@@ -160,7 +199,7 @@ def main() -> int:
         mutated = copy.deepcopy(outcome)
         mutated["outcome"] = "error_returned" if mutated["outcome"] == "result_returned" else "result_returned"
         try:
-            _verify_receipt(mutated, bundle, schema)
+            _verify_receipt(mutated, bundle, SCHEMA_PATH)
         except Exception as exc:  # noqa: BLE001 - this IS the expected-failure branch
             print(f"  mutated receipt correctly REJECTED: {type(exc).__name__}: {exc}")
         else:
