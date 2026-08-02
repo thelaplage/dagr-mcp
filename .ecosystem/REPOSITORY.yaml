@@ -17,6 +17,11 @@ repository:
 authority:
   status: active_implementation
   canonical_doctrine_repository: thelaplage/garp-doctrine
+  authority_references: .ecosystem/AUTHORITY_REFERENCES.yaml
+  semantic_authority:
+    evidence_schema: arcs_srs.evidence_schema_semantic_authority
+    governed_action_protocol: governed_action_protocol_authority.unresolved
+    garp_sdk_default: historical_integrated_source_estate_not_current_authority
   doctrine_reconciliation:
     status: limited_to_repository_local_sources
     requested_files_absent:
@@ -36,8 +41,24 @@ authority:
       - docs/BINDING_VERSIONS.md
       - docs/GATEWAY_SERVICE_ADAPTER_SCOPE.md
 architecture:
-  owning_layer: product_translation_and_execution_boundary
-  role: substrate
+  model_status: proposed_architecture_under_test_not_ratified_doctrine
+  proposed_ordering:
+    - Layer
+    - Authority
+    - Contracts
+    - Implementations
+    - Repositories
+  primary_layer:
+    id: L5
+    name: product_and_protocol_adapters
+  secondary_roles:
+    - id: L3
+      name: runtime_and_policy_implementation
+    - id: L4
+      name: evidence_production
+  legacy_description:
+    owning_layer: product_translation_and_execution_boundary
+    role: substrate
   binding_posture: multi_binding
 lifecycle:
   stage: preview

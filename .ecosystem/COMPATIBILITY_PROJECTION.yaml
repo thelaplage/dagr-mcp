@@ -1,10 +1,17 @@
-schema_ref: arcs.ecosystem.compatibility.provisional.v0.1
+schema_ref: arcs.ecosystem.compatibility_projection.provisional.v0.1
 schema_status: provisional_pending_arcs_ecosystem_kit
-declaration_id: dagr-mcp.compatibility
-declaration_kind: compatibility
+declaration_id: dagr-mcp.compatibility_projection
+declaration_kind: compatibility_projection
 repository_identity:
   name: dagr-mcp
   canonical_repo: thelaplage/dagr-mcp
+authority_references:
+  declaration: .ecosystem/AUTHORITY_REFERENCES.yaml
+  evidence_schema_semantic_authority: arcs_srs.evidence_schema_semantic_authority
+  independent_verifier_counterpart: arcs_verify.independent_verifier_counterpart
+projection_scope:
+  model_status: proposed_architecture_under_test_not_ratified_doctrine
+  relationship: implementation_compatibility_projected_against_external_authorities
 binding_surfaces:
   - id: fastmcp.middleware.v0.1
     package_or_module: root dagr-mcp distribution

@@ -1,0 +1,159 @@
+schema_ref: arcs.ecosystem.authority_references.provisional.v0.1
+schema_status: provisional_pending_arcs_ecosystem_kit
+declaration_id: dagr-mcp.authority_references
+declaration_kind: authority_references
+repository_identity:
+  name: dagr-mcp
+  canonical_repo: thelaplage/dagr-mcp
+model_status:
+  layer_model: proposed_architecture_under_test
+  ratified_doctrine_claimed: false
+  note: >-
+    This declaration tests the emerging Layer -> Authority -> Contracts ->
+    Implementations -> Repositories architecture model. It does not claim that
+    the model is ratified doctrine.
+proposed_layer_stack:
+  ordering:
+    - Layer
+    - Authority
+    - Contracts
+    - Implementations
+    - Repositories
+  relevant_layers:
+    - id: L3
+      name: runtime_and_policy_implementation
+      relationship_to_dagr_mcp: secondary_role
+    - id: L4
+      name: evidence_production
+      relationship_to_dagr_mcp: secondary_role
+    - id: L5
+      name: product_and_protocol_adapters
+      relationship_to_dagr_mcp: primary_layer
+repository_layer_roles:
+  primary_layer:
+    id: L5
+    name: product_and_protocol_adapters
+    fit: >-
+      DAGR MCP is primarily an MCP adapter/runtime binding that translates
+      binding-specific tool-call activity into governed lifecycle decisions.
+    evidence:
+      - README.md
+      - docs/PRODUCT_ARCHITECTURE.md
+      - docs/OFFICIAL_MCP_SDK_BINDING.md
+      - docs/DAGR_MCP_SDK_V2_BINDING.md
+  secondary_roles:
+    - id: L3
+      name: runtime_and_policy_implementation
+      fit: >-
+        DAGR MCP enforces configured runtime policy decisions at the configured
+        MCP boundary before execution.
+      evidence:
+        - dagr_mcp/enforcement_harness.py
+        - dagr_mcp/fastmcp_binding.py
+        - tests/test_enforcement_harness.py
+    - id: L4
+      name: evidence_production
+      fit: >-
+        DAGR MCP emits signed metadata-only SRS admission and outcome receipts
+        as producer-side evidence.
+      evidence:
+        - dagr_mcp/srs_receipts.py
+        - docs/BEHAVIORAL_FREEZE.md
+        - tests/test_srs_receipts.py
+authority_references:
+  - id: dagr_mcp.current_implementation
+    repository: thelaplage/dagr-mcp
+    role: current_implementation
+    authority_scope:
+      - MCP interception and binding behavior in this repository
+      - neutral lifecycle projection implemented here
+      - producer-side receipt emission implemented here
+      - binding-version registration implemented here
+    not_authority_for:
+      - canonical SRS semantics
+      - ARCS verification verdicts
+      - organization-wide policy authority
+      - canonical governed-action or protocol authority
+  - id: arcs_srs.evidence_schema_semantic_authority
+    repository: thelaplage/arcs-srs
+    role: semantic_authority
+    authority_scope:
+      - SRS envelope schema artifacts
+      - SRS profile artifacts
+      - srs.mcp.sdk_enforcement profile vocabulary
+      - receipt disposition and outcome vocabulary under that profile
+    relationship_to_dagr_mcp: consumed_and_emitted_as_current_implementation_byte_facts
+    evidence:
+      - sibling:arcs-srs:docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md
+      - sibling:arcs-srs:schemas/srs-envelope/v0.2.0/srs-envelope.schema.json
+      - sibling:arcs-srs:schemas/srs-envelope/v0.2.1/srs-envelope.schema.json
+  - id: arcs_verify.independent_verifier_counterpart
+    repository: thelaplage/arcs-verify
+    role: independent_verifier_counterpart
+    runtime_dependency: false
+    authority_scope:
+      - deterministic verification report contracts
+      - verifier result vocabulary
+      - report schema closure
+    relationship_to_dagr_mcp: >-
+      ARCS Verify independently validates serialized DAGR MCP receipts and
+      trust material. It is not imported by the DAGR MCP runtime.
+    evidence:
+      - sibling:arcs-verify:arcs_verify/contracts/dagr-srs-verification-report-v0-2/README.md
+      - sibling:arcs-verify:arcs_verify/contracts/dagr-srs-verification-report-v0-2/verification-report.schema.json
+  - id: governed_action_protocol_authority.unresolved
+    repository: null
+    role: unresolved_semantic_authority
+    authority_scope:
+      - canonical governed-action capability semantics
+      - canonical protocol authority for non-SRS governed-action vocabulary
+    status: unresolved_in_this_repository
+    reason: >-
+      Current DAGR MCP evidence establishes implementation behavior and SRS
+      receipt profile consumption, but does not establish a ratified owner for
+      governed-action/protocol capability semantics.
+  - id: garp_sdk.historical_integrated_source_estate
+    repository: thelaplage/garp-sdk
+    role: historical_source
+    current_authority_by_default: false
+    authority_scope:
+      - historical integrated source vocabulary for runtime surfaces
+      - historical integrated source vocabulary for boundary contracts
+      - historical integrated source vocabulary for sink capabilities
+    relationship_to_dagr_mcp: referenced_as_prior_or_adjacent_source_material
+    note: >-
+      This pilot references garp-sdk vocabulary where useful, but does not
+      treat garp-sdk as current semantic authority by default.
+  - id: dagr_workbench.unverified_candidate_owner_projection
+    repository: thelaplage/dagr-workbench
+    role: candidate_owner_projection
+    candidate_owner_status: unverified
+    authority_scope:
+      - service grouping labels
+      - unverified candidate target rows
+    relationship_to_dagr_mcp: >-
+      Workbench lists dagr-mcp as an unverified candidate target for
+      dagr_mcp_tooling rows; that is not ownership, compatibility proof, or
+      traffic cutover.
+  - id: countervail.recorded_receipt_consumer_expectation
+    repository: countervail-control-plane
+    role: downstream_consumer_expectation
+    runtime_dependency: false
+    authority_scope:
+      - Countervail closed consumer contract for recorded DAGR SRS receipts
+      - receipt hash or pointer read-model expectations
+    relationship_to_dagr_mcp: possible_downstream_recorded_receipt_consumer
+axis_distinctions:
+  current_implementation:
+    reference: dagr_mcp.current_implementation
+    meaning: behavior implemented and tested in this repository
+  semantic_authority:
+    evidence_schema_reference: arcs_srs.evidence_schema_semantic_authority
+    governed_action_protocol_reference: governed_action_protocol_authority.unresolved
+    meaning: owner of semantics, separate from producer implementation
+  candidate_owner:
+    reference: dagr_workbench.unverified_candidate_owner_projection
+    meaning: unverified placement hypothesis, not authority or cutover
+  historical_source:
+    reference: garp_sdk.historical_integrated_source_estate
+    meaning: source estate or adjacent vocabulary, not current authority by default

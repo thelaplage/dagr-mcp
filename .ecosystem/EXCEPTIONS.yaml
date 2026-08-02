@@ -18,6 +18,13 @@ exceptions:
     summary: Provisional declarations cannot be validated against arcs-ecosystem-kit until that kit lands; no schemas are vendored here.
     evidence:
       - .ecosystem/
+  - id: layer_authority_model_unratified
+    status: open
+    type: provisional_architecture_model
+    summary: The Layer -> Authority -> Contracts -> Implementations -> Repositories model is proposed architecture under test, not ratified doctrine.
+    evidence:
+      - .ecosystem/AUTHORITY_REFERENCES.yaml
+      - docs/ECOSYSTEM_PILOT_ADJUDICATION.md
   - id: requested_garp_doctrine_sources_absent
     status: open
     type: doctrine_reconciliation_limit

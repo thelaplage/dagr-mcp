@@ -46,6 +46,8 @@ dependencies:
       constraint: ">=0.1.0"
       dependency_role: optional_integration_dependency
       runtime_import: lazy_when_amnesiac_extra_installed
+      authority_reference: garp_sdk.historical_integrated_source_estate
+      authority_status: historical_integrated_source_estate_not_current_authority_by_default
       evidence: pyproject.toml
     - name: pytest
       constraint: ">=9,<10"
@@ -66,20 +68,24 @@ dependencies:
     - name: srs-envelope-v0.2.0.schema.json
       dependency_role: vendored_srs_artifact
       runtime_import: false
+      semantic_authority: arcs_srs.evidence_schema_semantic_authority
       evidence: dagr_mcp/vendor/srs/srs-envelope-v0.2.0.schema.json
     - name: srs-envelope-v0.2.1.schema.json
       dependency_role: vendored_srs_artifact
       runtime_import: false
+      semantic_authority: arcs_srs.evidence_schema_semantic_authority
       evidence: dagr_mcp/vendor/srs/srs-envelope-v0.2.1.schema.json
     - name: frozen-profiles.zip
       dependency_role: vendored_srs_profile_artifact
       runtime_import: false
+      semantic_authority: arcs_srs.evidence_schema_semantic_authority
       evidence: dagr_mcp/vendor/srs/frozen-profiles.zip
   validation:
     - name: arcs-verify
       dependency_role: independent_validation_and_release_dependency
       runtime_import: false
       modeled_as_runtime_import_dependency: false
+      authority_reference: arcs_verify.independent_verifier_counterpart
       relationship: serialized_receipts_and_trust_bundles_only
       evidence:
         - README.md
@@ -109,3 +115,5 @@ non_dependencies:
     status: not_added_for_this_pilot
   - name: ARCS Verify runtime import
     status: explicitly_not_a_runtime_dependency
+  - name: garp-sdk current semantic authority
+    status: explicitly_not_claimed_by_default

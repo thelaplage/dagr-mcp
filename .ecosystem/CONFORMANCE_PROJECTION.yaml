@@ -1,10 +1,18 @@
-schema_ref: arcs.ecosystem.conformance.provisional.v0.1
+schema_ref: arcs.ecosystem.conformance_projection.provisional.v0.1
 schema_status: provisional_pending_arcs_ecosystem_kit
-declaration_id: dagr-mcp.conformance
-declaration_kind: conformance
+declaration_id: dagr-mcp.conformance_projection
+declaration_kind: conformance_projection
 repository_identity:
   name: dagr-mcp
   canonical_repo: thelaplage/dagr-mcp
+authority_references:
+  declaration: .ecosystem/AUTHORITY_REFERENCES.yaml
+  current_implementation: dagr_mcp.current_implementation
+  evidence_schema_semantic_authority: arcs_srs.evidence_schema_semantic_authority
+  independent_verifier_counterpart: arcs_verify.independent_verifier_counterpart
+projection_scope:
+  model_status: proposed_architecture_under_test_not_ratified_doctrine
+  relationship: dimension_level_projection_not_global_certification
 status_vocabulary:
   - PASS
   - FAIL

@@ -12,12 +12,20 @@ and reference implementation. It is not the ARCS standard, SRS authority,
 policy authority, verifier, durable memory system, public evidence view,
 certification service, gateway or network proxy, RBAC system, or Countervail.
 
-## Owned Layer
+## Proposed Layer Fit
 
-The owned layer is `product_translation_and_execution_boundary`; the role is
-substrate. The runtime sits inside configured MCP binding paths and turns host
-or framework-specific tool-call events into a neutral admission and outcome
-lifecycle.
+The concurrent kit lane is testing a proposed architecture order:
+Layer -> Authority -> Contracts -> Implementations -> Repositories. This pilot
+does not claim that model is ratified doctrine.
+
+DAGR MCP's primary proposed layer is `L5 product_and_protocol_adapters`. It has
+secondary roles in `L3 runtime_and_policy_implementation` and `L4
+evidence_production`.
+
+The earlier descriptive label, `product_translation_and_execution_boundary`,
+still describes the runtime location: DAGR MCP sits inside configured MCP
+binding paths and turns host or framework-specific tool-call events into a
+neutral admission and outcome lifecycle.
 
 Current real surfaces are multi-binding:
 
@@ -35,6 +43,12 @@ Current real surfaces are multi-binding:
 DAGR MCP imports MCP as the governed protocol surface, SRS as the emitted
 receipt envelope/profile vocabulary, ARCS Verify as the separate independent
 verification program, and ARCS Amnesiac as an optional producer integration.
+For this pilot, `arcs-srs` is the relevant evidence/schema semantic authority;
+ARCS Verify is an independent verifier counterpart, not a runtime dependency.
+The governed-action/protocol semantic authority remains unresolved because the
+current repository evidence does not establish a ratified owner. `garp-sdk` is
+referenced as a historical integrated source estate, not current authority by
+default.
 
 The current emitted receipt byte facts are:
 

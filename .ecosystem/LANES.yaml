@@ -12,17 +12,21 @@ active_lanes:
     status: active
     touches:
       - repository_classification
-      - capability_mapping
-      - contract_declarations
+      - authority_references
+      - layer_projection
+      - capability_bindings
+      - contract_bindings
       - dependency_declarations
+      - compatibility_projection
       - verifier_boundary
-      - conformance_modeling
+      - conformance_projection
     does_not_touch:
       - runtime_behavior
       - receipt_semantics
       - srs_profiles
       - arcs_verify
       - arcs_ecosystem_kit_dependency
+      - ratified_layer_doctrine
     evidence:
       - .ecosystem/
       - docs/ECOSYSTEM_PILOT_ADJUDICATION.md
