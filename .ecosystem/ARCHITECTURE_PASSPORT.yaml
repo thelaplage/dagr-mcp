@@ -1,0 +1,89 @@
+schema_ref: arcs.ecosystem.architecture_passport.provisional.v0.1
+schema_status: provisional_pending_arcs_ecosystem_kit
+declaration_id: dagr-mcp.architecture_passport
+declaration_kind: architecture_passport
+repository_identity:
+  name: dagr-mcp
+  canonical_repo: thelaplage/dagr-mcp
+mission:
+  statement: >-
+    DAGR MCP is the governed runtime boundary for MCP tool calls and the
+    producer-side emitter of signed metadata-only SRS receipts.
+owned_layer:
+  name: product_translation_and_execution_boundary
+  role: substrate
+  runtime_location: configured_mcp_boundary
+imported_concepts:
+  - concept: ARCS
+    authority: external_standard
+    use_here: layer_reference_and_independent_verifier_relationship
+  - concept: SRS
+    authority: external_receipt_protocol_and_profiles
+    use_here: envelope_and_profile_values_emitted_as_current_byte_facts
+  - concept: MCP
+    authority: external_protocol
+    use_here: tool_call_binding_surfaces
+  - concept: ARCS Amnesiac
+    authority: external_optional_producer
+    use_here: optional_memory_operations_exposed_through_dagr
+exported_contracts:
+  - dagr.mcp.lifecycle_contract
+  - dagr.mcp.lifecycle_binding_mask
+  - docs/BINDING_VERSIONS.md
+  - dagr.mcp.gateway_service_contract
+  - garp.mcp_record_custody_gateway.v0.1
+  - srs.mcp.sdk_enforcement emitted profile facts
+extension_points:
+  - name: actor_resolver
+    evidence: dagr_mcp/fastmcp_binding.py
+  - name: policy_resolver
+    evidence: dagr_mcp/fastmcp_binding.py
+  - name: review_object_creator
+    evidence: dagr_mcp/fastmcp_binding.py
+  - name: receipt_sink
+    evidence: dagr_mcp/srs_receipts.py
+  - name: official_sdk_delegate_handler
+    evidence: dagr_mcp_sdk_binding/adapter.py
+  - name: service_connectors
+    evidence: dagr_mcp_service/connectors/
+compatibility_guarantees:
+  - frozen_fastmcp_observables_are_preserved
+  - binding_identifiers_are_stable_receipt_facts
+  - root_distribution_preserves_legacy_compatibility
+  - dagr_mcp_core_imports_no_mcp_or_fastmcp
+  - sdk_v2_binding_is_isolated_from_root_distribution
+security_boundary:
+  enforced_before_execution:
+    - refused_calls_do_not_execute
+    - deferred_calls_do_not_execute
+  receipt_content:
+    - metadata_only
+    - hash_only_arguments_and_results
+    - raw_content_exclusion_before_signing_and_write
+  trusted_context_rule: actor_tenant_auth_context_comes_from_transport_not_tool_arguments
+non_goals:
+  - independent_verification
+  - durable_memory_admission
+  - public_projection
+  - policy_pack_authoring_authority
+  - network_proxy_or_protocol_gateway
+  - rbac_system
+  - certification_service
+attestation_limits:
+  - receipts_attest_only_to_governance_conditions_at_the_named_boundary
+  - signatures_attest_issuer_and_integrity_not_underlying_event_truth
+  - result_receipts_do_not_independently_establish_handler_execution
+producer_verifier_separation:
+  producer_here: signed_serialized_receipts_and_trust_bundles
+  verifier_elsewhere: arcs_verify
+  crossing_boundary: serialized_artifacts_only
+known_transitional_architecture:
+  - root_distribution_is_frozen_legacy_compatibility_code
+  - dagr_mcp_core_is_canonical_for_sdk_v2_and_later_binding_development
+  - sdk_v2_uses_mcp_2_and_must_be_environment_isolated_from_mcp_1_fastmcp
+  - final_package_distribution_name_is_unresolved
+evidence:
+  - README.md
+  - docs/PRODUCT_ARCHITECTURE.md
+  - docs/CORE_EXTRACTION_FORK.md
+  - docs/DAGR_MCP_SDK_V2_BINDING.md

@@ -1,0 +1,33 @@
+schema_ref: arcs.ecosystem.exceptions.provisional.v0.1
+schema_status: provisional_pending_arcs_ecosystem_kit
+declaration_id: dagr-mcp.exceptions
+declaration_kind: exceptions
+repository_identity:
+  name: dagr-mcp
+  canonical_repo: thelaplage/dagr-mcp
+exceptions:
+  - id: final_distribution_name_unresolved
+    status: open
+    type: naming_distribution
+    summary: Final package-index distribution name is operator-gated and unresolved.
+    evidence:
+      - docs/NAMING.md
+  - id: ecosystem_schema_validation_unavailable
+    status: open
+    type: provisional_schema
+    summary: Provisional declarations cannot be validated against arcs-ecosystem-kit until that kit lands; no schemas are vendored here.
+    evidence:
+      - .ecosystem/
+  - id: requested_garp_doctrine_sources_absent
+    status: open
+    type: doctrine_reconciliation_limit
+    summary: Requested garp-doctrine manifest, schema, registry, and internal doctrine files are not present in this checkout.
+    evidence:
+      - .ecosystem/REPOSITORY.yaml
+  - id: sdk_v2_environment_isolation
+    status: open
+    type: packaging_and_runtime_environment
+    summary: The official MCP SDK v2 package is intentionally isolated because mcp 1.x and 2.x are not designed to coexist.
+    evidence:
+      - docs/DAGR_MCP_SDK_V2_BINDING.md
+      - packages/dagr-mcp-sdk-v2/README.md

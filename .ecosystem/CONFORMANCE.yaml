@@ -1,0 +1,83 @@
+schema_ref: arcs.ecosystem.conformance.provisional.v0.1
+schema_status: provisional_pending_arcs_ecosystem_kit
+declaration_id: dagr-mcp.conformance
+declaration_kind: conformance
+repository_identity:
+  name: dagr-mcp
+  canonical_repo: thelaplage/dagr-mcp
+status_vocabulary:
+  - PASS
+  - FAIL
+  - PARTIAL
+  - NOT_APPLICABLE
+  - NOT_EVALUATED
+  - AMBIGUOUS
+dimensions:
+  - id: evidence_conformance
+    status: PASS
+    finding: signed metadata-only receipts, trust bundles, raw-content exclusion, and gap behavior are implemented and tested
+    evidence:
+      - README.md
+      - dagr_mcp/srs_receipts.py
+      - tests/test_srs_receipts.py
+      - tests/test_behavioral_freeze.py
+  - id: independent_verifier_compatibility
+    status: PASS
+    finding: serialized artifacts are verified outside producer code; ARCS Verify is optional and independent, with bundled verifier fallback for CI
+    evidence:
+      - README.md
+      - tests/test_gateway_service_receipt_access.py
+      - packages/dagr-mcp-sdk-v2/tests/test_arcs_verify_v0_2_acceptance.py
+  - id: enforced_refused_deferred_non_execution
+    status: PASS
+    finding: refused and deferred paths stop before delegate or handler execution
+    evidence:
+      - docs/BEHAVIORAL_FREEZE.md
+      - tests/test_fastmcp_binding.py
+      - tests/test_official_mcp_sdk_binding.py
+      - packages/dagr-mcp-sdk-v2/tests/test_acceptance_matrix.py
+  - id: reproducible_integration
+    status: PARTIAL
+    finding: root and isolated package paths are documented and tested, but v1 and v2 SDK environments are intentionally separate
+    evidence:
+      - docs/CORE_EXTRACTION_FORK.md
+      - docs/DAGR_MCP_SDK_V2_BINDING.md
+      - packages/dagr-mcp-sdk-v2/README.md
+  - id: cross_binding_portability
+    status: PARTIAL
+    finding: shared lifecycle and receipt contracts span multiple bindings, while some lifecycle events remain unsupported or binding-specific
+    evidence:
+      - docs/NEUTRAL_LIFECYCLE_CONTRACT.md
+      - docs/OFFICIAL_MCP_SDK_BINDING.md
+      - docs/DAGR_MCP_SDK_V2_BINDING.md
+      - tests/test_cross_binding_conformance.py
+  - id: public_release_guard
+    status: PASS
+    finding: public-release guard is the repository release check and must remain green for this lane
+    evidence:
+      - tools/check_public_release.py
+      - README.md
+  - id: packaging_status
+    status: PASS
+    finding: package inventory checks cover root and extracted packages without weakening release checks
+    evidence:
+      - tests/test_packaging_inventories.py
+      - MANIFEST.in
+      - packages/dagr-mcp-core/MANIFEST.in
+      - packages/dagr-mcp-sdk-v2/MANIFEST.in
+  - id: naming_distribution_status
+    status: PARTIAL
+    finding: current repo and import names are byte facts; final published distribution name remains operator-gated
+    evidence:
+      - docs/NAMING.md
+      - README.md
+  - id: ecosystem_schema_validation
+    status: NOT_EVALUATED
+    finding: arcs-ecosystem-kit schemas are not present and are not vendored for this pilot
+    evidence:
+      - .ecosystem/
+  - id: doctrine_source_reconciliation
+    status: AMBIGUOUS
+    finding: requested garp-doctrine source paths are absent in this checkout, so reconciliation is limited to repository-local doctrine and architecture sources
+    evidence:
+      - .ecosystem/REPOSITORY.yaml

@@ -1,0 +1,299 @@
+schema_ref: arcs.ecosystem.capability_bindings.provisional.v0.1
+schema_status: provisional_pending_arcs_ecosystem_kit
+declaration_id: dagr-mcp.capability_bindings
+declaration_kind: capability_bindings
+repository_identity:
+  name: dagr-mcp
+  canonical_repo: thelaplage/dagr-mcp
+purpose: >-
+  Bind DAGR MCP's current implementation behavior to externally owned
+  vocabulary surfaces without redefining canonical capability semantics.
+canonical_capability_definitions: not_claimed
+definition_policy:
+  does_not_define_canonical_capabilities: true
+  does_not_define_garp_sdk_boundary_vocabulary: true
+  does_not_define_srs_profile_or_envelope_semantics: true
+  does_not_define_arcs_verify_report_contracts: true
+  does_not_define_countervail_receipt_ingest_semantics: true
+external_vocabulary_surfaces:
+  - id: garp_sdk.runtime_surface_registry
+    authority: garp-sdk
+    status: inspected_local_sibling_checkout
+    reference:
+      - sibling:garp-sdk:garp_sdk/runtime_surface_registry_contract.py
+    vocabulary_referenced:
+      - surface_kind: read
+      - surface_kind: review
+      - surface_kind: mutation
+      - surface_kind: export
+      - safety_class: public_safe
+      - safety_class: private_safe
+      - safety_class: private_sensitive
+      - requires_refusal_envelope
+      - requires_receipt
+    boundary_note: >-
+      Runtime surfaces and receipt-requirement flags are GARP SDK terms. DAGR
+      MCP can map to them but does not own their ecosystem definitions.
+  - id: garp_sdk.boundary_contracts
+    authority: garp-sdk
+    status: inspected_local_sibling_checkout
+    reference:
+      - sibling:garp-sdk:garp_sdk/boundary/contracts.py
+      - sibling:garp-sdk:docs/BOUNDARY_SUBSTRATE_EXTRACTION.md
+    vocabulary_referenced:
+      - AdmissionDecision
+      - AdmissionDecisionRecord.to_receipt_metadata
+      - EnforcementInterception.to_receipt_metadata
+      - EnforcementInterception.to_public_decision_view
+      - ToolPolicy
+      - ToolPolicyPack
+    boundary_note: >-
+      Boundary contract vocabulary is re-exported by garp-sdk as a stable
+      facade. DAGR MCP references it as related substrate vocabulary; it does
+      not fork or redefine those classes here.
+  - id: garp_sdk.enforcement_harness
+    authority: garp-sdk
+    status: inspected_local_sibling_checkout
+    reference:
+      - sibling:garp-sdk:garp_sdk/enforcement_harness.py
+      - sibling:garp-sdk:garp_sdk/sdk_spine.py
+    vocabulary_referenced:
+      - PolicyDecisionValue: allow
+      - PolicyDecisionValue: deny
+      - PolicyDecisionValue: gate
+      - PolicyDecisionValue: defer
+      - PolicyDecisionValue: fail_closed
+      - ToolClass: read
+      - ToolClass: write
+      - ToolClass: destructive
+      - ToolClass: external_action
+      - ToolClass: credentialed_action
+      - SinkCapability: garp.sdk.sink.receipt.write
+      - SinkCapability: garp.sdk.sink.receipt.verify
+    boundary_note: >-
+      Policy decision vocabulary is separate from SRS receipt disposition
+      vocabulary. Sink capability tokens are GARP SDK sink-spine tokens, not
+      canonical ecosystem capability IDs.
+  - id: arcs_srs.mcp_sdk_enforcement_profile
+    authority: arcs-srs
+    status: inspected_local_sibling_checkout
+    reference:
+      - sibling:arcs-srs:docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md
+      - sibling:arcs-srs:schemas/srs-envelope/v0.2.0/srs-envelope.schema.json
+      - sibling:arcs-srs:schemas/srs-envelope/v0.2.1/srs-envelope.schema.json
+    vocabulary_referenced:
+      - profile_id: srs.mcp.sdk_enforcement
+      - profile_version: v0.1
+      - receipt_kind: admission
+      - receipt_kind: outcome
+      - admission_disposition: admitted
+      - admission_disposition: refused
+      - admission_disposition: deferred_for_review
+      - outcome: result_returned
+      - outcome: error_returned
+      - outcome: exception
+      - outcome: task_submitted
+      - outcome: indeterminate
+    boundary_note: >-
+      The profile and envelope artifacts define receipt shape and lifecycle
+      vocabulary outside this repository. DAGR MCP emits current byte facts
+      under that profile but does not own SRS normative semantics.
+  - id: arcs_verify.dagr_srs_report_v0_2
+    authority: arcs-verify
+    status: inspected_local_sibling_checkout
+    reference:
+      - sibling:arcs-verify:arcs_verify/contracts/dagr-srs-verification-report-v0-2/README.md
+      - sibling:arcs-verify:arcs_verify/contracts/dagr-srs-verification-report-v0-2/verification-report.schema.json
+    vocabulary_referenced:
+      - report_contract_id: srs.dagr_verification_report.v0.2
+      - supported_receipt_contract_id: srs.mcp.sdk_enforcement
+      - verdicts.schema_digest
+      - verdicts.envelope
+      - verdicts.profile
+      - verdicts.raw_content_exclusion
+      - verdicts.signature_valid
+      - verdicts.issuer_key_resolved
+      - verdicts.issuer_key_trusted
+      - verdicts.attestation_limits_present
+      - chain_status
+      - subject_ref_origin_disclosed
+    boundary_note: >-
+      ARCS Verify report contracts are independent validation outputs. They
+      are never modeled here as runtime imports or producer-owned verdicts.
+  - id: dagr_workbench.service_ownership
+    authority: dagr-workbench
+    status: inspected_local_sibling_checkout
+    reference:
+      - sibling:dagr-workbench:registry/workbench-service-ownership-v0.1.json
+      - sibling:dagr-workbench:schemas/dagr/workbench-service-ownership-v0.1.schema.json
+      - sibling:dagr-workbench:routing/serviceRouting.ts
+      - sibling:dagr-workbench:docs/internal/DAGR_WORKBENCH_SERVICE_REGISTRY_v0_1_AUG01.md
+      - sibling:dagr-workbench:docs/internal/DAGR_WORKBENCH_SERVICE_ROUTING_v0_1_AUG01.md
+    vocabulary_referenced:
+      - service_key: dagr_mcp_tooling
+      - owner_status: legacy_current
+      - cutover_state: legacy_route
+      - candidate_target.product: dagr-mcp
+      - candidate_target.verified: false
+    boundary_note: >-
+      Workbench identifies DAGR MCP as an unverified candidate target for the
+      dagr_mcp_tooling service grouping. The same registry states service keys
+      are grouping labels, not ownership assertions, and no row moves traffic.
+  - id: countervail.dagr_receipt_ingest_contract
+    authority: countervail-control-plane
+    status: inspected_local_sibling_checkout
+    reference:
+      - sibling:countervail-control-plane:packages/dagr-receipt-ingest/contracts/srs-mcp-sdk-enforcement-v0-1/README.md
+      - sibling:countervail-control-plane:packages/dagr-receipt-ingest/contracts/srs-mcp-sdk-enforcement-v0-1/supported-receipt-contract.json
+      - sibling:countervail-control-plane:packages/dagr-receipt-ingest/contracts/srs-mcp-sdk-enforcement-v0-1/source_manifest.json
+      - sibling:countervail-control-plane:packages/local-enforcement-contracts/schemas/receipt-summary.v0_2.schema.json
+      - sibling:countervail-control-plane:services/control-plane-api/src/readModels.mjs
+    vocabulary_referenced:
+      - consumer_role: recorded_receipt_consumer_only
+      - closure_policy: unsupported-source-contract fields reported and refused
+      - receipt_hash
+      - receipt_pointer
+      - payload_status: not_imported_to_control_plane
+      - attestation: managed_control_plane_received_metadata_only
+      - customer_side_runtime_responsibility_retained
+    boundary_note: >-
+      Countervail expectations are consumer-side ingest and read-model
+      expectations. They do not authorize Countervail as part of DAGR MCP's
+      live runtime path and do not turn DAGR receipts into Countervail-native
+      receipts.
+binding_scope:
+  implemented_here:
+    - MCP interception and binding behavior at configured boundaries
+    - MCP-to-neutral lifecycle projection
+    - producer-side admission and outcome receipt emission
+    - producer-side raw-content exclusion by digest/reference receipts
+    - optional Amnesiac operation exposure through DAGR MCP tools
+  referenced_not_defined_here:
+    - canonical capability definitions
+    - GARP SDK runtime surface semantics
+    - GARP SDK boundary contract class semantics
+    - SRS envelope/profile semantics
+    - ARCS Verify report semantics
+    - Workbench service ownership semantics
+    - Countervail receipt-ingest semantics
+capability_bindings:
+  - capability_id: TOOL_EXECUTION
+    capability_definition_authority: not_dagr_mcp
+    dagr_mcp_binding_status: implemented_and_validated
+    product_native_binding:
+      - configured MCP tool-call boundary
+      - FastMCP middleware path
+      - official MCP SDK 1.x binding path
+      - isolated official MCP SDK 2.x binding path
+      - neutral lifecycle/core projection
+    references:
+      - garp_sdk.enforcement_harness
+      - arcs_srs.mcp_sdk_enforcement_profile
+      - arcs_verify.dagr_srs_report_v0_2
+    non_claims:
+      - not a verifier capability
+      - not a network proxy capability
+      - not canonical MCP semantics
+  - capability_id: RESOURCE_READ
+    capability_definition_authority: not_dagr_mcp
+    dagr_mcp_binding_status: partial_mapping
+    product_native_binding:
+      - read-class tool calls
+      - mcp_resource_read custody vocabulary
+    references:
+      - garp_sdk.runtime_surface_registry
+    non_claims:
+      - no general MCP resource/read binding is claimed as implemented
+      - not a canonical resource capability definition
+  - capability_id: EXTERNAL_ACTION
+    capability_definition_authority: not_dagr_mcp
+    dagr_mcp_binding_status: partial_mapping
+    product_native_binding:
+      - external_action tool class in enforcement harness vocabulary
+      - configured remote connector calls
+    references:
+      - garp_sdk.enforcement_harness
+      - dagr_workbench.service_ownership
+    non_claims:
+      - not a policy authority
+      - not ownership of Workbench service routing cutover
+  - capability_id: CREDENTIALED_ACTION
+    capability_definition_authority: not_dagr_mcp
+    dagr_mcp_binding_status: partial_mapping
+    product_native_binding:
+      - credential provider path in the remote connector
+      - credential exclusion from responses and receipts
+    references:
+      - garp_sdk.enforcement_harness
+      - countervail.dagr_receipt_ingest_contract
+    non_claims:
+      - no model/provider retention guarantee
+      - no credential custody authority outside configured connector boundary
+  - capability_id: MEMORY_PROPOSE
+    capability_definition_authority: arcs_amnesiac
+    dagr_mcp_binding_status: implemented_as_optional_adapter_exposure
+    product_native_binding:
+      - amnesiac.propose_candidates
+    references:
+      - garp_sdk.runtime_surface_registry
+    non_claims:
+      - not memory admission
+      - not canonical Amnesiac semantics
+  - capability_id: MEMORY_ADMIT
+    capability_definition_authority: arcs_amnesiac
+    dagr_mcp_binding_status: not_implemented_here
+    product_native_binding: []
+    references:
+      - arcs_srs.mcp_sdk_enforcement_profile
+    non_claims:
+      - DAGR MCP does not admit claims into durable memory
+  - capability_id: MEMORY_RECORD_OUTCOME
+    capability_definition_authority: arcs_amnesiac
+    dagr_mcp_binding_status: implemented_as_optional_adapter_exposure
+    product_native_binding:
+      - amnesiac.record_outcome
+    references:
+      - arcs_srs.mcp_sdk_enforcement_profile
+    non_claims:
+      - no raw model output accepted
+      - no independent verification verdict produced here
+  - capability_id: MEMORY_COMPILE_CONTEXT
+    capability_definition_authority: arcs_amnesiac
+    dagr_mcp_binding_status: partial_optional_adapter_exposure
+    product_native_binding:
+      - amnesiac.compile_context
+    references:
+      - garp_sdk.runtime_surface_registry
+    non_claims:
+      - deterministic reference selector only
+      - not the full governed context planner
+  - capability_id: MEMORY_REQUEST_REOPENING
+    capability_definition_authority: arcs_amnesiac
+    dagr_mcp_binding_status: implemented_as_optional_adapter_exposure
+    product_native_binding:
+      - amnesiac.request_reopening
+    references:
+      - garp_sdk.runtime_surface_registry
+    non_claims:
+      - request only; caller cannot force reopening
+decision_vocabulary_binding:
+  policy_decisions:
+    owner: runtime_policy_implementation
+    values:
+      - allow
+      - deny
+      - gate
+      - defer
+      - fail_closed
+    reference: dagr_mcp/enforcement_harness.py
+  receipt_dispositions:
+    owner: SRS profile vocabulary emitted by DAGR MCP
+    values:
+      - admitted
+      - refused
+      - deferred_for_review
+    reference: dagr_mcp/srs_receipts.py
+  mapping_boundary: >-
+    Policy decisions are pre-execution runtime decisions. Receipt dispositions
+    are admission receipt outcomes. The declarations intentionally do not
+    collapse these vocabularies.

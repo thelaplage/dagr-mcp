@@ -1,0 +1,111 @@
+schema_ref: arcs.ecosystem.dependencies.provisional.v0.1
+schema_status: provisional_pending_arcs_ecosystem_kit
+declaration_id: dagr-mcp.dependencies
+declaration_kind: dependencies
+repository_identity:
+  name: dagr-mcp
+  canonical_repo: thelaplage/dagr-mcp
+dependencies:
+  python_package:
+    - name: cryptography
+      constraint: ">=46.0.4,<47"
+      dependency_role: implementation_dependency
+      runtime_import: true
+      evidence: pyproject.toml
+    - name: rfc8785
+      constraint: "==0.1.4"
+      dependency_role: implementation_dependency
+      runtime_import: true
+      evidence: pyproject.toml
+    - name: fastmcp
+      constraint: ">=3.4.4,<4"
+      dependency_role: implementation_dependency
+      runtime_import: true
+      evidence: pyproject.toml
+    - name: mcp
+      constraint: "==1.29.0"
+      dependency_role: optional_implementation_dependency
+      runtime_import: true_when_official_sdk_extra_installed
+      evidence: pyproject.toml
+    - name: dagr-mcp-core
+      constraint: local package version 0.2.0
+      dependency_role: extracted_core_package
+      runtime_import: true_for_sdk_v2_package
+      evidence: packages/dagr-mcp-sdk-v2/pyproject.toml
+    - name: mcp
+      constraint: "==2.0.0"
+      dependency_role: isolated_sdk_v2_implementation_dependency
+      runtime_import: true_for_sdk_v2_package
+      evidence: packages/dagr-mcp-sdk-v2/pyproject.toml
+    - name: arcs-amnesiac
+      constraint: ">=0.2.0"
+      dependency_role: optional_integration_dependency
+      runtime_import: lazy_when_amnesiac_extra_installed
+      evidence: pyproject.toml
+    - name: garp-sdk
+      constraint: ">=0.1.0"
+      dependency_role: optional_integration_dependency
+      runtime_import: lazy_when_amnesiac_extra_installed
+      evidence: pyproject.toml
+    - name: pytest
+      constraint: ">=9,<10"
+      dependency_role: validation_dependency
+      runtime_import: false
+      evidence: pyproject.toml
+    - name: jsonschema
+      constraint: ">=4.26,<5"
+      dependency_role: validation_dependency
+      runtime_import: false
+      evidence: pyproject.toml
+    - name: build
+      constraint: ">=1.2"
+      dependency_role: packaging_validation_dependency
+      runtime_import: false
+      evidence: pyproject.toml
+  normative_schema:
+    - name: srs-envelope-v0.2.0.schema.json
+      dependency_role: vendored_srs_artifact
+      runtime_import: false
+      evidence: dagr_mcp/vendor/srs/srs-envelope-v0.2.0.schema.json
+    - name: srs-envelope-v0.2.1.schema.json
+      dependency_role: vendored_srs_artifact
+      runtime_import: false
+      evidence: dagr_mcp/vendor/srs/srs-envelope-v0.2.1.schema.json
+    - name: frozen-profiles.zip
+      dependency_role: vendored_srs_profile_artifact
+      runtime_import: false
+      evidence: dagr_mcp/vendor/srs/frozen-profiles.zip
+  validation:
+    - name: arcs-verify
+      dependency_role: independent_validation_and_release_dependency
+      runtime_import: false
+      modeled_as_runtime_import_dependency: false
+      relationship: serialized_receipts_and_trust_bundles_only
+      evidence:
+        - README.md
+        - tests/test_gateway_service_receipt_access.py
+        - packages/dagr-mcp-sdk-v2/tests/test_arcs_verify_v0_2_acceptance.py
+    - name: repository_bundled_receipt_verifier
+      dependency_role: local_test_validation_fallback
+      runtime_import: false
+      evidence:
+        - tests/receipt_verification.py
+        - packages/dagr-mcp-core/tests/receipt_verification.py
+  downstream_consumers:
+    - name: ARCS Verify
+      dependency_role: independent_verifier_consumer
+      runtime_import: false
+    - name: GARPedia
+      dependency_role: downstream_projection_consumer
+      runtime_import: false
+    - name: ARCS Amnesiac
+      dependency_role: optional_upstream_and_downstream_memory_system
+      runtime_import: lazy_optional
+    - name: Countervail
+      dependency_role: possible_operator_product_consumer
+      runtime_import: false
+non_dependencies:
+  - name: arcs-ecosystem-kit
+    status: not_added_for_this_pilot
+  - name: ARCS Verify runtime import
+    status: explicitly_not_a_runtime_dependency

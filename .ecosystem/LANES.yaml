@@ -1,0 +1,63 @@
+schema_ref: arcs.ecosystem.lanes.provisional.v0.1
+schema_status: provisional_pending_arcs_ecosystem_kit
+declaration_id: dagr-mcp.lanes
+declaration_kind: lanes
+repository_identity:
+  name: dagr-mcp
+  canonical_repo: thelaplage/dagr-mcp
+active_lanes:
+  - lane_id: dagr-mcp-ecosystem-doctrine-pilot-v0-1
+    branch: feat/ecosystem-doctrine-pilot-v0-1
+    title: Add provisional ecosystem declarations for DAGR MCP pilot v0.1
+    status: active
+    touches:
+      - repository_classification
+      - capability_mapping
+      - contract_declarations
+      - dependency_declarations
+      - verifier_boundary
+      - conformance_modeling
+    does_not_touch:
+      - runtime_behavior
+      - receipt_semantics
+      - srs_profiles
+      - arcs_verify
+      - arcs_ecosystem_kit_dependency
+    evidence:
+      - .ecosystem/
+      - docs/ECOSYSTEM_PILOT_ADJUDICATION.md
+observed_local_branches:
+  - branch: feat/official-sdk-v2-governed-binding-v0-2
+    source: local_git_branch
+    declaration_status: observed_not_modeled_as_active_lane_here
+  - branch: feat/product-front-door
+    source: local_git_branch
+    declaration_status: observed_not_modeled_as_active_lane_here
+  - branch: fix/result-delivery-field-collision
+    source: local_git_branch
+    declaration_status: observed_not_modeled_as_active_lane_here
+  - branch: hygiene/test-rename-boolean-verdicts
+    source: local_git_branch
+    declaration_status: observed_not_modeled_as_active_lane_here
+documented_historical_lanes:
+  - id: sprint_a1_behavioral_freeze
+    evidence: docs/BEHAVIORAL_FREEZE.md
+  - id: sprint_a2_neutral_lifecycle_contract
+    evidence: docs/NEUTRAL_LIFECYCLE_CONTRACT.md
+  - id: sprint_a3_neutral_lifecycle_core
+    evidence: docs/NEUTRAL_LIFECYCLE_CORE.md
+  - id: sprint_a4_fastmcp_core_rebinding
+    evidence: docs/FASTMCP_CORE_REBINDING.md
+  - id: sprint_a5_official_sdk_binding
+    evidence: docs/OFFICIAL_MCP_SDK_BINDING.md
+  - id: sprint_a7_gateway_service_contract
+    evidence: dagr_mcp_service/contract.py
+  - id: sprint_a8_gateway_service_adapter
+    evidence: dagr_mcp_service/adapter.py
+  - id: sprint_a9_remote_connector
+    evidence: dagr_mcp_service/connectors/remote.py
+  - id: sprint_a10_receipt_access
+    evidence: dagr_mcp_service/access.py
+lane_uniqueness_scope:
+  field: active_lanes[].lane_id
+  requirement: unique_within_this_file

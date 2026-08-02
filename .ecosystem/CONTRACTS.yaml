@@ -1,0 +1,162 @@
+schema_ref: arcs.ecosystem.contracts.provisional.v0.1
+schema_status: provisional_pending_arcs_ecosystem_kit
+declaration_id: dagr-mcp.contracts
+declaration_kind: contracts
+repository_identity:
+  name: dagr-mcp
+  canonical_repo: thelaplage/dagr-mcp
+contracts:
+  - id: dagr.mcp.lifecycle_contract
+    authority: dagr-mcp
+    role: protocol_neutral_lifecycle_core_contract
+    version_or_fact: v0.1
+    stability: frozen_and_tested
+    direction: provided_and_validated
+    evidence:
+      - dagr_mcp_lifecycle/contract.py
+      - docs/NEUTRAL_LIFECYCLE_CONTRACT.md
+      - tests/test_neutral_lifecycle_contract.py
+  - id: dagr.mcp.lifecycle_binding_mask
+    authority: dagr-mcp
+    role: fastmcp_binding_projection_mask
+    version_or_fact: v0.1 target fastmcp.middleware.v0.1
+    stability: frozen_and_tested
+    direction: provided_and_validated
+    evidence:
+      - dagr_mcp_lifecycle/binding_mask.py
+      - tests/test_lifecycle_contract_hardening.py
+  - id: docs/BINDING_VERSIONS.md
+    authority: dagr-mcp
+    role: mcp_binding_identifier_registry
+    version_or_fact: direct-harness.v0.1, fastmcp.middleware.v0.1, official-mcp-sdk.python.v0.1, official-mcp-sdk.python.v0.2
+    stability: reviewed_registry_change_required
+    direction: provided_and_validated
+    evidence:
+      - docs/BINDING_VERSIONS.md
+      - dagr_mcp/srs_receipts.py
+      - packages/dagr-mcp-core/src/dagr_mcp_core/srs_receipts.py
+  - id: srs.mcp.sdk_enforcement
+    authority: SRS
+    role: consumed_profile_identifier_and_emitted_profile_fact
+    version_or_fact: profile_version v0.1
+    stability: current_implementation_byte_fact
+    direction: consumed_and_emitted
+    evidence:
+      - dagr_mcp/srs_receipts.py
+      - README.md
+      - tests/golden/behavioral_freeze/
+  - id: srs.core.v5.1
+    authority: SRS_internal_pre_public_lineage
+    role: emitted_receipt_version_byte_fact
+    version_or_fact: receipt_version srs.core.v5.1
+    stability: current_implementation_byte_fact_not_public_release_claim
+    direction: emitted
+    evidence:
+      - dagr_mcp/srs_receipts.py
+      - README.md
+      - tests/golden/behavioral_freeze/
+  - id: admission_receipt_emission
+    authority: dagr-mcp emitter over SRS profile
+    role: admission receipt kind and disposition emission
+    version_or_fact: receipt_kind admission; dispositions admitted, refused, deferred_for_review
+    stability: frozen_behavior
+    direction: emitted_and_validated
+    evidence:
+      - README.md
+      - docs/BEHAVIORAL_FREEZE.md
+      - tests/test_srs_receipts.py
+  - id: outcome_receipt_emission
+    authority: dagr-mcp emitter over SRS profile
+    role: outcome receipt kind and result classification
+    version_or_fact: result_returned, error_returned, exception, indeterminate, task_submitted
+    stability: frozen_behavior_with_binding_differences
+    direction: emitted_and_validated
+    evidence:
+      - README.md
+      - docs/BEHAVIORAL_FREEZE.md
+      - docs/OFFICIAL_MCP_SDK_BINDING.md
+      - docs/DAGR_MCP_SDK_V2_BINDING.md
+  - id: admission_outcome_linkage
+    authority: dagr-mcp emitter over SRS profile
+    role: outcome to admission reference edge
+    version_or_fact: outcome.admission_receipt_ref equals admission.receipt_id
+    stability: frozen_behavior
+    direction: emitted_and_validated
+    evidence:
+      - README.md
+      - docs/NEUTRAL_LIFECYCLE_CONTRACT.md
+      - tests/test_behavioral_freeze.py
+  - id: srs.trust_bundle.v0.1
+    authority: DAGR emitter using SRS trust-bundle shape
+    role: trust_bundle_production
+    version_or_fact: trust_bundle_version srs.trust_bundle.v0.1
+    stability: current_implementation_byte_fact
+    direction: provided_and_emitted
+    evidence:
+      - dagr_mcp/srs_receipts.py
+      - tests/test_srs_receipts.py
+  - id: arcs_verify.verification_report
+    authority: thelaplage/arcs-verify
+    role: independent verification report compatibility
+    version_or_fact: eight Boolean verifier results plus separate chain_status
+    stability: external_contract
+    direction: validated_not_runtime_imported
+    evidence:
+      - README.md
+      - tests/test_gateway_service_receipt_access.py
+      - arcs-verify-implementation-fixtures.patch
+  - id: dagr.amnesiac_optional_tools
+    authority: dagr-mcp adapter over ARCS Amnesiac
+    role: optional Amnesiac operation exposure
+    version_or_fact: propose_candidates, compile_context, request_reopening, record_outcome
+    stability: optional_integration
+    direction: provided_when_extra_available
+    evidence:
+      - docs/AMNESIAC_TOOLS.md
+      - dagr_mcp/amnesiac_contracts.py
+      - dagr_mcp/amnesiac_fastmcp.py
+  - id: dagr.mcp.gateway_service_contract
+    authority: dagr-mcp
+    role: neutral service request_response_contract
+    version_or_fact: SERVICE_ID dagr.mcp.gateway_service_contract
+    stability: active_internal_composition_surface
+    direction: provided_and_validated
+    evidence:
+      - dagr_mcp_service/contract.py
+      - tests/test_gateway_service_contract.py
+  - id: garp.mcp_record_custody_gateway.v0.1
+    authority: dagr-mcp custody projection contract
+    role: refs_and_hashes_only_custody_projection
+    version_or_fact: schema_version garp.mcp_record_custody_gateway.v0.1
+    stability: frozen_behavioral_fixture
+    direction: provided_and_validated
+    evidence:
+      - dagr_mcp/mcp_record_custody_gateway.py
+      - tests/golden/behavioral_freeze/custody_projections.json
+  - id: fastmcp_compatibility_constraint
+    authority: dagr-mcp package metadata
+    role: legacy FastMCP runtime compatibility
+    version_or_fact: fastmcp>=3.4.4,<4
+    stability: active_compatibility_path
+    direction: consumed
+    evidence:
+      - pyproject.toml
+      - README.md
+  - id: official_mcp_sdk_v1_constraint
+    authority: dagr-mcp package metadata
+    role: official MCP SDK 1.x binding constraint
+    version_or_fact: mcp==1.29.0 through official-sdk extra
+    stability: exact_pin
+    direction: consumed
+    evidence:
+      - pyproject.toml
+      - docs/OFFICIAL_MCP_SDK_BINDING.md
+  - id: official_mcp_sdk_v2_constraint
+    authority: dagr-mcp-sdk-v2 package metadata
+    role: isolated official MCP SDK 2.x binding constraint
+    version_or_fact: mcp==2.0.0
+    stability: exact_pin
+    direction: consumed
+    evidence:
+      - packages/dagr-mcp-sdk-v2/pyproject.toml
+      - docs/DAGR_MCP_SDK_V2_BINDING.md

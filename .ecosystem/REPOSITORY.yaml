@@ -1,0 +1,90 @@
+schema_ref: arcs.ecosystem.repository.provisional.v0.1
+schema_status: provisional_pending_arcs_ecosystem_kit
+declaration_id: dagr-mcp.repository
+declaration_kind: repository
+repository:
+  name: dagr-mcp
+  canonical_repo: thelaplage/dagr-mcp
+  types:
+    - runtime_binding
+    - adapter
+    - reference_app
+  mission: >-
+    Governed runtime boundary for MCP tool calls: projects binding-specific
+    requests into protocol-neutral lifecycle decisions, emits signed
+    metadata-only SRS receipts, and stops refused or deferred calls before
+    execution.
+authority:
+  status: active_implementation
+  canonical_doctrine_repository: thelaplage/garp-doctrine
+  doctrine_reconciliation:
+    status: limited_to_repository_local_sources
+    requested_files_absent:
+      - .garp/doctrine_manifest.json
+      - schemas/garp/doctrine-manifest.schema.json
+      - schemas/garp/spec-compatibility.schema.json
+      - registry/repo_conformance_registry.json
+      - docs/internal/IN___Adapters_Not_Wrappers_Platform_Boundary_v0_4_JUN19.md
+      - docs/internal/IN___Adapter_Pack_Architecture_v0_2_JUN02.md
+      - docs/garp/IN___GARP_Substrate_Vertical_Separation_Doctrine_v0_2_AUG01.md
+      - docs/garp/IN___GARP_Reviewable_Assertion_And_Governed_Evolution_v0_1_JUL27.md
+    repository_local_sources_used:
+      - README.md
+      - docs/PRODUCT_ARCHITECTURE.md
+      - docs/NEUTRAL_LIFECYCLE_CONTRACT.md
+      - docs/CORE_EXTRACTION_FORK.md
+      - docs/BINDING_VERSIONS.md
+      - docs/GATEWAY_SERVICE_ADAPTER_SCOPE.md
+architecture:
+  owning_layer: product_translation_and_execution_boundary
+  role: substrate
+  binding_posture: multi_binding
+lifecycle:
+  stage: preview
+classification:
+  is:
+    - emitter
+    - runtime_binding
+    - adapter_interception_boundary
+    - reference_implementation
+  is_not:
+    - verifier
+    - knowledge_base
+    - arcs_standard
+    - srs_authority
+    - policy_authority
+    - certification_service
+    - gateway_or_network_proxy
+    - rbac_system
+    - countervail
+owned_concerns:
+  - mcp_interception_and_binding_behavior
+  - native_mcp_to_neutral_lifecycle_projection
+  - execution_enforcement_at_configured_boundary
+  - producer_side_admission_receipt_emission
+  - producer_side_outcome_receipt_emission
+  - binding_version_registration
+  - producer_side_raw_content_exclusion
+  - receipt_sink_and_gap_behavior
+  - optional_amnesiac_operation_exposure_through_dagr
+explicitly_unowned_concerns:
+  - arcs_validity
+  - srs_normative_semantics
+  - independent_verification_verdicts
+  - organization_wide_policy_authority
+  - public_evidence_view_semantics
+  - historical_truth_of_underlying_events
+  - model_or_provider_retention_behavior
+  - mcp_traffic_bypassing_the_configured_boundary
+  - underlying_server_internal_retention
+evidence:
+  - path: README.md
+    anchors:
+      - governed_runtime_boundary
+      - what_exists_now
+      - emit_here_verify_there
+      - limitations
+  - path: docs/PRODUCT_ARCHITECTURE.md
+    anchors:
+      - responsibility_boundaries
+      - implemented_dagr_surfaces

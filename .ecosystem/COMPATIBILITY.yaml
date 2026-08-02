@@ -1,0 +1,87 @@
+schema_ref: arcs.ecosystem.compatibility.provisional.v0.1
+schema_status: provisional_pending_arcs_ecosystem_kit
+declaration_id: dagr-mcp.compatibility
+declaration_kind: compatibility
+repository_identity:
+  name: dagr-mcp
+  canonical_repo: thelaplage/dagr-mcp
+binding_surfaces:
+  - id: fastmcp.middleware.v0.1
+    package_or_module: root dagr-mcp distribution
+    status: active_compatibility_path
+    dependency_fact: fastmcp>=3.4.4,<4
+    evidence:
+      - README.md
+      - docs/BINDING_VERSIONS.md
+      - docs/FASTMCP_CORE_REBINDING.md
+  - id: official-mcp-sdk.python.v0.1
+    package_or_module: dagr_mcp_sdk_binding
+    status: active_compatibility_path
+    dependency_fact: mcp==1.29.0 through official-sdk extra
+    evidence:
+      - README.md
+      - docs/OFFICIAL_MCP_SDK_BINDING.md
+      - pyproject.toml
+  - id: protocol_neutral_core
+    package_or_module: packages/dagr-mcp-core
+    status: active_extracted_substrate
+    dependency_fact: no mcp or fastmcp dependency
+    evidence:
+      - packages/dagr-mcp-core/README.md
+      - docs/CORE_EXTRACTION_FORK.md
+  - id: official-mcp-sdk.python.v0.2
+    package_or_module: packages/dagr-mcp-sdk-v2
+    status: active_isolated_binding
+    dependency_fact: mcp==2.0.0
+    evidence:
+      - packages/dagr-mcp-sdk-v2/README.md
+      - docs/DAGR_MCP_SDK_V2_BINDING.md
+  - id: dagr_mcp_service
+    package_or_module: dagr_mcp_service
+    status: implemented_internal_composition_surface
+    dependency_fact: binding-selected
+    evidence:
+      - docs/PRODUCT_ARCHITECTURE.md
+      - dagr_mcp_service/
+receipt_compatibility:
+  emitted_byte_facts:
+    receipt_version: srs.core.v5.1
+    receipt_version_lineage_status: internal_pre_public_lineage
+    profile_id: srs.mcp.sdk_enforcement
+    profile_version: v0.1
+  cardinality_model:
+    status: bounded_and_conditional
+    ceilings:
+      admitted: 2
+      refused: 1
+      deferred: 1
+    caveats:
+      - read admission may be disabled by configuration and emit zero records
+      - outcome sink failure after execution leaves admission plus local receipt_gap event
+      - required sink unavailable refusal may be best effort
+    evidence:
+      - README.md
+      - dagr_mcp_service/contract.py
+  raw_content:
+    status: enforced
+    retention_class_applied: hash_only
+    excluded_artifact_classes:
+      - raw_prompt
+      - raw_output
+      - raw_tool_arguments
+      - raw_tool_result
+    evidence:
+      - README.md
+      - dagr_mcp/srs_receipts.py
+compatibility_guarantees:
+  - no_receipt_schema_or_profile_change_in_this_pilot
+  - no_runtime_behavior_change_in_this_pilot
+  - binding_version_stamps_are_not_framework_package_versions
+  - root_registry_and_core_registry_differences_are_documented
+known_incompatibilities_or_limits:
+  - sdk_v2_mcp_2_environment_must_not_coinstall_with_root_mcp_1_fastmcp_environment
+  - official_sdk_v1_task_submitted_is_unsupported_on_bound_tools_call_seam
+  - sdk_v2_input_required_mrtr_is_unsupported_and_fails_closed
+release_guards:
+  - python -m pytest -q
+  - python tools/check_public_release.py .
