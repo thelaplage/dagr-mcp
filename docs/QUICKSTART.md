@@ -10,6 +10,26 @@ is used or modified.
 
 Run everything from an empty working directory of your choice.
 
+
+## Other implemented runtime paths
+
+The five-minute path below intentionally uses the root FastMCP compatibility
+distribution because it provides one installed console command. It is not the
+only binding in this repository.
+
+- Official MCP SDK 1.x: install the root package with `.[official-sdk]` and use
+  `dagr_mcp_sdk_binding`; the proven SDK pin is `mcp==1.29.0`.
+- Official MCP SDK 2.x: build/install `packages/dagr-mcp-core` and
+  `packages/dagr-mcp-sdk-v2`; run
+  `python examples/http_proof_v2/client_proof.py` for the real stateless HTTP
+  proof against `mcp==2.0.0`.
+- Amnesiac integration: install the root package with `.[amnesiac]`; the four
+  operations and their authority limits are documented in
+  [AMNESIAC_TOOLS.md](AMNESIAC_TOOLS.md).
+
+These paths share receipt semantics but remain isolated dependency environments.
+Do not install FastMCP 3 and MCP SDK 2.0.0 into one proof environment.
+
 ## 1. Clone both repositories
 
 ```bash

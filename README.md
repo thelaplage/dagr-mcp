@@ -1,14 +1,14 @@
 # DAGR MCP
 
-DAGR MCP binds MCP tool execution — through the FastMCP framework — to signed,
-metadata-only SRS receipt emission at a configured trust boundary.
+DAGR MCP is the governed runtime boundary for MCP tool calls. It projects a
+binding-specific request into a protocol-neutral lifecycle decision, emits
+signed metadata-only SRS receipts, and stops refused or deferred calls before
+execution.
 
-It is a receipt **emitter / runtime binding**. It is not a verifier, gateway,
-proxy, scanner, policy engine, or certification service. Admission decisions are
-supplied by operator-configured resolvers; the binding records them, signs a
-receipt, and — for refused or deferred dispositions — stops the call at the
-boundary. Independent verification is a separate program in a separate
-repository ([ARCS Verify](https://github.com/thelaplage/arcs-verify)).
+It is an **emitter / runtime binding**, not a verifier, knowledge base, policy
+authority, or certification service. Admission policy is supplied by the
+operator-configured boundary; independent verification is performed afterward
+by [ARCS Verify](https://github.com/thelaplage/arcs-verify).
 
 <!-- layer-map -->
 
@@ -17,63 +17,67 @@ repository ([ARCS Verify](https://github.com/thelaplage/arcs-verify)).
 | Standard | ARCS |
 | Receipt protocol and profiles | SRS |
 | Open runtime and adapters | DAGR |
+| Governed durable memory | ARCS Amnesiac |
 | Public reference implementations | DAGR MCP and ARCS Verify |
 | Public read and demo surfaces | GARPedia, Overlay, Showcase |
 | Commercial operator products | Countervail, Workbench, managed deployments |
 
-MCP is DAGR's first supported binding. This package is the public-canonical
-MCP-shaped admission runtime and signed SRS emitter. It does not claim to be a
-transport-neutral runtime.
+## What exists now
 
-## Current binding boundary
+MCP is DAGR's first supported binding. The repository is multi-binding today, and the shared lifecycle and receipt logic is not owned by any one framework.
 
-The current framework integration targets **FastMCP 3.x**. The supported
-dependency range declared in `pyproject.toml` is `fastmcp>=3.4.4,<4`. The
-repository commits no lock or exact constraint, so it does not pin an exact
-framework version — a fresh source install resolves whatever compatible FastMCP
-3.x release the index offers (the P2 acceptance environment resolved FastMCP
-3.4.4). The FastMCP middleware records a stable binding **contract** identifier
-in every receipt it emits; this identifier is fixed by the binding and is **not**
-the FastMCP package version:
+| Surface | Package / module | Status | Proven dependency |
+|---|---|---|---|
+| Legacy FastMCP runtime | root `dagr-mcp` distribution | active compatibility path | `fastmcp>=3.4.4,<4` |
+| Official MCP SDK 1.x binding | `dagr_mcp_sdk_binding` | active compatibility path | `mcp==1.29.0` through the `official-sdk` extra |
+| Protocol-neutral core | `packages/dagr-mcp-core` | active extracted substrate | no MCP or FastMCP dependency |
+| Official MCP SDK 2.x binding | `packages/dagr-mcp-sdk-v2` | active isolated binding | `mcp==2.0.0` |
+| Neutral service / connector layer | `dagr_mcp_service` | implemented internal composition surface | binding-selected |
+| Amnesiac operations | `dagr_mcp.amnesiac_*` | implemented optional integration | `arcs-amnesiac` + `garp-sdk` extra |
 
-- `binding_version`: **`fastmcp.middleware.v0.1`**, carried at
-  `extensions.mcp.binding_version`.
+Binding identifiers are stable receipt facts, not framework package versions.
+See [the binding registry](docs/BINDING_VERSIONS.md).
 
-The framework-specific integration (a `fastmcp` middleware and its `ToolResult`
-projection) is isolated from the SRS receipt contract: the emitter in
-`dagr_mcp/srs_receipts.py` constructs and signs receipts and knows nothing about
-FastMCP. The registry in `docs/BINDING_VERSIONS.md` also records a
-`direct-harness.v0.1` binding used by the non-framework demo path.
+## The product flow
 
-FastMCP is the one binding the current executable bytes and tests implement. A
-multi-binding runtime is architectural / future scope; this v0.1 documentation
-does not claim any other framework binding exists.
+DAGR is one layer in a larger governed-record workflow:
+
+```text
+source / record
+    -> candidate proposal and memory lifecycle in ARCS Amnesiac
+    -> governed tool call through a DAGR binding
+    -> admission and outcome receipts
+    -> independent verification in ARCS Verify
+    -> human and agent projection in GARPedia
+```
+
+DAGR does not admit claims into durable memory and does not verify its own
+receipts. The Amnesiac integration keeps proposal distinct from admission,
+keeps `record_outcome` refs-only, and labels `compile_context` honestly as the
+reference selector rather than the full governed context planner. See
+[AMNESIAC_TOOLS.md](docs/AMNESIAC_TOOLS.md).
 
 ## Emit here, verify there
 
-The emitter and the verifier are separate roles in separate repositories:
+The emitter and verifier remain separate programs in separate repositories:
 
-- **This repository (emit):** signs and serializes SRS receipts to files. It
-  never verifies its own output.
-- **[ARCS Verify](https://github.com/thelaplage/arcs-verify) (verify):** reads
-  the serialized receipt bytes plus a serialized trust bundle and a pinned
-  schema, and recomputes envelope, profile, raw-content, signature, key, and
-  attestation results from those bytes alone.
+- **This repository:** executes governed calls and writes signed serialized SRS
+  receipts. It never turns its own output into a verification verdict.
+- **ARCS Verify:** reads serialized receipt bytes, a serialized trust bundle and
+  a pinned schema, then recomputes envelope, profile, raw-content, signature,
+  key and attestation results without importing DAGR producer code.
 
-There is no shared in-process verification: ARCS Verify imports no emitter or
-producer code, and the emitter imports no verifier code. The only thing that
-crosses the boundary is a serialized receipt file.
+Only serialized artifacts cross that boundary.
 
-## Five-minute path
+## Start here
 
-Follow **[docs/QUICKSTART.md](docs/QUICKSTART.md)**. From two clean clones it
-installs this emitter and ARCS Verify into separate virtual environments, runs
-the real installed `dagr-mcp` demo to produce receipts in a temporary output
-directory, then independently verifies them with a separately installed
-`arcs-verify` CLI. No receipt is hand-authored, no network fetch happens during
-emission or verification, and no operator-supplied or production signing
-credential is required — the demo generates a fresh ephemeral Ed25519 signing
-key that stays in process memory and is never written to the output directory.
+Use [docs/QUICKSTART.md](docs/QUICKSTART.md) for the installed FastMCP emitter +
+independent verifier path. For the isolated official SDK v2 path, run the
+[real stateless HTTP proof](examples/http_proof_v2/client_proof.py) and see
+[DAGR_MCP_SDK_V2_BINDING.md](docs/DAGR_MCP_SDK_V2_BINDING.md).
+
+For architecture and repository ownership, see
+[docs/PRODUCT_ARCHITECTURE.md](docs/PRODUCT_ARCHITECTURE.md).
 
 ## Receipt lifecycle and cardinality
 
