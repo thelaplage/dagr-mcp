@@ -1,5 +1,11 @@
 # DAGR Gateway Service Adapter — Scope and Decision Record (v0.1)
 
+> **Historical scope record.** This document describes the repository before
+> `dagr_mcp_service` and its in-process / remote connector surfaces were
+> implemented. Statements below such as “does not exist today” are preserved as
+> historical findings at the named base commit, not as the current inventory.
+> See [PRODUCT_ARCHITECTURE.md](PRODUCT_ARCHITECTURE.md) for current state.
+
 **Status:** Scoping and inventory only. No server, transport, remote caller,
 queue, persistence layer, receipt-subscription service, or Bossy integration is
 implemented by this document or the PR that introduces it.
