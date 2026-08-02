@@ -33,6 +33,24 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use the direct WP3 harness path instead of the FastMCP middleware path.",
     )
+    memory = subparsers.add_parser(
+        "governed-memory-demo",
+        help="run the DAGR + Amnesiac governed-memory workflow",
+    )
+    memory.add_argument(
+        "--output",
+        type=Path,
+        help="Artifact output directory. Defaults to an ephemeral directory.",
+    )
+    memory.add_argument(
+        "--service-mode",
+        choices=("native", "reference"),
+        default="native",
+        help=(
+            "native uses the optional real Amnesiac producer; reference is "
+            "contract smoke only"
+        ),
+    )
     return parser
 
 
@@ -143,17 +161,29 @@ def arcs_verify_command(directory: Path) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     raw_args = list(sys.argv[1:] if argv is None else argv)
-    if not raw_args or raw_args[0] != "demo":
+    commands = {"demo", "governed-memory-demo"}
+    if not raw_args or raw_args[0] not in commands:
         raw_args = ["demo", *raw_args]
     args = build_parser().parse_args(raw_args)
-    directory = run_demo(args.output, direct=args.direct)
-    receipt_paths = sorted(path for path in directory.glob("*.json") if path.name != "issuer-keys.json")
-    print(json.dumps({
+    if args.command == "governed-memory-demo":
+        from .governed_memory_demo import run_governed_memory_demo
+
+        directory = run_governed_memory_demo(
+            args.output, service_mode=args.service_mode
+        )
+    else:
+        directory = run_demo(args.output, direct=args.direct)
+    receipt_paths = sorted(directory.glob("urn_srs_receipt_*.json"))
+    payload = {
         "output_directory": str(directory),
         "trust_bundle": str(directory / "issuer-keys.json"),
         "receipts": [str(path) for path in receipt_paths],
         "next_command": arcs_verify_command(directory),
-    }, indent=2))
+    }
+    workflow = directory / "governed-memory-workflow.json"
+    if workflow.exists():
+        payload["workflow_index"] = str(workflow)
+    print(json.dumps(payload, indent=2))
     print(arcs_verify_command(directory))
     return 0
 

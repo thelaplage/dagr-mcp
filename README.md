@@ -79,6 +79,8 @@ independent verifier path. For the isolated official SDK v2 path, run the
 For architecture and repository ownership, see
 [docs/PRODUCT_ARCHITECTURE.md](docs/PRODUCT_ARCHITECTURE.md).
 
+Run the [governed-memory vertical demo](docs/GOVERNED_MEMORY_DEMO.md) to call the four Amnesiac operations through DAGR and emit an independently verifiable receipt set.
+
 ## Receipt lifecycle and cardinality
 
 The binding emits two receipt **kinds**:
