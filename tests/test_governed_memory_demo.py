@@ -56,13 +56,38 @@ async def test_reference_demo_emits_receipts_and_refs_only_workflow_index(tmp_pa
         assert len(entry["sha256"]) == 64
 
     receipt_blobs = [json.loads(path.read_text()) for path in receipt_files]
-    tool_names = {item["requested_tool_name"] for item in receipt_blobs}
+    admission_receipts = [
+        item for item in receipt_blobs if item["receipt_kind"] == "admission"
+    ]
+    outcome_receipts = [
+        item for item in receipt_blobs if item["receipt_kind"] == "outcome"
+    ]
+
+    assert len(admission_receipts) == 4
+    assert len(outcome_receipts) == 4
+
+    tool_names = {
+        item["requested_tool_name"] for item in admission_receipts
+    }
     assert tool_names == {
         "amnesiac.propose_candidates",
         "amnesiac.compile_context",
         "amnesiac.request_reopening",
         "amnesiac.record_outcome",
     }
+
+    admission_by_id = {
+        item["receipt_id"]: item for item in admission_receipts
+    }
+    assert len(admission_by_id) == 4
+
+    for outcome_receipt in outcome_receipts:
+        admission_ref = outcome_receipt["admission_receipt_ref"]
+        assert admission_ref in admission_by_id
+        assert (
+            outcome_receipt["logical_call_id"]
+            == admission_by_id[admission_ref]["logical_call_id"]
+        )
 
 
 def test_native_mode_fails_with_actionable_install_hint_when_unavailable(
