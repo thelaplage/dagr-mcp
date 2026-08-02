@@ -1,111 +1,224 @@
-schema_ref: arcs.ecosystem.architecture_passport.provisional.v0.1
-schema_status: provisional_pending_arcs_ecosystem_kit
-declaration_id: dagr-mcp.architecture_passport
-declaration_kind: architecture_passport
-repository_identity:
-  name: dagr-mcp
-  canonical_repo: thelaplage/dagr-mcp
-mission:
-  statement: >-
-    DAGR MCP is the governed runtime boundary for MCP tool calls and the
-    producer-side emitter of signed metadata-only SRS receipts.
-architecture_model:
-  status: proposed_architecture_under_test
-  ratified_doctrine_claimed: false
-  proposed_ordering:
-    - Layer
-    - Authority
-    - Contracts
-    - Implementations
-    - Repositories
-layer_roles:
-  primary_layer:
-    id: L5
-    name: product_and_protocol_adapters
-    runtime_location: configured_mcp_boundary
-  secondary_roles:
-    - id: L3
-      name: runtime_and_policy_implementation
-    - id: L4
-      name: evidence_production
-  legacy_description:
-    name: product_translation_and_execution_boundary
-    role: substrate
-authority_references: .ecosystem/AUTHORITY_REFERENCES.yaml
-imported_concepts:
-  - concept: ARCS
-    authority: external_standard
-    use_here: layer_reference_and_independent_verifier_relationship
-  - concept: SRS
-    authority: arcs_srs.evidence_schema_semantic_authority
-    use_here: envelope_and_profile_values_emitted_as_current_byte_facts
-  - concept: MCP
-    authority: external_protocol
-    use_here: tool_call_binding_surfaces
-  - concept: ARCS Amnesiac
-    authority: external_optional_producer
-    use_here: optional_memory_operations_exposed_through_dagr
-  - concept: governed-action/protocol capability semantics
-    authority: governed_action_protocol_authority.unresolved
-    use_here: implementation_binding_only
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.architecture-passport.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+repository_type: "runtime_binding"
+authority_status: "current_implementation"
+lifecycle_state: "preview"
+substrate_surface_role: "substrate"
+owning_layer: "adapter"
+constitutional_layers:
+  primary: "L5"
+  secondary:
+    - "L3"
+    - "L4"
+secondary_implementation_roles:
+  - layer: "L3"
+    role: "runtime_binding"
+    notes: "Runtime and policy implementation at the configured MCP boundary."
+  - layer: "L4"
+    role: "emitter"
+    notes: "Producer-side metadata-only SRS receipt emission."
+mission: >-
+  DAGR MCP is the governed runtime boundary for MCP tool calls and the
+  producer-side emitter of signed metadata-only SRS receipts.
+owned_concerns:
+  - id: "mcp_execution_boundary"
+    description: "Configured MCP tool-call interception and execution control."
+    claim_status: "validated"
+  - id: "neutral_lifecycle_projection"
+    description: "Binding-specific request projection into a protocol-neutral lifecycle contract."
+    claim_status: "validated"
+  - id: "producer_receipt_emission"
+    description: "Admission and outcome receipt emission over SRS profile byte facts."
+    claim_status: "validated"
+  - id: "raw_content_exclusion"
+    description: "Digest/reference-only receipt content with raw prompt, argument, and result exclusion."
+    claim_status: "validated"
+imported_concerns:
+  - id: "srs_evidence_semantics"
+    constitutional_layer: "L1"
+    semantic_authority:
+      repository: "arcs-srs"
+      artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+      version: "v0.1"
+      status: "resolved"
+    relationship: "consumes"
+    claim_status: "validated"
+    notes: "DAGR MCP emits current byte facts under this profile but does not own SRS semantics."
+  - id: "governed_action_protocol_semantics"
+    constitutional_layer: "L2"
+    semantic_authority:
+      repository: null
+      artifact_ref: null
+      version: null
+      status: "unresolved"
+    relationship: "projects"
+    claim_status: "partial"
+    notes: "Current repository evidence does not establish a ratified owner."
+  - id: "independent_verification_reports"
+    constitutional_layer: "L6"
+    semantic_authority:
+      repository: "arcs-verify"
+      artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/verification-report.schema.json"
+      version: "v0.2"
+      status: "resolved"
+    relationship: "validates"
+    claim_status: "validated"
+    notes: "Serialized artifacts cross this boundary; producer runtime code does not."
+  - id: "garp_sdk_runtime_surface_vocabulary"
+    constitutional_layer: "L3"
+    semantic_authority:
+      repository: "garp-sdk"
+      artifact_ref: "garp_sdk/runtime_surface_registry_contract.py"
+      version: null
+      status: "historical"
+    relationship: "deprecated_reference"
+    claim_status: "partial"
+    notes: "Historical integrated source estate, not current semantic authority by default."
 exported_contracts:
-  - dagr.mcp.lifecycle_contract
-  - dagr.mcp.lifecycle_binding_mask
-  - docs/BINDING_VERSIONS.md
-  - dagr.mcp.gateway_service_contract
-  - garp.mcp_record_custody_gateway.v0.1
-  - srs.mcp.sdk_enforcement emitted profile facts
+  - contract_id: "dagr.mcp.lifecycle_contract"
+    version: "v0.1"
+    owning_layer: "L3"
+    semantic_authority:
+      repository: "dagr-mcp"
+      artifact_ref: "docs/NEUTRAL_LIFECYCLE_CONTRACT.md"
+      version: "v0.1"
+      status: "resolved"
+    claim_status: "validated"
+  - contract_id: "dagr.mcp.gateway_service_contract"
+    version: "v0.1"
+    owning_layer: "L3"
+    semantic_authority:
+      repository: "dagr-mcp"
+      artifact_ref: "dagr_mcp_service/contract.py"
+      version: "v0.1"
+      status: "resolved"
+    claim_status: "validated"
+  - contract_id: "srs.mcp.sdk_enforcement"
+    version: "v0.1"
+    owning_layer: "L1"
+    semantic_authority:
+      repository: "arcs-srs"
+      artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+      version: "v0.1"
+      status: "resolved"
+    claim_status: "validated"
+authority_references:
+  - ".ecosystem/AUTHORITY_REFERENCES.yaml"
+  - "sibling:arcs-ecosystem-kit:.ecosystem/LAYER_CATALOG.yaml"
+allowed_cross_layer_imports:
+  - from_layer: "L5"
+    to_layer: "L1"
+    reason: "Adapter emits SRS-profiled evidence while deferring semantics to arcs-srs."
+    authority_ref: "srs_evidence_semantics"
+  - from_layer: "L5"
+    to_layer: "L3"
+    reason: "Adapter invokes local runtime and policy implementation code at the configured boundary."
+    authority_ref: "runtime_policy_implementation"
+  - from_layer: "L4"
+    to_layer: "L6"
+    reason: "Producer artifacts are serialized for independent verifier compatibility."
+    authority_ref: "independent_verification"
+prohibited_dependencies:
+  - id: "arcs-verify-runtime-import"
+    description: "DAGR MCP must not import ARCS Verify as runtime producer logic."
+    status: "prohibited"
+    source_layer: "L5"
+    target_layer: "L6"
+    rationale: "Producer/verifier separation is a repository invariant."
+  - id: "ecosystem-kit-runtime-import"
+    description: "DAGR MCP must not add arcs-ecosystem-kit as a runtime dependency in this pilot."
+    status: "prohibited"
+    source_layer: "L5"
+    target_layer: "L10"
+    rationale: "Kit schemas are validation inputs only."
+dependencies:
+  - repository: "arcs-srs"
+    contract_id: "srs.mcp.sdk_enforcement"
+    reason: "Evidence/profile semantic authority consumed by emitted receipt byte facts."
+  - repository: "arcs-verify"
+    contract_id: "arcs.verify.report.v0_2"
+    reason: "Independent verifier counterpart for serialized receipts and trust bundles."
+  - repository: "garp-sdk"
+    reason: "Historical source-estate vocabulary reference and optional integration dependency."
 extension_points:
-  - name: actor_resolver
-    evidence: dagr_mcp/fastmcp_binding.py
-  - name: policy_resolver
-    evidence: dagr_mcp/fastmcp_binding.py
-  - name: review_object_creator
-    evidence: dagr_mcp/fastmcp_binding.py
-  - name: receipt_sink
-    evidence: dagr_mcp/srs_receipts.py
-  - name: official_sdk_delegate_handler
-    evidence: dagr_mcp_sdk_binding/adapter.py
-  - name: service_connectors
-    evidence: dagr_mcp_service/connectors/
+  - id: "actor_resolver"
+    description: "Host-provided actor and tenant context resolution."
+    status: "implemented"
+    owner: "dagr-mcp"
+  - id: "policy_resolver"
+    description: "Configured policy-decision lookup before execution."
+    status: "implemented"
+    owner: "dagr-mcp"
+  - id: "review_object_creator"
+    description: "Optional deferred-review object creation."
+    status: "implemented"
+    owner: "dagr-mcp"
+  - id: "receipt_sink"
+    description: "Admission and outcome receipt persistence sink."
+    status: "implemented"
+    owner: "dagr-mcp"
+  - id: "service_connectors"
+    description: "Neutral service connector composition layer."
+    status: "implemented"
+    owner: "dagr-mcp"
 compatibility_guarantees:
-  - frozen_fastmcp_observables_are_preserved
-  - binding_identifiers_are_stable_receipt_facts
-  - root_distribution_preserves_legacy_compatibility
-  - dagr_mcp_core_imports_no_mcp_or_fastmcp
-  - sdk_v2_binding_is_isolated_from_root_distribution
+  - scope: "runtime behavior"
+    claim_status: "validated"
+    description: "This pilot does not change runtime behavior or public API behavior."
+  - scope: "receipt semantics"
+    claim_status: "validated"
+    description: "This pilot does not change receipt code, profile values, or receipt semantics."
+  - scope: "binding identifiers"
+    claim_status: "validated"
+    description: "Binding stamps remain implementation facts, not framework package version semantics."
+current_owners:
+  - repository: "dagr-mcp"
+    role: "runtime_binding"
+    notes: "Configured MCP execution boundary."
+  - repository: "dagr-mcp"
+    role: "emitter"
+    notes: "Producer-side evidence emission."
+candidate_owners:
+  - repository: "dagr-workbench"
+    candidate_verified: false
+    migration_authorized: false
+    migration_record_ref: null
+    notes: "Workbench candidate target rows are grouping projections, not ownership or traffic cutover."
+migration:
+  authorized: false
+  record_ref: null
+  notes: "No ownership migration is authorized by this pilot."
 security_boundary:
-  enforced_before_execution:
-    - refused_calls_do_not_execute
-    - deferred_calls_do_not_execute
-  receipt_content:
-    - metadata_only
-    - hash_only_arguments_and_results
-    - raw_content_exclusion_before_signing_and_write
-  trusted_context_rule: actor_tenant_auth_context_comes_from_transport_not_tool_arguments
+  summary: >-
+    DAGR MCP governs consequential MCP tool calls at the configured adapter or
+    binding boundary before execution and emits metadata-only receipts.
+  trusted_inputs:
+    - "transport-derived actor and tenant context"
+    - "configured policy resolver output"
+    - "host binding request metadata"
+  protected_assets:
+    - "execution permission at the configured MCP boundary"
+    - "signed receipt metadata"
+    - "issuer key and trust-bundle metadata"
+  non_authoritative_for:
+    - "traffic bypassing the configured boundary"
+    - "underlying server-internal retention"
+    - "truth of underlying events"
+    - "public evidence presentation"
 non_goals:
-  - independent_verification
-  - durable_memory_admission
-  - public_projection
-  - policy_pack_authoring_authority
-  - network_proxy_or_protocol_gateway
-  - rbac_system
-  - certification_service
-attestation_limits:
-  - receipts_attest_only_to_governance_conditions_at_the_named_boundary
-  - signatures_attest_issuer_and_integrity_not_underlying_event_truth
-  - result_receipts_do_not_independently_establish_handler_execution
-producer_verifier_separation:
-  producer_here: signed_serialized_receipts_and_trust_bundles
-  verifier_elsewhere: arcs_verify
-  crossing_boundary: serialized_artifacts_only
-known_transitional_architecture:
-  - root_distribution_is_frozen_legacy_compatibility_code
-  - dagr_mcp_core_is_canonical_for_sdk_v2_and_later_binding_development
-  - sdk_v2_uses_mcp_2_and_must_be_environment_isolated_from_mcp_1_fastmcp
-  - final_package_distribution_name_is_unresolved
-evidence:
-  - README.md
-  - docs/PRODUCT_ARCHITECTURE.md
-  - docs/CORE_EXTRACTION_FORK.md
-  - docs/DAGR_MCP_SDK_V2_BINDING.md
+  - "independent verification"
+  - "durable memory admission"
+  - "public projection"
+  - "policy-pack authority"
+  - "network proxy or gateway behavior"
+  - "RBAC"
+  - "certification service"
+conformance:
+  declared_level: "C"
+  status: "partial"
+  notes: "Evidence, verifier compatibility, and enforced non-execution pass; reproducible integration and cross-binding portability remain partial."
+known_exceptions:
+  - "DAGR-MCP-ECO-001"
+  - "DAGR-MCP-ECO-002"
+  - "DAGR-MCP-ECO-003"

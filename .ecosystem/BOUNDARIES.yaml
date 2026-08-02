@@ -1,0 +1,164 @@
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.boundaries.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+boundaries:
+  - id: "configured-mcp-execution-boundary"
+    boundary_type: "product_adapter"
+    constitutional_layer: "L5"
+    owner_repository: "dagr-mcp"
+    description: "DAGR MCP governs configured MCP tool-call paths through adapter and runtime binding code."
+    allowed_imports:
+      - repository: "fastmcp"
+        relationship: "consumes"
+        reason: "Legacy compatibility binding."
+      - repository: "modelcontextprotocol/python-sdk"
+        relationship: "consumes"
+        reason: "Official MCP SDK binding paths."
+    prohibited_imports: []
+    authority_refs:
+      - "mcp_execution_boundary"
+      - "governed_action_and_protocol_semantics"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "fastmcp-binding"
+        path: "dagr_mcp/fastmcp_binding.py"
+        authority: "dagr-mcp"
+        relationship: "implements"
+      - id: "sdk-v2-binding"
+        path: "packages/dagr-mcp-sdk-v2/src/dagr_mcp_sdk_v2/adapter.py"
+        authority: "dagr-mcp"
+        relationship: "implements"
+    notes: "MCP traffic bypassing the configured boundary is explicitly outside DAGR MCP's guarantees."
+  - id: "runtime-policy-decision-boundary"
+    boundary_type: "policy"
+    constitutional_layer: "L3"
+    owner_repository: "dagr-mcp"
+    description: "DAGR MCP consumes configured policy decisions and enforces non-execution for refused or deferred calls."
+    allowed_imports: []
+    prohibited_imports: []
+    authority_refs:
+      - "governed_action_and_protocol_semantics"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "enforcement-harness"
+        path: "dagr_mcp/enforcement_harness.py"
+        authority: "dagr-mcp"
+        relationship: "implements"
+      - id: "enforcement-tests"
+        path: "tests/test_enforcement_harness.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    notes: "Runtime policy decisions allow, deny, gate, defer, and fail_closed are not SRS receipt dispositions."
+  - id: "producer-evidence-boundary"
+    boundary_type: "data"
+    constitutional_layer: "L4"
+    owner_repository: "dagr-mcp"
+    description: "DAGR MCP emits metadata-only SRS receipts and trust bundles as producer-side evidence."
+    allowed_imports:
+      - repository: "arcs-srs"
+        relationship: "consumes"
+        reason: "SRS envelope and profile artifacts define evidence semantics."
+    prohibited_imports: []
+    authority_refs:
+      - "srs_evidence_semantics"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "srs-receipts"
+        path: "dagr_mcp/srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "emits"
+      - id: "raw-content-tests"
+        path: "tests/test_srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    notes: "Receipt cardinality is conditional and variable; this boundary does not require a fixed two receipts per invocation."
+  - id: "srs-semantic-authority-boundary"
+    boundary_type: "semantic_authority"
+    constitutional_layer: "L1"
+    owner_repository: "arcs-srs"
+    description: "SRS envelope and profile semantics are owned outside DAGR MCP."
+    allowed_imports: []
+    prohibited_imports: []
+    authority_refs:
+      - "srs_evidence_semantics"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "srs-profile"
+        path: "sibling:arcs-srs:docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+        authority: "arcs-srs"
+        relationship: "consumes"
+    notes: "DAGR MCP emits profile byte facts but does not own SRS semantics."
+  - id: "independent-verifier-isolation-boundary"
+    boundary_type: "verifier_isolation"
+    constitutional_layer: "L6"
+    owner_repository: "arcs-verify"
+    description: "ARCS Verify independently verifies serialized artifacts without joining the DAGR MCP runtime."
+    allowed_imports: []
+    prohibited_imports:
+      - repository: "dagr-mcp"
+        relationship: "not_applicable"
+        reason: "Verifier counterpart must not import producer implementation code for runtime behavior."
+    authority_refs:
+      - "independent_verification"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "arcs-verify-contract"
+        path: "sibling:arcs-verify:arcs_verify/contracts/dagr-srs-verification-report-v0-2/README.md"
+        authority: "arcs-verify"
+        relationship: "validates"
+    notes: "DAGR MCP consumes verifier reports as release/fixture evidence only."
+  - id: "historical-source-estate-boundary"
+    boundary_type: "runtime_import"
+    constitutional_layer: "L3"
+    owner_repository: "garp-sdk"
+    description: "GARP SDK is referenced as a historical integrated source estate and optional integration source, not current authority by default."
+    allowed_imports:
+      - repository: "garp-sdk"
+        relationship: "deprecated_reference"
+        reason: "Historical vocabulary and optional integration dependency."
+    prohibited_imports: []
+    authority_refs:
+      - "governed_action_and_protocol_semantics"
+    assertion_status: "partial"
+    evidence_refs:
+      - id: "garp-sdk-runtime-surface"
+        path: "sibling:garp-sdk:garp_sdk/runtime_surface_registry_contract.py"
+        authority: "garp-sdk"
+        relationship: "deprecated_reference"
+    notes: "No current authority migrates from garp-sdk without an explicit authorized record."
+forbidden_dependencies:
+  - id: "arcs-verify-runtime-import"
+    description: "DAGR MCP must not model ARCS Verify as a runtime import dependency."
+    source:
+      repository: "dagr-mcp"
+      constitutional_layer: "L5"
+      concern: "producer runtime"
+    target:
+      repository: "arcs-verify"
+      constitutional_layer: "L6"
+      concern: "independent verification"
+    status: "prohibited"
+    rationale: "Producer/verifier separation is exact; only serialized artifacts cross."
+    evidence_refs:
+      - id: "dependency-declaration"
+        path: ".ecosystem/DEPENDENCIES.yaml"
+        authority: "dagr-mcp"
+        relationship: "projects"
+  - id: "ecosystem-kit-runtime-dependency"
+    description: "DAGR MCP must not add arcs-ecosystem-kit as a runtime dependency for this pilot."
+    source:
+      repository: "dagr-mcp"
+      constitutional_layer: "L5"
+      concern: "runtime package"
+    target:
+      repository: "arcs-ecosystem-kit"
+      constitutional_layer: "L10"
+      concern: "schema validation"
+    status: "prohibited"
+    rationale: "Kit schemas are checked-out validation inputs only."
+native_registry_refs:
+  - id: "forbidden-dependencies"
+    path: "sibling:arcs-ecosystem-kit:docs/FORBIDDEN_DEPENDENCIES.md"
+    authority: "arcs-ecosystem-kit"
+    summary_role: "Proposed boundary rules used as unratified coordination input."
+notes: "These boundaries describe current repository truth and do not redesign runtime behavior."

@@ -1,45 +1,47 @@
-schema_ref: arcs.ecosystem.release_state.provisional.v0.1
-schema_status: provisional_pending_arcs_ecosystem_kit
-declaration_id: dagr-mcp.release_state
-declaration_kind: release_state
-repository_identity:
-  name: dagr-mcp
-  canonical_repo: thelaplage/dagr-mcp
-release_stage:
-  lifecycle_stage: preview
-  development_status_classifier: "Development Status :: 3 - Alpha"
-package_state:
-  root_distribution:
-    current_project_name: dagr-mcp
-    import_root: dagr_mcp
-    published_distribution_name_status: unresolved
-  extracted_core:
-    current_project_name: dagr-mcp-core
-    import_root: dagr_mcp_core
-  sdk_v2_binding:
-    current_project_name: dagr-mcp-sdk-v2
-    import_root: dagr_mcp_sdk_v2
-receipt_state:
-  receipt_version: srs.core.v5.1
-  receipt_version_lineage_status: internal_pre_public_lineage
-  profile_id: srs.mcp.sdk_enforcement
-  profile_version: v0.1
-  receipt_semantics_changed_by_this_lane: false
-runtime_state:
-  runtime_behavior_changed_by_this_lane: false
-  arcs_verify_changed_by_this_lane: false
-  srs_profiles_changed_by_this_lane: false
-  arcs_ecosystem_kit_dependency_added: false
-verification_commands:
-  baseline_command_from_readme: python -m pytest -q
-  project_venv_command_used_for_lane: .venv/bin/python -m pytest -q
-  public_release_guard: python tools/check_public_release.py .
-verification_results:
-  exact_results_recorded_in_final_report: true
-  declaration_sanity_tests_added: tests/test_ecosystem_declarations.py
-release_guards_not_weakened:
-  - package_inventory_checks
-  - public_release_guard
-  - producer_independence_boundary
-  - raw_content_exclusion
-  - behavioral_freeze_checks
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.release-state.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+release_stage: "preview"
+current_version: "0.1.0"
+release_readiness: "ready_with_exceptions"
+required_gates:
+  - gate_id: "focused-ecosystem-declaration-tests"
+    description: "Repository-local ecosystem declaration sanity and schema tests pass."
+    status: "passed"
+    required_for_release: true
+  - gate_id: "full-existing-tests"
+    description: "Full repository test suite passes in the isolated environment."
+    status: "passed"
+    required_for_release: true
+  - gate_id: "public-release-guard"
+    description: "Public-release guard passes without weakening checks."
+    status: "passed"
+    required_for_release: true
+  - gate_id: "runtime-and-receipt-unchanged"
+    description: "No runtime code, receipt code, SRS profile, package dependency, or public API behavior changed."
+    status: "passed"
+    required_for_release: true
+passed_gates:
+  - "focused-ecosystem-declaration-tests"
+  - "full-existing-tests"
+  - "public-release-guard"
+  - "runtime-and-receipt-unchanged"
+blocking_issues: []
+dependent_releases:
+  - repository: "arcs-ecosystem-kit"
+    version: "0.1.0"
+    relationship: "informs"
+  - repository: "arcs-srs"
+    version: "0.1.0"
+    relationship: "informs"
+  - repository: "arcs-verify"
+    version: "0.2.0"
+    relationship: "informs"
+compatibility_status:
+  claim_status: "validated"
+  summary: >-
+    Declarations align to checked-out arcs-ecosystem-kit v0.1 schemas while
+    preserving DAGR MCP runtime, receipt, profile, dependency, and verifier
+    boundaries.
+release_notes_ref: "docs/ECOSYSTEM_PILOT_ADJUDICATION.md"
+last_reviewed: "2026-08-02"

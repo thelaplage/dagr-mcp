@@ -4,25 +4,31 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+import jsonschema
 import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
 ECOSYSTEM = ROOT / ".ecosystem"
+KIT_SCHEMAS = ROOT.parent / "arcs-ecosystem-kit" / "schemas"
 
-EXPECTED_DECLARATIONS = {
-    "REPOSITORY.yaml",
-    "ARCHITECTURE_PASSPORT.yaml",
-    "AUTHORITY_REFERENCES.yaml",
-    "CAPABILITY_BINDINGS.yaml",
-    "CONTRACT_BINDINGS.yaml",
-    "DEPENDENCIES.yaml",
-    "LANES.yaml",
-    "COMPATIBILITY_PROJECTION.yaml",
-    "CONFORMANCE_PROJECTION.yaml",
-    "EXCEPTIONS.yaml",
-    "RELEASE_STATE.yaml",
+SCHEMA_BY_DECLARATION = {
+    "REPOSITORY.yaml": "ecosystem.repository.v0.1.schema.json",
+    "ARCHITECTURE_PASSPORT.yaml": "ecosystem.architecture-passport.v0.1.schema.json",
+    "AUTHORITY_REFERENCES.yaml": "ecosystem.authority-references.v0.1.schema.json",
+    "CAPABILITY_BINDINGS.yaml": "ecosystem.capability-bindings.v0.1.schema.json",
+    "CONTRACT_BINDINGS.yaml": "ecosystem.contract-bindings.v0.1.schema.json",
+    "DEPENDENCIES.yaml": "ecosystem.dependencies.v0.1.schema.json",
+    "LANES.yaml": "ecosystem.lanes.v0.1.schema.json",
+    "COMPATIBILITY_PROJECTION.yaml": "ecosystem.compatibility-projection.v0.1.schema.json",
+    "CONFORMANCE_PROJECTION.yaml": "ecosystem.conformance-projection.v0.1.schema.json",
+    "EXCEPTIONS.yaml": "ecosystem.exceptions.v0.1.schema.json",
+    "RELEASE_STATE.yaml": "ecosystem.release-state.v0.1.schema.json",
+    "BOUNDARIES.yaml": "ecosystem.boundaries.v0.1.schema.json",
+    "RESPONSIBILITIES.yaml": "ecosystem.responsibilities.v0.1.schema.json",
 }
+
+EXPECTED_DECLARATIONS = set(SCHEMA_BY_DECLARATION)
 
 LEGACY_DECLARATION_NAMES = {
     "CAPABILITIES.yaml",
@@ -39,7 +45,7 @@ def _load(path: Path) -> dict[str, Any]:
 
 
 def _declarations() -> dict[str, dict[str, Any]]:
-    return {name: _load(ECOSYSTEM / name) for name in EXPECTED_DECLARATIONS}
+    return {name: _load(ECOSYSTEM / name) for name in sorted(EXPECTED_DECLARATIONS)}
 
 
 def _walk(value: Any) -> Iterator[Any]:
@@ -52,59 +58,83 @@ def _walk(value: Any) -> Iterator[Any]:
             yield from _walk(item)
 
 
-def test_all_provisional_ecosystem_declaration_files_exist() -> None:
+def test_all_ecosystem_declaration_files_exist() -> None:
     actual = {path.name for path in ECOSYSTEM.glob("*.yaml")}
     assert actual == EXPECTED_DECLARATIONS
     assert actual.isdisjoint(LEGACY_DECLARATION_NAMES)
 
 
-def test_ecosystem_declarations_parse_and_carry_schema_identifiers() -> None:
-    for name, data in _declarations().items():
-        assert data["schema_ref"].startswith("arcs.ecosystem."), name
-        assert data["schema_status"] == "provisional_pending_arcs_ecosystem_kit"
-        assert data["declaration_id"].startswith("dagr-mcp."), name
-        assert data["declaration_kind"], name
+def test_ecosystem_declarations_validate_against_checked_out_kit_schemas() -> None:
+    assert KIT_SCHEMAS.exists(), "arcs-ecosystem-kit schemas must be checked out beside dagr-mcp"
+    for declaration_name, schema_name in sorted(SCHEMA_BY_DECLARATION.items()):
+        schema_path = KIT_SCHEMAS / schema_name
+        assert schema_path.exists(), schema_name
+        schema = _load(schema_path)
+        data = _load(ECOSYSTEM / declaration_name)
+        validator = jsonschema.Draft202012Validator(schema)
+        errors = sorted(validator.iter_errors(data), key=lambda error: list(error.path))
+        assert not errors, (
+            declaration_name,
+            [f"{'/'.join(map(str, error.path))}: {error.message}" for error in errors],
+        )
+        assert data["schema"] == schema["$id"], declaration_name
+        assert data["schema_version"] == "0.1", declaration_name
 
 
 def test_repository_identity_values_are_consistent() -> None:
     for name, data in _declarations().items():
-        identity = data.get("repository_identity") or data.get("repository")
-        assert isinstance(identity, dict), name
-        assert identity.get("name") == "dagr-mcp", name
-        if "canonical_repo" in identity:
-            assert identity["canonical_repo"] == "thelaplage/dagr-mcp", name
+        if name == "REPOSITORY.yaml":
+            assert data["repository"]["name"] == "dagr-mcp"
+        else:
+            assert data["repository"] == "dagr-mcp", name
 
 
 def test_layer_and_authority_model_is_provisional_and_axis_separated() -> None:
     declarations = _declarations()
     repository = declarations["REPOSITORY.yaml"]
-    architecture = repository["architecture"]
-    assert architecture["model_status"] == "proposed_architecture_under_test_not_ratified_doctrine"
-    assert architecture["primary_layer"] == {"id": "L5", "name": "product_and_protocol_adapters"}
-    secondary = {role["id"]: role["name"] for role in architecture["secondary_roles"]}
-    assert secondary == {
-        "L3": "runtime_and_policy_implementation",
-        "L4": "evidence_production",
-    }
+    assert repository["constitutional_roles"]["primary_layer"] == "L5"
+    assert set(repository["constitutional_roles"]["secondary_layers"]) == {"L3", "L4"}
+    assert repository["authority"]["status"] == "current_implementation"
+    assert repository["authority"]["semantic_authority_for"] == []
 
-    authority_refs = declarations["AUTHORITY_REFERENCES.yaml"]
-    assert authority_refs["model_status"]["ratified_doctrine_claimed"] is False
-    refs = {item["id"]: item for item in authority_refs["authority_references"]}
-    assert refs["arcs_srs.evidence_schema_semantic_authority"]["role"] == "semantic_authority"
-    assert refs["arcs_verify.independent_verifier_counterpart"]["runtime_dependency"] is False
-    assert refs["governed_action_protocol_authority.unresolved"]["status"] == "unresolved_in_this_repository"
-    garp_sdk = refs["garp_sdk.historical_integrated_source_estate"]
-    assert garp_sdk["role"] == "historical_source"
-    assert garp_sdk["current_authority_by_default"] is False
+    architecture = declarations["ARCHITECTURE_PASSPORT.yaml"]
+    assert architecture["constitutional_layers"] == {"primary": "L5", "secondary": ["L3", "L4"]}
+    roles = {(item["layer"], item["role"]) for item in architecture["secondary_implementation_roles"]}
+    assert ("L3", "runtime_binding") in roles
+    assert ("L4", "emitter") in roles
+
+    authority_refs = declarations["AUTHORITY_REFERENCES.yaml"]["authorities"]
+    refs = {item["concern"]: item for item in authority_refs}
+    assert refs["srs_evidence_semantics"]["semantic_authority"]["repository"] == "arcs-srs"
+    assert refs["independent_verification"]["semantic_authority"]["repository"] == "arcs-verify"
+    assert refs["governed_action_and_protocol_semantics"]["semantic_authority"]["repository"] is None
+    assert refs["governed_action_and_protocol_semantics"]["semantic_authority"]["status"] == "unresolved"
+    assert refs["srs_evidence_semantics"]["historical_implementations"][0]["repository"] == "garp-sdk"
+
+
+def test_a0_a6_inputs_are_referenced_as_proposed_unratified_inputs() -> None:
+    authorities = _declarations()["AUTHORITY_REFERENCES.yaml"]["authorities"]
+    inputs = next(item for item in authorities if item["concern"] == "constitutional_architecture_inputs_A0_A6")
+    evidence_ids = {ref["id"] for ref in inputs["evidence_refs"]}
+    assert evidence_ids == {
+        "A0.docs.ARCS_CONSTITUTIONAL_LAYER_MODEL",
+        "A1.docs.GARP_DOCTRINE_COMPATIBILITY",
+        "A2.docs.adr.0001-schema-identifier-namespace",
+        "A3.docs.SCHEMA_CATALOG",
+        "A4.docs.LAYER_AUTHORITY_RULES",
+        "A5.docs.SCHEMA_OWNERSHIP",
+        "A6.docs.EXISTING_ECOSYSTEM_ASSET_MAP",
+    }
+    assert inputs["migration"]["authorized"] is False
+    assert inputs["assertion_status"] == "partial"
+    assert "not ratified doctrine" in inputs["migration"]["notes"]
 
 
 def test_declarations_do_not_classify_dagr_mcp_as_a_verifier() -> None:
     declarations = _declarations()
-    repository_types = declarations["REPOSITORY.yaml"]["repository"]["types"]
-    assert "verifier" not in repository_types
-
-    classification = declarations["REPOSITORY.yaml"]["classification"]
-    assert "verifier" not in classification["is"]
+    repository = declarations["REPOSITORY.yaml"]
+    assert "verifier" not in repository["repository"]["types"]
+    assert repository["authority"]["status"] != "verifier_counterpart"
 
     forbidden_phrases = {
         "dagr mcp is a verifier",
@@ -120,87 +150,86 @@ def test_declarations_do_not_classify_dagr_mcp_as_a_verifier() -> None:
         assert phrase not in text
 
 
-def test_srs_core_v5_1_is_not_declared_as_current_public_srs_release() -> None:
+def test_srs_core_v5_1_is_not_declared_as_a_public_srs_release() -> None:
     text = "\n".join((ECOSYSTEM / name).read_text(encoding="utf-8") for name in EXPECTED_DECLARATIONS)
     lower = text.lower()
-    assert "current public srs release" not in lower
     assert "current_public_srs_release" not in lower
-    assert "public_srs_release" not in lower
+    assert "public_srs_release: srs.core.v5.1" not in lower
+    assert "public release: srs.core.v5.1" not in lower
     assert "srs.core.v5.1" in text
+    assert "internal/pre-public" in text
 
 
-def test_capability_declaration_does_not_claim_canonical_semantic_ownership() -> None:
+def test_capability_bindings_do_not_claim_canonical_semantic_ownership() -> None:
     capabilities = _declarations()["CAPABILITY_BINDINGS.yaml"]
-    assert capabilities["capability_semantics"]["canonical_semantic_owner"] == "defined_elsewhere"
-    assert capabilities["capability_semantics"]["governed_action_protocol_authority"] == "unresolved_in_this_repository"
-    assert capabilities["canonical_capability_definitions"] == "not_claimed"
-    for value in _walk(capabilities["capability_inventory"]):
-        assert value != {"canonical_semantic_owner": "dagr-mcp"}
+    assert capabilities["declarations"]["defines"] == []
+    implemented = capabilities["declarations"]["implements"]
+    for binding in implemented:
+        semantic_authority = binding["semantic_authority"]
+        assert semantic_authority["repository"] != "dagr-mcp"
+        assert binding["relationship"] in {"implements", "partial"}
+        if semantic_authority["repository"] is None:
+            assert semantic_authority["status"] == "unresolved"
+
+    memory_admit = [
+        binding
+        for binding in capabilities["declarations"]["consumes"]
+        if binding["capability_ref"] == "MEMORY_ADMIT"
+    ]
+    assert len(memory_admit) == 1
+    assert memory_admit[0]["assertion_status"] == "not_applicable"
+    assert memory_admit[0]["reachability"] == "not_reachable"
+
+    for value in _walk(capabilities):
         if isinstance(value, dict):
             assert value.get("canonical_semantic_owner") != "dagr-mcp"
-            assert value.get("semantic_authority") != "dagr-mcp"
-
-
-def test_capability_bindings_reference_external_vocabularies_without_defining_them() -> None:
-    bindings = _declarations()["CAPABILITY_BINDINGS.yaml"]
-    assert bindings["canonical_capability_definitions"] == "not_claimed"
-    policy = bindings["definition_policy"]
-    assert policy["does_not_define_canonical_capabilities"] is True
-    assert policy["does_not_define_garp_sdk_boundary_vocabulary"] is True
-    assert policy["does_not_define_srs_profile_or_envelope_semantics"] is True
-    assert policy["does_not_define_arcs_verify_report_contracts"] is True
-    assert policy["does_not_define_countervail_receipt_ingest_semantics"] is True
-
-    surface_ids = {surface["id"] for surface in bindings["external_vocabulary_surfaces"]}
-    assert "garp_sdk.runtime_surface_registry" in surface_ids
-    assert "garp_sdk.boundary_contracts" in surface_ids
-    assert "arcs_srs.mcp_sdk_enforcement_profile" in surface_ids
-    assert "arcs_verify.dagr_srs_report_v0_2" in surface_ids
-    assert "dagr_workbench.service_ownership" in surface_ids
-    assert "countervail.dagr_receipt_ingest_contract" in surface_ids
-
-    garp_surfaces = [
-        surface
-        for surface in bindings["external_vocabulary_surfaces"]
-        if surface["id"].startswith("garp_sdk.")
-    ]
-    assert garp_surfaces
-    for surface in garp_surfaces:
-        assert surface["authority_reference"] == "garp_sdk.historical_integrated_source_estate"
-        assert surface["current_semantic_authority"] == "not_asserted_by_default"
-
-    for binding in bindings["capability_bindings"]:
-        assert binding["capability_definition_authority"] != "dagr-mcp"
-        assert "definition" not in binding
 
 
 def test_contract_bindings_distinguish_implementation_and_semantic_authority() -> None:
     contracts = _declarations()["CONTRACT_BINDINGS.yaml"]
-    assert contracts["declaration_kind"] == "contract_bindings"
-    bindings = {item["id"]: item for item in contracts["contract_bindings"]}
-    srs_profile = bindings["srs.mcp.sdk_enforcement"]
-    assert srs_profile["current_implementation"] == "dagr_mcp.current_implementation"
-    assert srs_profile["semantic_authority"] == "arcs_srs.evidence_schema_semantic_authority"
+    provided = {item["contract_id"]: item for item in contracts["provided"]}
+    consumed = {item["contract_id"]: item for item in contracts["consumed"]}
 
-    verifier = bindings["arcs_verify.verification_report"]
-    assert verifier["current_implementation"] == "not_dagr_mcp"
-    assert verifier["semantic_authority"] == "arcs_verify.independent_verifier_counterpart"
+    srs_admission = provided["srs.mcp.sdk_enforcement.admission_emission"]
+    assert srs_admission["provider_implementation"]["repository"] == "dagr-mcp"
+    assert srs_admission["semantic_authority"]["repository"] == "arcs-srs"
+
+    srs_version = consumed["srs.core.v5_1"]
+    assert srs_version["semantic_authority"]["status"] == "historical"
+    assert "not a public SRS release claim" in srs_version["notes"]
+
+    verifier = consumed["arcs.verify.report.v0_2"]
+    assert verifier["provider_implementation"]["repository"] == "arcs-verify"
+    assert verifier["semantic_authority"]["repository"] == "arcs-verify"
+    assert "not a runtime import dependency" in verifier["compatibility"]["migration_notes"]
 
 
 def test_arcs_verify_is_not_modeled_as_runtime_import_dependency() -> None:
     dependencies = _declarations()["DEPENDENCIES.yaml"]["dependencies"]
-    validation_deps = dependencies["validation"]
-    arcs_verify = next(item for item in validation_deps if item["name"] == "arcs-verify")
-    assert arcs_verify["dependency_role"] == "independent_validation_and_release_dependency"
-    assert arcs_verify["runtime_import"] is False
-    assert arcs_verify["modeled_as_runtime_import_dependency"] is False
+    arcs_verify = next(item for item in dependencies if item["repository"] == "arcs-verify")
+    assert arcs_verify["dependency_type"] == "validation"
+    assert arcs_verify["required"] is False
+    assert "not imported by runtime code" in arcs_verify["reason"]
+    assert "never a runtime import dependency" in arcs_verify["compatibility_notes"]
 
-    for package in dependencies["python_package"]:
-        assert package["name"] != "arcs-verify"
+    runtime_dependency_repositories = {
+        item["repository"] for item in dependencies if item["dependency_type"] == "runtime"
+    }
+    assert "arcs-verify" not in runtime_dependency_repositories
+
+
+def test_policy_decisions_are_not_receipt_dispositions() -> None:
+    compatibility = (ECOSYSTEM / "COMPATIBILITY_PROJECTION.yaml").read_text(encoding="utf-8")
+    assert "allow, deny, gate, defer, and fail_closed" in compatibility
+    assert "admitted, refused, and deferred_for_review" in compatibility
+
+    boundaries = _declarations()["BOUNDARIES.yaml"]["boundaries"]
+    policy_boundary = next(item for item in boundaries if item["id"] == "runtime-policy-decision-boundary")
+    assert "not SRS receipt dispositions" in policy_boundary["notes"]
 
 
 def test_active_lane_id_is_unique_within_lane_file() -> None:
-    lanes = _declarations()["LANES.yaml"]["active_lanes"]
+    lanes = _declarations()["LANES.yaml"]["lanes"]
     lane_ids = [lane["lane_id"] for lane in lanes]
     assert lane_ids == ["dagr-mcp-ecosystem-doctrine-pilot-v0-1"]
     assert len(lane_ids) == len(set(lane_ids))

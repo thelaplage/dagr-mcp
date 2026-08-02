@@ -1,155 +1,141 @@
 # Ecosystem Pilot Adjudication
 
-This pilot models repository-local truth in provisional `.ecosystem/`
-declarations. It does not vendor `arcs-ecosystem-kit`, does not define a local
-schema, and does not patch another repository.
+This pilot records DAGR MCP's current repository truth in `.ecosystem/`
+declarations aligned to the checked-out `arcs-ecosystem-kit` v0.1 schema shape.
+It does not vendor the kit, add a runtime dependency on the kit, redefine SRS
+semantics, alter receipt behavior, or patch another repository.
 
-The concurrent kit lane is now testing a proposed architecture model ordered as
-Layer -> Authority -> Contracts -> Implementations -> Repositories. This pilot
-uses that model provisionally and does not claim it is ratified doctrine.
+The proposed constitutional architecture under test is:
 
-The requested `garp-doctrine` manifest, schema, registry, and internal doctrine
-files are not present in this checkout. Adjudication therefore uses only
-repository-local doctrine and architecture sources.
+```text
+Layer -> Authority -> Contracts -> Implementations -> Repositories
+```
 
-## Declaration Areas
+That model is a proposed coordination input. It is not ratified doctrine.
+
+## Schema Validation
 
 | Area | Status | Finding |
-|---|---|---|
-| Repository classification | PASS | DAGR MCP needs separate axes for repository type, authority status, architecture layer, and lifecycle stage. |
-| Layer projection | PASS | DAGR MCP fits primary `L5 product_and_protocol_adapters` with secondary `L3 runtime_and_policy_implementation` and `L4 evidence_production` roles, if the schema supports primary and secondary roles. |
-| Authority references | PASS | The model can represent DAGR MCP accurately only if current implementation, semantic authority, candidate owner, historical source, and verifier counterpart are separate axes. |
-| Architecture passport | PASS | Current multi-binding architecture fits a passport model if adapter/runtime binding terminology and proposed layer roles are first-class. |
-| Capability bindings | PARTIAL | Current behavior can be bound to a small vocabulary, but governed-action/protocol authority remains unresolved where current evidence does not establish a ratified owner. |
-| Contract bindings | PASS | Actual contracts can be inventoried with current implementation, semantic authority, candidate owner, historical source, role, version/fact, stability, direction, and evidence. |
-| Dependencies | PASS | Runtime imports, optional integrations, validation dependencies, vendored schema artifacts, and downstream consumers must be separate categories. |
-| Lanes | PARTIAL | The active pilot lane is clear; historical sprint lanes are documented, but local branch presence alone should not imply active coordination. |
-| Compatibility projection | PASS | Multi-binding compatibility, registry split, SDK version pins, and environment isolation fit naturally as an implementation projection. |
-| Conformance projection | PARTIAL | Dimension-by-dimension statuses are more accurate than a single A-E level or repository-wide certification. |
-| Exceptions | PASS | Genuine transitional exceptions exist: naming, schema validation availability, absent doctrine sources, and SDK v2 environment isolation. |
-| Release state | PARTIAL | Release state needs command/result fields, but exact results are better recorded at lane close than frozen as doctrine facts. |
+| --- | --- | --- |
+| Repository identity | PASS | `REPOSITORY.yaml` can represent repository type, authority status, lifecycle, substrate role, and constitutional roles as separate axes. |
+| Architecture passport | PASS | `ARCHITECTURE_PASSPORT.yaml` can model DAGR MCP as primary `L5` with secondary `L3` and `L4` implementation roles. |
+| Authority references | PASS | `AUTHORITY_REFERENCES.yaml` can separate semantic authority, current implementation, candidate implementation, historical implementation, producers, consumers, verifier counterparts, and migration status. |
+| Capability bindings | PASS | `CAPABILITY_BINDINGS.yaml` now records bindings only. It does not define canonical capability semantics. |
+| Contract bindings | PASS | `CONTRACT_BINDINGS.yaml` can represent provided and consumed contracts with separate semantic authority and implementation sides. |
+| Dependencies | PASS | `DEPENDENCIES.yaml` can distinguish runtime, adapter, schema, validation, implementation, and optional-consumer dependencies. |
+| Boundaries | PASS | `BOUNDARIES.yaml` can represent runtime-import, verifier-isolation, semantic-authority, policy, product-adapter, and data boundaries. |
+| Responsibilities | PASS | `RESPONSIBILITIES.yaml` can represent owned implementation responsibilities and explicitly unowned concerns. |
+| Compatibility projection | PARTIAL | The schema can represent profile/product/adapter/verifier projections, but product/profile version fields are less natural for ranges such as `fastmcp>=3.4.4,<4`. |
+| Conformance projection | PARTIAL | The schema accepts one A-E declaration plus gates; DAGR MCP still needs dimension-level PASS/PARTIAL/AMBIGUOUS findings to avoid over-certification. |
+| Exceptions | PASS | Transitional exceptions can be represented with schema-valid IDs and scoped records. |
+| Release state | PASS | Release state can record required gates and dependent releases without changing runtime behavior. |
 
-## Fields The Kit Must Support
+## Fields Accepted
 
-- `schema_ref` plus a way to mark a declaration as provisional pending kit
-  validation.
-- A top-level declaration for authority references.
-- A way to mark a layer model as proposed under test, without claiming ratified
-  doctrine.
-- Layer roles with one primary layer and zero or more secondary roles.
-- Repository `types` as a list, not a single enum.
-- Authority status independent from repository type.
-- Architecture layer and role independent from product lifecycle stage.
-- Owned and unowned concern lists.
-- Contract direction values such as `provided`, `consumed`, `emitted`,
-  `validated`, and combinations of those.
-- Dependency categories that distinguish runtime import, optional integration,
-  vendored schema artifact, validation dependency, and downstream consumer.
-- Capability fields for `defined_elsewhere`, `implemented_here`,
-  `consumed_here`, `product_native_mapping`, `planned`, `partial`, and
-  `validated`.
-- A separate capability-binding declaration that can reference externally owned
-  vocabulary surfaces and explicitly state that canonical capability definitions
-  are not claimed by this repository.
-- Contract-binding declarations that distinguish current implementation,
-  semantic authority, candidate owner, and historical source on each binding.
-- Projection declarations for compatibility and conformance, separate from
-  source authority or certification.
-- Conformance dimensions using `PASS`, `FAIL`, `PARTIAL`, `NOT_APPLICABLE`,
-  `NOT_EVALUATED`, and `AMBIGUOUS`.
-- Exception records that can cite evidence and remain empty when no exception
-  exists.
-- Lane declarations that separate active lane IDs from observed local branches
-  and historical lanes.
-- Explicit support for "current implementation byte fact" values that are not
-  normative standard semantics.
-- An unresolved authority state for governed-action/protocol semantics when
-  current repository evidence does not establish a ratified owner.
-- A historical-source role for source estates such as `garp-sdk`, distinct from
-  current semantic authority.
+- `schema` and `schema_version` replace the earlier provisional `schema_ref`
+  and `schema_status` shape.
+- `constitutional_roles.primary_layer` and `secondary_layers` preserve the
+  separate layer-role axes.
+- `authority.status` keeps implementation status separate from repository type,
+  lifecycle, conformance, and semantic authority.
+- `semantic_authority.repository: null` with `status: unresolved` can represent
+  unresolved L2 governed-action/protocol authority.
+- `historical_implementations` records `garp-sdk` provenance without making it
+  current semantic authority by default.
+- `verifier_counterparts` records `arcs-verify` as an independent counterpart,
+  not as producer runtime code.
+- `declarations.defines: []` in `CAPABILITY_BINDINGS.yaml` prevents DAGR MCP
+  from claiming canonical capability definitions.
+- `native_registry_refs` can cite richer local and sibling registries without
+  copying their semantics.
+- `forbidden_dependencies` in `BOUNDARIES.yaml` can encode producer/verifier
+  and kit/runtime separation.
 
-## Duplicate Existing Doctrine
+## Fields Requiring Amendment
 
-The kit should avoid restating doctrine that already belongs in canonical
-`garp-doctrine`, including substrate vertical separation, reviewable assertions,
-and governed evolution principles. Repository declarations should cite those
-authorities when available and record checkout limitations when they are absent.
+- Compatibility product/profile projections should allow explicit version-range
+  objects. Current declarations must place ranges in `authority_version` or
+  notes.
+- Compatibility and conformance projections should allow nullable or unresolved
+  authority repositories where a repository is intentionally recording an
+  unresolved authority question.
+- Conformance should support dimension-level statuses directly:
+  `PASS`, `FAIL`, `PARTIAL`, `NOT_APPLICABLE`, `NOT_EVALUATED`, and
+  `AMBIGUOUS`.
+- The kit should provide a first-class place for proposed input bundles such as
+  A0-A6. In this checkout no literal A0-A6 document IDs were found in the kit
+  docs, so DAGR MCP records exact sibling document paths under A0-A6 pilot input
+  labels in `AUTHORITY_REFERENCES.yaml`.
+- A generic schema should not force policy-decision vocabulary and receipt
+  disposition vocabulary into one field. DAGR MCP must preserve the distinction.
+- Release state can say a gate is required and passed, but exact command output
+  remains final-report evidence rather than durable doctrine.
 
-## Concepts Requiring Separate Axes
+## Unresolved L2/L3/L4 Questions
 
-- Runtime binding, adapter, and reference app are separate repository types.
-- Active implementation authority is distinct from canonical doctrine authority.
-- Current implementation is distinct from semantic authority.
-- Semantic authority is distinct from independent verifier counterpart.
-- Candidate owner is distinct from verified owner or traffic cutover.
-- Historical source is distinct from current authority by default.
-- SRS profile consumption is distinct from SRS normative ownership.
-- Producer receipt emission is distinct from independent verification.
-- Policy decision vocabulary is distinct from receipt disposition vocabulary.
-- Capability semantic ownership is distinct from implementation exposure.
-- Capability definitions are distinct from repository-local capability
-  bindings.
-- Package dependency is distinct from validation dependency.
-- Public release readiness is distinct from naming/distribution readiness.
-- Workbench service grouping is distinct from verified ownership or cutover.
-- Countervail receipt ingest expectations are distinct from DAGR MCP runtime
-  dependencies.
-- `arcs-srs` evidence/schema authority is distinct from DAGR MCP's current
-  implementation of an emitter over that profile.
-- `arcs-verify` report authority is distinct from DAGR MCP's compatibility with
-  independent verification.
+- L2: Whether governed-action/protocol semantics are ARCS-neutral,
+  DAGR-governed, or owned by another authority remains unresolved in current
+  repository evidence.
+- L3: The boundary between DAGR runtime/policy implementation and Countervail
+  institutional policy semantics remains unresolved.
+- L3: `garp-sdk` remains historical integrated source-estate material and
+  optional integration material, not current authority by default.
+- L4: Whether evidence production eventually moves to a separate
+  `dagr-evidence` authority is outside this repository's current evidence.
+- L4/L6: DAGR MCP emits evidence; ARCS Verify independently verifies serialized
+  artifacts. The producer/verifier boundary must remain exact.
 
-## Implementation Facts That Should Not Become Standard Semantics
+## Repository-Native Facts Outside Generic Schemas
 
-- `receipt_version: srs.core.v5.1` is a current implementation byte fact and
-  internal/pre-public lineage for this repository, not a public SRS release
-  statement.
+- `receipt_version: srs.core.v5.1` is an emitted byte fact and
+  internal/pre-public lineage, not a public SRS release claim.
+- `profile_id: srs.mcp.sdk_enforcement` and `profile_version: v0.1` are current
+  implementation byte facts consumed from SRS artifacts.
+- Runtime policy decisions are `allow`, `deny`, `gate`, `defer`, and
+  `fail_closed`; receipt dispositions are `admitted`, `refused`, and
+  `deferred_for_review`.
+- Receipt cardinality is conditional and variable. DAGR MCP must not be modeled
+  as always producing exactly two receipts per invocation.
 - Binding identifiers such as `fastmcp.middleware.v0.1` and
-  `official-mcp-sdk.python.v0.1` are DAGR MCP receipt facts, not universal MCP
-  package version semantics.
-- The current receipt-cardinality ceilings are implementation contract facts and
-  include configuration and sink-failure caveats.
-- The FastMCP task-submitted path and official-SDK unsupported task/input
-  behavior are binding-specific facts.
-- `compile_context` is a deterministic reference selector v0 here, not the full
-  governed context planner.
-- The proposed layer IDs (`L3`, `L4`, `L5`) are pilot modeling coordinates, not
-  ratified doctrine.
-- `garp-sdk` vocabulary references are historical or adjacent source-estate
-  facts unless a separate authority declaration establishes current authority.
+  `official-mcp-sdk.python.v0.2` are DAGR MCP receipt/binding facts, not generic
+  framework version semantics.
+- FastMCP compatibility, official MCP SDK 1.x binding, protocol-neutral core,
+  official MCP SDK 2.x isolated binding, and neutral service composition are all
+  current multi-binding architecture facts.
+- Workbench service grouping evidence identifies DAGR MCP as a candidate target
+  only. It is not ownership, compatibility proof, or traffic cutover.
+- Countervail receipt-ingest expectations are downstream consumer facts, not
+  DAGR MCP runtime imports.
 
-## Schema Proposals That Would Misrepresent DAGR MCP
+## Proposed Inputs
 
-- A single `repository_type` enum would flatten the real axes and force an
-  inaccurate choice between runtime binding, adapter, and reference app.
-- A schema that makes layer model fields imply ratified doctrine would overstate
-  the status of the concurrent kit lane.
-- A schema that allows only one layer role would misrepresent DAGR MCP's primary
-  adapter role plus runtime-policy and evidence-production secondary roles.
-- A schema that collapses authority into repository ownership would misrepresent
-  `arcs-srs`, ARCS Verify, Workbench, Countervail, and `garp-sdk` relationships.
-- A boolean `is_verifier` or verifier role inferred from receipt compatibility
-  would misstate producer/verifier separation.
-- A single "capabilities implemented" list without semantic authority and
-  validation state would imply DAGR owns canonical capability semantics.
-- A capability schema that requires embedded canonical definitions would force
-  this repository to redefine terms that belong to GARP SDK, SRS, ARCS Verify,
-  Workbench, Amnesiac, or Countervail.
-- A dependency model that treats ARCS Verify as a runtime import would be false.
-- A Workbench integration field that treats `dagr_mcp_tooling` as ownership or
-  live traffic routing would contradict the Workbench registry's unverified
-  candidate-target posture.
-- A default rule that treats `garp-sdk` as current authority would overstate the
-  available evidence; it is historical integrated source-estate material here.
-- A global fixed receipt count would contradict current documented cardinality
-  and sink-gap behavior.
-- A schema that requires package-index naming readiness would misstate the
-  current operator-gated distribution-name posture.
+The exact checked-out input paths referenced by this pilot are:
 
-## Coordination Notes For arcs-ecosystem-kit
+| Input label | Exact document path | Status |
+| --- | --- | --- |
+| A0 | `sibling:arcs-ecosystem-kit:docs/ARCS_CONSTITUTIONAL_LAYER_MODEL.md` | Proposed, unratified |
+| A1 | `sibling:arcs-ecosystem-kit:docs/GARP_DOCTRINE_COMPATIBILITY.md` | Proposed, unratified |
+| A2 | `sibling:arcs-ecosystem-kit:docs/adr/0001-schema-identifier-namespace.md` | Kit PR 1 ADR input |
+| A3 | `sibling:arcs-ecosystem-kit:docs/SCHEMA_CATALOG.md` | Proposed schema catalog |
+| A4 | `sibling:arcs-ecosystem-kit:docs/LAYER_AUTHORITY_RULES.md` | Proposed authority rules |
+| A5 | `sibling:arcs-ecosystem-kit:docs/SCHEMA_OWNERSHIP.md` | Proposed schema ownership |
+| A6 | `sibling:arcs-ecosystem-kit:docs/EXISTING_ECOSYSTEM_ASSET_MAP.md` | Proposed asset map |
 
-The kit should validate declaration shape while preserving the ability to record
-evidence-honest ambiguity. DAGR MCP needs provisional declarations to carry
-checkout limitations, implementation byte facts, non-owned concerns, unresolved
-semantic authority, historical source references, and dimension-level
-projections without implying runtime, receipt, SRS, or verifier changes.
+The A0-A6 labels are pilot coordination labels in this repository. They are not
+evidence of ratification.
+
+## Doctrine Reconciliation Limit
+
+The requested `garp-doctrine` files are not physically present inside this
+DAGR MCP checkout. The pilot inspected available sibling and repository-local
+references instead, including the kit's GARP compatibility document and layer
+catalog. It does not fabricate missing doctrine content and does not supersede
+`garp-doctrine`.
+
+## Coordination Notes
+
+`arcs-ecosystem-kit` should continue treating these declarations as projection
+and coordination schemas. They should validate shape while preserving
+evidence-honest ambiguity, unresolved authorities, historical source estates,
+non-owned concerns, and repository-native byte facts that should not become
+standard semantics.

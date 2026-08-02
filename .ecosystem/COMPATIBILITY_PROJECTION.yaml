@@ -1,94 +1,268 @@
-schema_ref: arcs.ecosystem.compatibility_projection.provisional.v0.1
-schema_status: provisional_pending_arcs_ecosystem_kit
-declaration_id: dagr-mcp.compatibility_projection
-declaration_kind: compatibility_projection
-repository_identity:
-  name: dagr-mcp
-  canonical_repo: thelaplage/dagr-mcp
-authority_references:
-  declaration: .ecosystem/AUTHORITY_REFERENCES.yaml
-  evidence_schema_semantic_authority: arcs_srs.evidence_schema_semantic_authority
-  independent_verifier_counterpart: arcs_verify.independent_verifier_counterpart
-projection_scope:
-  model_status: proposed_architecture_under_test_not_ratified_doctrine
-  relationship: implementation_compatibility_projected_against_external_authorities
-binding_surfaces:
-  - id: fastmcp.middleware.v0.1
-    package_or_module: root dagr-mcp distribution
-    status: active_compatibility_path
-    dependency_fact: fastmcp>=3.4.4,<4
-    evidence:
-      - README.md
-      - docs/BINDING_VERSIONS.md
-      - docs/FASTMCP_CORE_REBINDING.md
-  - id: official-mcp-sdk.python.v0.1
-    package_or_module: dagr_mcp_sdk_binding
-    status: active_compatibility_path
-    dependency_fact: mcp==1.29.0 through official-sdk extra
-    evidence:
-      - README.md
-      - docs/OFFICIAL_MCP_SDK_BINDING.md
-      - pyproject.toml
-  - id: protocol_neutral_core
-    package_or_module: packages/dagr-mcp-core
-    status: active_extracted_substrate
-    dependency_fact: no mcp or fastmcp dependency
-    evidence:
-      - packages/dagr-mcp-core/README.md
-      - docs/CORE_EXTRACTION_FORK.md
-  - id: official-mcp-sdk.python.v0.2
-    package_or_module: packages/dagr-mcp-sdk-v2
-    status: active_isolated_binding
-    dependency_fact: mcp==2.0.0
-    evidence:
-      - packages/dagr-mcp-sdk-v2/README.md
-      - docs/DAGR_MCP_SDK_V2_BINDING.md
-  - id: dagr_mcp_service
-    package_or_module: dagr_mcp_service
-    status: implemented_internal_composition_surface
-    dependency_fact: binding-selected
-    evidence:
-      - docs/PRODUCT_ARCHITECTURE.md
-      - dagr_mcp_service/
-receipt_compatibility:
-  emitted_byte_facts:
-    receipt_version: srs.core.v5.1
-    receipt_version_lineage_status: internal_pre_public_lineage
-    profile_id: srs.mcp.sdk_enforcement
-    profile_version: v0.1
-  cardinality_model:
-    status: bounded_and_conditional
-    ceilings:
-      admitted: 2
-      refused: 1
-      deferred: 1
-    caveats:
-      - read admission may be disabled by configuration and emit zero records
-      - outcome sink failure after execution leaves admission plus local receipt_gap event
-      - required sink unavailable refusal may be best effort
-    evidence:
-      - README.md
-      - dagr_mcp_service/contract.py
-  raw_content:
-    status: enforced
-    retention_class_applied: hash_only
-    excluded_artifact_classes:
-      - raw_prompt
-      - raw_output
-      - raw_tool_arguments
-      - raw_tool_result
-    evidence:
-      - README.md
-      - dagr_mcp/srs_receipts.py
-compatibility_guarantees:
-  - no_receipt_schema_or_profile_change_in_this_pilot
-  - no_runtime_behavior_change_in_this_pilot
-  - binding_version_stamps_are_not_framework_package_versions
-  - root_registry_and_core_registry_differences_are_documented
-known_incompatibilities_or_limits:
-  - sdk_v2_mcp_2_environment_must_not_coinstall_with_root_mcp_1_fastmcp_environment
-  - official_sdk_v1_task_submitted_is_unsupported_on_bound_tools_call_seam
-  - sdk_v2_input_required_mrtr_is_unsupported_and_fails_closed
-release_guards:
-  - python -m pytest -q
-  - python tools/check_public_release.py .
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.compatibility-projection.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+native_registry_refs:
+  - id: "binding-version-registry"
+    path: "docs/BINDING_VERSIONS.md"
+    authority: "dagr-mcp"
+    summary_role: "Repository-local binding identifier registry."
+  - id: "sdk-v2-isolation"
+    path: "docs/DAGR_MCP_SDK_V2_BINDING.md"
+    authority: "dagr-mcp"
+    summary_role: "Official MCP SDK 2.x isolated binding environment."
+arcs_profiles: []
+srs_profiles:
+  - id: "srs.mcp.sdk_enforcement"
+    version: "v0.1"
+    semantic_authority: "arcs-srs"
+    relationship: "consumes"
+    assertion_status: "validated"
+    authority_repository: "arcs-srs"
+    authority_artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+    authority_version: "v0.1"
+    evidence_refs:
+      - id: "profile-byte-facts"
+        path: "dagr_mcp/srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "emits"
+    integrity: {}
+    notes: "Profile ID and profile version are emitted as current implementation byte facts."
+  - id: "srs.core.v5.1"
+    version: "v5.1"
+    semantic_authority: "arcs-srs"
+    relationship: "deprecated_reference"
+    assertion_status: "deprecated_reference"
+    authority_repository: "arcs-srs"
+    authority_artifact_ref: "schemas/srs-envelope/"
+    authority_version: "internal-pre-public"
+    evidence_refs:
+      - id: "receipt-version-byte-fact"
+        path: "dagr_mcp/srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "emits"
+    integrity: {}
+    historical_reference: true
+    notes: "Internal/pre-public lineage value emitted by current implementation; not a public release claim."
+governed_action_model_versions:
+  - id: "governed-action-protocol-authority"
+    version: "v0.1"
+    semantic_authority: "unresolved"
+    relationship: "partial"
+    assertion_status: "partial"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: ".ecosystem/AUTHORITY_REFERENCES.yaml"
+    authority_version: "v0.1"
+    evidence_refs:
+      - id: "unresolved-governed-action-authority"
+        path: ".ecosystem/AUTHORITY_REFERENCES.yaml"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    integrity: {}
+    notes: "Current evidence does not establish a ratified L2 owner."
+host_product_versions:
+  - product: "fastmcp"
+    version: "v3.4.4"
+    semantic_authority: "fastmcp"
+    relationship: "consumes"
+    assertion_status: "validated"
+    authority_repository: "fastmcp"
+    authority_artifact_ref: "pyproject.toml"
+    authority_version: ">=3.4.4,<4"
+    evidence_refs:
+      - id: "fastmcp-constraint"
+        path: "pyproject.toml"
+        authority: "dagr-mcp"
+        relationship: "consumes"
+    integrity: {}
+    notes: "Lower bound recorded for schema version field; actual constraint is a range."
+  - product: "official MCP Python SDK"
+    version: "v1.29.0"
+    semantic_authority: "modelcontextprotocol/python-sdk"
+    relationship: "consumes"
+    assertion_status: "validated"
+    authority_repository: "modelcontextprotocol/python-sdk"
+    authority_artifact_ref: "pyproject.toml"
+    authority_version: "1.29.0"
+    evidence_refs:
+      - id: "official-sdk-v1-constraint"
+        path: "pyproject.toml"
+        authority: "dagr-mcp"
+        relationship: "consumes"
+    integrity: {}
+  - product: "official MCP Python SDK"
+    version: "v2.0.0"
+    semantic_authority: "modelcontextprotocol/python-sdk"
+    relationship: "consumes"
+    assertion_status: "validated"
+    authority_repository: "modelcontextprotocol/python-sdk"
+    authority_artifact_ref: "packages/dagr-mcp-sdk-v2/pyproject.toml"
+    authority_version: "2.0.0"
+    evidence_refs:
+      - id: "official-sdk-v2-constraint"
+        path: "packages/dagr-mcp-sdk-v2/pyproject.toml"
+        authority: "dagr-mcp"
+        relationship: "consumes"
+    integrity: {}
+adapter_versions:
+  - product: "direct-harness"
+    version: "v0.1"
+    semantic_authority: "dagr-mcp"
+    relationship: "implements"
+    assertion_status: "validated"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: "docs/BINDING_VERSIONS.md"
+    authority_version: "v0.1"
+    evidence_refs:
+      - id: "binding-registry"
+        path: "docs/BINDING_VERSIONS.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    integrity: {}
+  - product: "fastmcp.middleware"
+    version: "v0.1"
+    semantic_authority: "dagr-mcp"
+    relationship: "implements"
+    assertion_status: "validated"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: "docs/BINDING_VERSIONS.md"
+    authority_version: "v0.1"
+    evidence_refs:
+      - id: "fastmcp-binding-registry"
+        path: "docs/BINDING_VERSIONS.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    integrity: {}
+  - product: "official-mcp-sdk.python"
+    version: "v0.1"
+    semantic_authority: "dagr-mcp"
+    relationship: "implements"
+    assertion_status: "validated"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: "docs/OFFICIAL_MCP_SDK_BINDING.md"
+    authority_version: "v0.1"
+    evidence_refs:
+      - id: "official-sdk-binding-v1"
+        path: "docs/OFFICIAL_MCP_SDK_BINDING.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    integrity: {}
+  - product: "official-mcp-sdk.python"
+    version: "v0.2"
+    semantic_authority: "dagr-mcp"
+    relationship: "implements"
+    assertion_status: "validated"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: "docs/DAGR_MCP_SDK_V2_BINDING.md"
+    authority_version: "v0.2"
+    evidence_refs:
+      - id: "official-sdk-binding-v2"
+        path: "docs/DAGR_MCP_SDK_V2_BINDING.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    integrity: {}
+verifier_versions:
+  - product: "arcs-verify dagr-srs report"
+    version: "v0.2"
+    semantic_authority: "arcs-verify"
+    relationship: "validates"
+    assertion_status: "validated"
+    authority_repository: "arcs-verify"
+    authority_artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/README.md"
+    authority_version: "v0.2"
+    evidence_refs:
+      - id: "arcs-verify-v0-2-acceptance"
+        path: "packages/dagr-mcp-sdk-v2/tests/test_arcs_verify_v0_2_acceptance.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    integrity: {}
+backward_compatibility:
+  - scope: "root FastMCP compatibility path"
+    from_version: "v0.1"
+    to_version: "v0.1"
+    relationship: "validates"
+    assertion_status: "validated"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: "docs/FASTMCP_CORE_REBINDING.md"
+    authority_version: "v0.1"
+    evidence_refs:
+      - id: "fastmcp-core-rebinding"
+        path: "docs/FASTMCP_CORE_REBINDING.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    integrity: {}
+    notes: "Legacy FastMCP compatibility remains active."
+  - scope: "protocol-neutral core extraction"
+    from_version: "v0.1"
+    to_version: "v0.2"
+    relationship: "validates"
+    assertion_status: "validated"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: "docs/CORE_EXTRACTION_FORK.md"
+    authority_version: "v0.2"
+    evidence_refs:
+      - id: "core-byte-parity"
+        path: "tests/test_core_extraction_byte_parity.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    integrity: {}
+unsupported_versions:
+  - scope: "root distribution co-installed with MCP SDK 2.x"
+    version: "v2.0.0"
+    reason: "Root FastMCP/mcp 1.x environment and isolated SDK v2 package are intentionally separate."
+    relationship: "not_applicable"
+    assertion_status: "validated"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: "docs/DAGR_MCP_SDK_V2_BINDING.md"
+    authority_version: "v0.2"
+    evidence_refs:
+      - id: "sdk-v2-isolation-doc"
+        path: "docs/DAGR_MCP_SDK_V2_BINDING.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    integrity: {}
+migration_notes:
+  - scope: "receipt cardinality"
+    note: "Receipt cardinality remains conditional and bounded; admitted calls may produce admission plus outcome receipts, refused/deferred calls do not execute, and sink failures can create local gap behavior."
+    relationship: "projects"
+    assertion_status: "validated"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: "README.md"
+    authority_version: "v0.1"
+    evidence_refs:
+      - id: "readme-cardinality"
+        path: "README.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    integrity: {}
+  - scope: "decision vocabulary"
+    note: "Runtime policy values allow, deny, gate, defer, and fail_closed are not the SRS receipt dispositions admitted, refused, and deferred_for_review."
+    relationship: "projects"
+    assertion_status: "validated"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: "dagr_mcp/enforcement_harness.py"
+    authority_version: "v0.1"
+    evidence_refs:
+      - id: "policy-vocabulary"
+        path: "dagr_mcp/enforcement_harness.py"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    integrity: {}
+  - scope: "schema validation"
+    note: "The declarations are validated against a sibling arcs-ecosystem-kit checkout; the kit is not added as a runtime package dependency."
+    relationship: "validates"
+    assertion_status: "validated"
+    authority_repository: "arcs-ecosystem-kit"
+    authority_artifact_ref: "schemas/"
+    authority_version: "v0.1"
+    evidence_refs:
+      - id: "ecosystem-declaration-tests"
+        path: "tests/test_ecosystem_declarations.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    integrity: {}
+ownership_transitions:
+  - current_owner: "dagr-mcp"
+    candidate_owner: "dagr-workbench"
+    candidate_verified: false
+    migration_authorized: false
+    migration_record_ref: "none"

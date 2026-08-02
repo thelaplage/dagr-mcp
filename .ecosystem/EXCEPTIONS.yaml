@@ -1,40 +1,67 @@
-schema_ref: arcs.ecosystem.exceptions.provisional.v0.1
-schema_status: provisional_pending_arcs_ecosystem_kit
-declaration_id: dagr-mcp.exceptions
-declaration_kind: exceptions
-repository_identity:
-  name: dagr-mcp
-  canonical_repo: thelaplage/dagr-mcp
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.exceptions.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
 exceptions:
-  - id: final_distribution_name_unresolved
-    status: open
-    type: naming_distribution
-    summary: Final package-index distribution name is operator-gated and unresolved.
-    evidence:
-      - docs/NAMING.md
-  - id: ecosystem_schema_validation_unavailable
-    status: open
-    type: provisional_schema
-    summary: Provisional declarations cannot be validated against arcs-ecosystem-kit until that kit lands; no schemas are vendored here.
-    evidence:
-      - .ecosystem/
-  - id: layer_authority_model_unratified
-    status: open
-    type: provisional_architecture_model
-    summary: The Layer -> Authority -> Contracts -> Implementations -> Repositories model is proposed architecture under test, not ratified doctrine.
-    evidence:
-      - .ecosystem/AUTHORITY_REFERENCES.yaml
-      - docs/ECOSYSTEM_PILOT_ADJUDICATION.md
-  - id: requested_garp_doctrine_sources_absent
-    status: open
-    type: doctrine_reconciliation_limit
-    summary: Requested garp-doctrine manifest, schema, registry, and internal doctrine files are not present in this checkout.
-    evidence:
-      - .ecosystem/REPOSITORY.yaml
-  - id: sdk_v2_environment_isolation
-    status: open
-    type: packaging_and_runtime_environment
-    summary: The official MCP SDK v2 package is intentionally isolated because mcp 1.x and 2.x are not designed to coexist.
-    evidence:
-      - docs/DAGR_MCP_SDK_V2_BINDING.md
-      - packages/dagr-mcp-sdk-v2/README.md
+  - id: "DAGR-MCP-ECO-001"
+    scope:
+      type: "repository"
+      target: "dagr-mcp"
+    reason: "Final package-index distribution name remains operator-gated and unresolved."
+    owner: "dagr-mcp maintainers"
+    approved_by: []
+    status: "proposed"
+    created_date: "2026-08-02"
+    affected_conformance_level: "D"
+    mitigation: "Keep current package metadata and release guard intact until an operator decision lands."
+    disposition: "temporary"
+    notes: "Evidence: docs/NAMING.md."
+  - id: "DAGR-MCP-ECO-002"
+    scope:
+      type: "conformance_gate"
+      target: "constitutional-layer-model"
+    reason: "Layer model and A0-A6 inputs are proposed coordination inputs, not ratified doctrine."
+    owner: "arcs-ecosystem-kit"
+    approved_by: []
+    status: "proposed"
+    created_date: "2026-08-02"
+    affected_conformance_level: "C"
+    mitigation: "Declare model status explicitly and avoid treating layer IDs as ratified semantics."
+    disposition: "temporary"
+    notes: "Evidence: sibling:arcs-ecosystem-kit:docs/ARCS_CONSTITUTIONAL_LAYER_MODEL.md."
+  - id: "DAGR-MCP-ECO-003"
+    scope:
+      type: "dependency"
+      target: "garp-doctrine"
+    reason: "Requested doctrine files are not physically present in this DAGR MCP checkout; reconciliation uses repository-local and sibling checkout references."
+    owner: "dagr-mcp maintainers"
+    approved_by: []
+    status: "proposed"
+    created_date: "2026-08-02"
+    affected_conformance_level: "C"
+    mitigation: "State checkout limitation and avoid fabricating missing doctrine content."
+    disposition: "temporary"
+  - id: "DAGR-MCP-ECO-004"
+    scope:
+      type: "dependency"
+      target: "official-mcp-sdk-python-v2"
+    reason: "SDK v2 binding is intentionally isolated from the root FastMCP/mcp 1.x environment."
+    owner: "dagr-mcp maintainers"
+    approved_by: []
+    status: "proposed"
+    created_date: "2026-08-02"
+    affected_conformance_level: "D"
+    mitigation: "Use the repository-confirmed isolated interpreter for full tests and release guard."
+    disposition: "temporary"
+    notes: "Evidence: docs/DAGR_MCP_SDK_V2_BINDING.md."
+  - id: "DAGR-MCP-ECO-005"
+    scope:
+      type: "contract"
+      target: "governed-action-protocol-authority"
+    reason: "L2 governed-action/protocol authority and parts of L3/L4 ownership remain unresolved in current evidence."
+    owner: "arcs-ecosystem-kit"
+    approved_by: []
+    status: "proposed"
+    created_date: "2026-08-02"
+    affected_conformance_level: "E"
+    mitigation: "Represent unresolved authority explicitly with repository:null authority references and no migration authorization."
+    disposition: "temporary"
