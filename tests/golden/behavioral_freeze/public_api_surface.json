@@ -50,6 +50,7 @@
       "RequestSnapshot",
       "project_fastmcp_tool_result"
     ],
+    "dagr_mcp.governed_memory_demo": null,
     "dagr_mcp.lint": null,
     "dagr_mcp.lint.matter_scope": null,
     "dagr_mcp.mcp_record_custody_gateway": [
@@ -187,6 +188,7 @@
     "demo",
     "enforcement_harness",
     "fastmcp_binding",
+    "governed_memory_demo",
     "lint",
     "mcp_record_custody_gateway",
     "policy_profile",
