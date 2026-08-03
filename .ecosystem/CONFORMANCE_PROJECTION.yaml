@@ -40,6 +40,10 @@ passed_gates:
     description: "Package inventory checks cover root and extracted packages without weakening guards."
     evidence_ref: "tests/test_packaging_inventories.py"
     assertion_status: "validated"
+  - gate_id: "observed_admission_refusal_proof_PASS"
+    description: "Admitted-vs-refused behavior over the same wrap_handler scenario runner and arguments is observed via inner-invocation counts and receipt counts, not asserted."
+    evidence_ref: "tests/test_first_run_proof.py"
+    assertion_status: "validated"
 failed_gates: []
 not_applicable_gates:
   - gate_id: "certification_service_NOT_APPLICABLE"
@@ -56,7 +60,13 @@ test_command_refs:
   - id: "public-release-guard"
     command: ".venv/bin/python tools/check_public_release.py ."
     assertion_status: "validated"
-proof_pack_refs: []
+proof_pack_refs:
+  - proof_pack_id: "dagr-mcp.first_run_observed_enforcement"
+    version: "v0.1"
+    assertion_status: "recorded_end_to_end"
+    authority_repository: "dagr-mcp"
+    authority_artifact_ref: "dagr_mcp/first_run_demo.py"
+    path_or_ref: "tests/test_first_run_proof.py"
 unresolved_exceptions:
   - "reproducible_integration_PARTIAL"
   - "cross_binding_portability_PARTIAL"
@@ -69,6 +79,10 @@ evidence_refs:
     relationship: "projects"
   - id: "ecosystem-tests"
     path: "tests/test_ecosystem_declarations.py"
+    authority: "dagr-mcp"
+    relationship: "validates"
+  - id: "first-run-proof-harness"
+    path: "tests/test_first_run_proof.py"
     authority: "dagr-mcp"
     relationship: "validates"
 integrity: {}
