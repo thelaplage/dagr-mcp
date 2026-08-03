@@ -50,6 +50,13 @@
       "RequestSnapshot",
       "project_fastmcp_tool_result"
     ],
+    "dagr_mcp.first_run_demo": [
+      "FirstRunProof",
+      "NativeActionSentinel",
+      "ScenarioObservation",
+      "build_side_effects_payload",
+      "run_first_run_proof"
+    ],
     "dagr_mcp.governed_memory_demo": null,
     "dagr_mcp.lint": null,
     "dagr_mcp.lint.matter_scope": null,
@@ -188,6 +195,7 @@
     "demo",
     "enforcement_harness",
     "fastmcp_binding",
+    "first_run_demo",
     "governed_memory_demo",
     "lint",
     "mcp_record_custody_gateway",
