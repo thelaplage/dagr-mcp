@@ -222,3 +222,5 @@ known_exceptions:
   - "DAGR-MCP-ECO-001"
   - "DAGR-MCP-ECO-002"
   - "DAGR-MCP-ECO-003"
+  - "DAGR-MCP-ECO-004"
+  - "DAGR-MCP-ECO-005"

@@ -234,6 +234,13 @@ def test_policy_decisions_are_not_receipt_dispositions() -> None:
     assert "not SRS receipt dispositions" in policy_boundary["notes"]
 
 
+def test_architecture_passport_known_exceptions_match_exceptions_file() -> None:
+    declarations = _declarations()
+    known_exceptions = set(declarations["ARCHITECTURE_PASSPORT.yaml"]["known_exceptions"])
+    exception_ids = {item["id"] for item in declarations["EXCEPTIONS.yaml"]["exceptions"]}
+    assert known_exceptions == exception_ids
+
+
 def test_active_lane_id_is_unique_within_lane_file() -> None:
     lanes = _declarations()["LANES.yaml"]["lanes"]
     lane_ids = [lane["lane_id"] for lane in lanes]
