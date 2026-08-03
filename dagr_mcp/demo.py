@@ -51,6 +51,26 @@ def build_parser() -> argparse.ArgumentParser:
             "contract smoke only"
         ),
     )
+    first_run = subparsers.add_parser(
+        "first-run",
+        help=(
+            "run the admitted-vs-refused native-action proof: same handler, "
+            "same arguments, differing only in the governance decision"
+        ),
+    )
+    first_run.add_argument(
+        "--output",
+        type=Path,
+        help="Proof output directory. Defaults to an ephemeral directory.",
+    )
+    first_run.add_argument(
+        "--capture",
+        action="store_true",
+        help=(
+            "Use a fixed signing identity and injected clock so receipt "
+            "digests are byte-identical across runs. Default is ephemeral."
+        ),
+    )
     return parser
 
 
@@ -161,7 +181,7 @@ def arcs_verify_command(directory: Path) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     raw_args = list(sys.argv[1:] if argv is None else argv)
-    commands = {"demo", "governed-memory-demo"}
+    commands = {"demo", "governed-memory-demo", "first-run"}
     if not raw_args or raw_args[0] not in commands:
         raw_args = ["demo", *raw_args]
     args = build_parser().parse_args(raw_args)
@@ -171,6 +191,11 @@ def main(argv: list[str] | None = None) -> int:
         directory = run_governed_memory_demo(
             args.output, service_mode=args.service_mode
         )
+    elif args.command == "first-run":
+        from .first_run_demo import run_first_run_proof
+
+        proof = run_first_run_proof(args.output, capture=args.capture)
+        directory = proof.directory
     else:
         directory = run_demo(args.output, direct=args.direct)
     receipt_paths = sorted(directory.glob("urn_srs_receipt_*.json"))
@@ -183,6 +208,11 @@ def main(argv: list[str] | None = None) -> int:
     workflow = directory / "governed-memory-workflow.json"
     if workflow.exists():
         payload["workflow_index"] = str(workflow)
+    side_effects = directory / "side_effects.json"
+    if side_effects.exists():
+        payload["side_effects"] = json.loads(side_effects.read_text())
+        payload["side_effects_file"] = str(side_effects)
+        payload["quickstart_file"] = str(directory / "quickstart.txt")
     print(json.dumps(payload, indent=2))
     print(arcs_verify_command(directory))
     return 0
