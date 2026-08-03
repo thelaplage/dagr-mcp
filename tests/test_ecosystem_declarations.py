@@ -5,12 +5,18 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
+import pytest
 import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
 ECOSYSTEM = ROOT / ".ecosystem"
 KIT_SCHEMAS = ROOT.parent / "arcs-ecosystem-kit" / "schemas"
+
+requires_ecosystem_kit = pytest.mark.skipif(
+    not KIT_SCHEMAS.exists(),
+    reason="arcs-ecosystem-kit not checked out beside dagr-mcp; schema validation skipped",
+)
 
 SCHEMA_BY_DECLARATION = {
     "REPOSITORY.yaml": "ecosystem.repository.v0.1.schema.json",
@@ -64,8 +70,8 @@ def test_all_ecosystem_declaration_files_exist() -> None:
     assert actual.isdisjoint(LEGACY_DECLARATION_NAMES)
 
 
+@requires_ecosystem_kit
 def test_ecosystem_declarations_validate_against_checked_out_kit_schemas() -> None:
-    assert KIT_SCHEMAS.exists(), "arcs-ecosystem-kit schemas must be checked out beside dagr-mcp"
     for declaration_name, schema_name in sorted(SCHEMA_BY_DECLARATION.items()):
         schema_path = KIT_SCHEMAS / schema_name
         assert schema_path.exists(), schema_name
