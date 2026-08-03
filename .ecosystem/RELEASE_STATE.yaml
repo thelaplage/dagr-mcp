@@ -1,0 +1,47 @@
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.release-state.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+release_stage: "preview"
+current_version: "0.1.0"
+release_readiness: "ready_with_exceptions"
+required_gates:
+  - gate_id: "focused-ecosystem-declaration-tests"
+    description: "Repository-local ecosystem declaration sanity and schema tests pass."
+    status: "passed"
+    required_for_release: true
+  - gate_id: "full-existing-tests"
+    description: "Full repository test suite passes in the isolated environment."
+    status: "passed"
+    required_for_release: true
+  - gate_id: "public-release-guard"
+    description: "Public-release guard passes without weakening checks."
+    status: "passed"
+    required_for_release: true
+  - gate_id: "runtime-and-receipt-unchanged"
+    description: "No runtime code, receipt code, SRS profile, package dependency, or public API behavior changed."
+    status: "passed"
+    required_for_release: true
+passed_gates:
+  - "focused-ecosystem-declaration-tests"
+  - "full-existing-tests"
+  - "public-release-guard"
+  - "runtime-and-receipt-unchanged"
+blocking_issues: []
+dependent_releases:
+  - repository: "arcs-ecosystem-kit"
+    version: "0.1.0"
+    relationship: "informs"
+  - repository: "arcs-srs"
+    version: "0.1.0"
+    relationship: "informs"
+  - repository: "arcs-verify"
+    version: "0.2.0"
+    relationship: "informs"
+compatibility_status:
+  claim_status: "validated"
+  summary: >-
+    Declarations align to checked-out arcs-ecosystem-kit v0.1 schemas while
+    preserving DAGR MCP runtime, receipt, profile, dependency, and verifier
+    boundaries.
+release_notes_ref: "docs/ECOSYSTEM_PILOT_ADJUDICATION.md"
+last_reviewed: "2026-08-02"

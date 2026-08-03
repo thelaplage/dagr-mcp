@@ -1,0 +1,277 @@
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.capability-bindings.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+native_registry_refs:
+  - id: "garp_sdk.runtime_surface_registry"
+    path: "sibling:garp-sdk:garp_sdk/runtime_surface_registry_contract.py"
+    authority: "garp-sdk"
+    summary_role: "Historical source-estate vocabulary reference, not current semantic authority by default."
+  - id: "garp_sdk.boundary_contracts"
+    path: "sibling:garp-sdk:garp_sdk/boundary/contracts.py"
+    authority: "garp-sdk"
+    summary_role: "Historical boundary contract vocabulary inspected for compatibility."
+  - id: "arcs_srs.mcp_sdk_enforcement_profile"
+    path: "sibling:arcs-srs:docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+    authority: "arcs-srs"
+    summary_role: "SRS profile authority consumed by DAGR MCP receipt emission."
+  - id: "arcs_verify.dagr_srs_report_v0_2"
+    path: "sibling:arcs-verify:arcs_verify/contracts/dagr-srs-verification-report-v0-2/README.md"
+    authority: "arcs-verify"
+    summary_role: "Independent verifier report contract; not a runtime import."
+  - id: "dagr_workbench.service_ownership"
+    path: "sibling:dagr-workbench:registry/workbench-service-ownership-v0.1.json"
+    authority: "dagr-workbench"
+    summary_role: "Candidate service grouping evidence only."
+  - id: "countervail.dagr_receipt_ingest_contract"
+    path: "sibling:countervail-control-plane:packages/dagr-receipt-ingest/contracts/srs-mcp-sdk-enforcement-v0-1/README.md"
+    authority: "countervail-control-plane"
+    summary_role: "Downstream recorded-receipt consumer expectation."
+declarations:
+  defines: []
+  implements:
+    - capability_ref: "TOOL_EXECUTION"
+      constitutional_layer: "L5"
+      version: "v0.1"
+      semantic_authority:
+        repository: null
+        artifact_ref: null
+        version: null
+        status: "unresolved"
+      stability: "preview"
+      relationship: "implements"
+      assertion_status: "validated"
+      reachability: "validated"
+      native_mapping:
+        implementation_role: "runtime_binding"
+        native_identifier: "configured MCP tools/call boundary"
+        source_path: "dagr_mcp/fastmcp_binding.py"
+        assertion_status: "validated"
+        notes: "Includes FastMCP, official SDK 1.x, SDK 2.x isolated binding, and neutral lifecycle/core projection."
+      purpose_sensitivity: "restricted"
+      evidence_profile_refs:
+        - id: "srs.mcp.sdk_enforcement"
+          version: "v0.1"
+          semantic_authority:
+            repository: "arcs-srs"
+            artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+            version: "v0.1"
+            status: "resolved"
+          notes: "Receipt profile semantics remain outside this repository."
+      evidence_refs:
+        - id: "fastmcp-binding-tests"
+          path: "tests/test_fastmcp_binding.py"
+          authority: "dagr-mcp"
+          relationship: "validates"
+        - id: "official-sdk-binding-tests"
+          path: "tests/test_official_mcp_sdk_binding.py"
+          authority: "dagr-mcp"
+          relationship: "validates"
+        - id: "sdk-v2-acceptance"
+          path: "packages/dagr-mcp-sdk-v2/tests/test_acceptance_matrix.py"
+          authority: "dagr-mcp"
+          relationship: "validates"
+      integrity: {}
+      notes: "Binding only; canonical capability semantics are not defined here."
+    - capability_ref: "RESOURCE_READ"
+      constitutional_layer: "L5"
+      version: "v0.1"
+      semantic_authority:
+        repository: null
+        artifact_ref: null
+        version: null
+        status: "unresolved"
+      stability: "preview"
+      relationship: "partial"
+      assertion_status: "partial"
+      reachability: "fixture_reachable"
+      native_mapping:
+        implementation_role: "adapter"
+        native_identifier: "read-class tool calls and mcp_resource_read custody projection"
+        source_path: "dagr_mcp/mcp_record_custody_gateway.py"
+        assertion_status: "partial"
+        notes: "No general MCP resource/read binding is claimed as complete."
+      purpose_sensitivity: "internal"
+      evidence_refs:
+        - id: "custody-projection-golden"
+          path: "tests/golden/behavioral_freeze/custody_projections.json"
+          authority: "dagr-mcp"
+          relationship: "validates"
+      integrity: {}
+    - capability_ref: "EXTERNAL_ACTION"
+      constitutional_layer: "L5"
+      version: "v0.1"
+      semantic_authority:
+        repository: null
+        artifact_ref: null
+        version: null
+        status: "unresolved"
+      stability: "preview"
+      relationship: "partial"
+      assertion_status: "partial"
+      reachability: "fixture_reachable"
+      native_mapping:
+        implementation_role: "adapter"
+        native_identifier: "external_action tool class and configured remote connector calls"
+        source_path: "dagr_mcp_service/connectors/remote.py"
+        assertion_status: "partial"
+        notes: "This does not make DAGR MCP a policy authority or network proxy."
+      purpose_sensitivity: "sensitive"
+      evidence_refs:
+        - id: "remote-connector-tests"
+          path: "tests/test_gateway_service_remote_connector.py"
+          authority: "dagr-mcp"
+          relationship: "validates"
+      integrity: {}
+    - capability_ref: "CREDENTIALED_ACTION"
+      constitutional_layer: "L5"
+      version: "v0.1"
+      semantic_authority:
+        repository: null
+        artifact_ref: null
+        version: null
+        status: "unresolved"
+      stability: "preview"
+      relationship: "partial"
+      assertion_status: "partial"
+      reachability: "fixture_reachable"
+      native_mapping:
+        implementation_role: "adapter"
+        native_identifier: "remote connector credential provider path"
+        source_path: "dagr_mcp_service/connectors/remote.py"
+        assertion_status: "partial"
+        notes: "Credential values are excluded from responses and receipts; provider/model retention is outside this boundary."
+      purpose_sensitivity: "sensitive"
+      evidence_refs:
+        - id: "remote-integration-tests"
+          path: "tests/test_gateway_service_remote_integration.py"
+          authority: "dagr-mcp"
+          relationship: "validates"
+      integrity: {}
+    - capability_ref: "MEMORY_PROPOSE"
+      constitutional_layer: "L5"
+      version: "v0.1"
+      semantic_authority:
+        repository: "arcs-amnesiac"
+        artifact_ref: null
+        version: null
+        status: "unresolved"
+      stability: "preview"
+      relationship: "implements"
+      assertion_status: "validated"
+      reachability: "validated"
+      native_mapping:
+        implementation_role: "adapter"
+        native_identifier: "amnesiac.propose_candidates"
+        source_path: "dagr_mcp/amnesiac_native.py"
+        assertion_status: "validated"
+        notes: "Optional adapter exposure; proposal is not durable memory admission."
+      purpose_sensitivity: "restricted"
+      evidence_refs:
+        - id: "amnesiac-contract-tests"
+          path: "tests/test_amnesiac_contracts.py"
+          authority: "dagr-mcp"
+          relationship: "validates"
+      integrity: {}
+    - capability_ref: "MEMORY_RECORD_OUTCOME"
+      constitutional_layer: "L5"
+      version: "v0.1"
+      semantic_authority:
+        repository: "arcs-amnesiac"
+        artifact_ref: null
+        version: null
+        status: "unresolved"
+      stability: "preview"
+      relationship: "implements"
+      assertion_status: "validated"
+      reachability: "validated"
+      native_mapping:
+        implementation_role: "adapter"
+        native_identifier: "amnesiac.record_outcome"
+        source_path: "dagr_mcp/amnesiac_native.py"
+        assertion_status: "validated"
+        notes: "Refs-only bridge; no raw model output or claim body accepted."
+      purpose_sensitivity: "restricted"
+      evidence_refs:
+        - id: "amnesiac-native-tests"
+          path: "tests/test_amnesiac_native.py"
+          authority: "dagr-mcp"
+          relationship: "validates"
+      integrity: {}
+    - capability_ref: "MEMORY_COMPILE_CONTEXT"
+      constitutional_layer: "L5"
+      version: "v0.1"
+      semantic_authority:
+        repository: "arcs-amnesiac"
+        artifact_ref: null
+        version: null
+        status: "unresolved"
+      stability: "preview"
+      relationship: "partial"
+      assertion_status: "partial"
+      reachability: "fixture_reachable"
+      native_mapping:
+        implementation_role: "adapter"
+        native_identifier: "amnesiac.compile_context"
+        source_path: "dagr_mcp/amnesiac_native.py"
+        assertion_status: "partial"
+        notes: "Deterministic reference selector v0, not the full governed context planner."
+      purpose_sensitivity: "restricted"
+      evidence_refs:
+        - id: "governed-memory-demo"
+          path: "docs/GOVERNED_MEMORY_DEMO.md"
+          authority: "dagr-mcp"
+          relationship: "projects"
+      integrity: {}
+    - capability_ref: "MEMORY_REQUEST_REOPENING"
+      constitutional_layer: "L5"
+      version: "v0.1"
+      semantic_authority:
+        repository: "arcs-amnesiac"
+        artifact_ref: null
+        version: null
+        status: "unresolved"
+      stability: "preview"
+      relationship: "implements"
+      assertion_status: "validated"
+      reachability: "validated"
+      native_mapping:
+        implementation_role: "adapter"
+        native_identifier: "amnesiac.request_reopening"
+        source_path: "dagr_mcp/amnesiac_native.py"
+        assertion_status: "validated"
+        notes: "Request only; caller cannot force reopening."
+      purpose_sensitivity: "restricted"
+      evidence_refs:
+        - id: "amnesiac-tools-doc"
+          path: "docs/AMNESIAC_TOOLS.md"
+          authority: "dagr-mcp"
+          relationship: "projects"
+      integrity: {}
+  consumes:
+    - capability_ref: "MEMORY_ADMIT"
+      constitutional_layer: "L8"
+      version: "v0.1"
+      semantic_authority:
+        repository: "arcs-amnesiac"
+        artifact_ref: null
+        version: null
+        status: "unresolved"
+      stability: "preview"
+      relationship: "not_applicable"
+      assertion_status: "not_applicable"
+      reachability: "not_reachable"
+      native_mapping:
+        implementation_role: "not_applicable"
+        native_identifier: "not implemented by dagr-mcp"
+        source_path: "docs/AMNESIAC_TOOLS.md"
+        assertion_status: "not_applicable"
+        notes: "DAGR MCP exposes proposal/outcome/context operations but does not admit claims into durable memory."
+      purpose_sensitivity: "restricted"
+      evidence_refs:
+        - id: "amnesiac-non-goal"
+          path: "README.md"
+          authority: "dagr-mcp"
+          relationship: "not_applicable"
+      integrity: {}
+  extends: []
+  deprecates: []

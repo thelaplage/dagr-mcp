@@ -1,0 +1,656 @@
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.contract-bindings.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+native_registry_refs:
+  - id: "binding-version-registry"
+    path: "docs/BINDING_VERSIONS.md"
+    authority: "dagr-mcp"
+    summary_role: "Repository-local MCP binding identifier registry."
+  - id: "srs-profile"
+    path: "sibling:arcs-srs:docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+    authority: "arcs-srs"
+    summary_role: "External SRS profile authority consumed and emitted as byte facts."
+  - id: "arcs-verify-report"
+    path: "sibling:arcs-verify:arcs_verify/contracts/dagr-srs-verification-report-v0-2/verification-report.schema.json"
+    authority: "arcs-verify"
+    summary_role: "Independent verification report contract."
+provided:
+  - contract_id: "dagr.mcp.lifecycle_contract"
+    owning_layer: "L3"
+    semantic_authority:
+      repository: "dagr-mcp"
+      artifact_ref: "docs/NEUTRAL_LIFECYCLE_CONTRACT.md"
+      version: "v0.1"
+      status: "resolved"
+    provider_implementation:
+      repository: "dagr-mcp"
+      role: "provider"
+      artifact_ref: "dagr_mcp_lifecycle/contract.py"
+      version: "v0.1"
+    consumer_implementation: null
+    relationship: "implements"
+    version: "v0.1"
+    contract_type: "runtime_api"
+    stability: "frozen"
+    assertion_status: "validated"
+    known_consumers:
+      - "dagr-mcp bindings"
+      - "packages/dagr-mcp-core"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Protocol-neutral lifecycle contract is tested against binding projections."
+    evidence_refs:
+      - id: "neutral-lifecycle-tests"
+        path: "tests/test_neutral_lifecycle_contract.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    migration:
+      current_owner: "dagr-mcp"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "dagr.mcp.lifecycle_binding_mask"
+    owning_layer: "L5"
+    semantic_authority:
+      repository: "dagr-mcp"
+      artifact_ref: "dagr_mcp_lifecycle/binding_mask.py"
+      version: "v0.1"
+      status: "resolved"
+    provider_implementation:
+      repository: "dagr-mcp"
+      role: "adapter"
+      artifact_ref: "dagr_mcp_lifecycle/binding_mask.py"
+      version: "v0.1"
+    consumer_implementation: null
+    relationship: "implements"
+    version: "v0.1"
+    contract_type: "adapter_contract"
+    stability: "frozen"
+    assertion_status: "validated"
+    known_consumers:
+      - "FastMCP binding"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Mask constrains binding projection without redesigning runtime behavior."
+    evidence_refs:
+      - id: "binding-mask-hardening"
+        path: "tests/test_lifecycle_contract_hardening.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    migration:
+      current_owner: "dagr-mcp"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "dagr.mcp.binding_identifiers"
+    owning_layer: "L5"
+    semantic_authority:
+      repository: "dagr-mcp"
+      artifact_ref: "docs/BINDING_VERSIONS.md"
+      version: "v0.1"
+      status: "resolved"
+    provider_implementation:
+      repository: "dagr-mcp"
+      role: "runtime_binding"
+      artifact_ref: "dagr_mcp/srs_receipts.py"
+      version: "v0.1"
+    consumer_implementation: null
+    relationship: "implements"
+    version: "v0.1"
+    contract_type: "adapter_contract"
+    stability: "preview"
+    assertion_status: "validated"
+    known_consumers:
+      - "receipt fixtures"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Binding identifiers are receipt facts, not framework package version claims."
+    evidence_refs:
+      - id: "binding-versions-doc"
+        path: "docs/BINDING_VERSIONS.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    migration:
+      current_owner: "dagr-mcp"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+    notes: "Includes direct-harness.v0.1, fastmcp.middleware.v0.1, official-mcp-sdk.python.v0.1, and official-mcp-sdk.python.v0.2."
+  - contract_id: "srs.mcp.sdk_enforcement.admission_emission"
+    owning_layer: "L4"
+    semantic_authority:
+      repository: "arcs-srs"
+      artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+      version: "v0.1"
+      status: "resolved"
+    provider_implementation:
+      repository: "dagr-mcp"
+      role: "emitter"
+      artifact_ref: "dagr_mcp/srs_receipts.py"
+      version: "v0.1"
+    consumer_implementation:
+      repository: "arcs-verify"
+      role: "verifier_counterpart"
+      artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/"
+      version: "v0.2"
+    relationship: "emits"
+    version: "v0.1"
+    contract_type: "evidence_profile"
+    stability: "frozen"
+    assertion_status: "validated"
+    known_consumers:
+      - "arcs-verify"
+      - "Countervail recorded receipt ingest"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Admission dispositions are admitted, refused, and deferred_for_review; policy decisions remain separate."
+    evidence_refs:
+      - id: "admission-receipt-tests"
+        path: "tests/test_srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    migration:
+      current_owner: "arcs-srs"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "srs.mcp.sdk_enforcement.outcome_emission"
+    owning_layer: "L4"
+    semantic_authority:
+      repository: "arcs-srs"
+      artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+      version: "v0.1"
+      status: "resolved"
+    provider_implementation:
+      repository: "dagr-mcp"
+      role: "emitter"
+      artifact_ref: "dagr_mcp/srs_receipts.py"
+      version: "v0.1"
+    consumer_implementation:
+      repository: "arcs-verify"
+      role: "verifier_counterpart"
+      artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/"
+      version: "v0.2"
+    relationship: "emits"
+    version: "v0.1"
+    contract_type: "evidence_profile"
+    stability: "frozen"
+    assertion_status: "validated"
+    known_consumers:
+      - "arcs-verify"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Outcome receipts are conditional; refused and deferred calls do not execute and do not force outcome receipts."
+    evidence_refs:
+      - id: "behavioral-freeze"
+        path: "docs/BEHAVIORAL_FREEZE.md"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    migration:
+      current_owner: "arcs-srs"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "srs.mcp.sdk_enforcement.admission_outcome_linkage"
+    owning_layer: "L4"
+    semantic_authority:
+      repository: "arcs-srs"
+      artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+      version: "v0.1"
+      status: "resolved"
+    provider_implementation:
+      repository: "dagr-mcp"
+      role: "emitter"
+      artifact_ref: "dagr_mcp/srs_receipts.py"
+      version: "v0.1"
+    consumer_implementation:
+      repository: "arcs-verify"
+      role: "verifier_counterpart"
+      artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/"
+      version: "v0.2"
+    relationship: "emits"
+    version: "v0.1"
+    contract_type: "evidence_profile"
+    stability: "frozen"
+    assertion_status: "validated"
+    known_consumers:
+      - "behavioral freeze fixtures"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Outcome admission reference links to the admission receipt when an outcome receipt exists."
+    evidence_refs:
+      - id: "behavioral-freeze-linkage"
+        path: "tests/test_behavioral_freeze.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    migration:
+      current_owner: "arcs-srs"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "srs.trust_bundle.v0_1"
+    owning_layer: "L4"
+    semantic_authority:
+      repository: "arcs-srs"
+      artifact_ref: "schemas/srs-envelope/"
+      version: "v0.1"
+      status: "resolved"
+    provider_implementation:
+      repository: "dagr-mcp"
+      role: "emitter"
+      artifact_ref: "dagr_mcp/srs_receipts.py"
+      version: "v0.1"
+    consumer_implementation:
+      repository: "arcs-verify"
+      role: "verifier_counterpart"
+      artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/"
+      version: "v0.2"
+    relationship: "emits"
+    version: "v0.1"
+    contract_type: "evidence_profile"
+    stability: "preview"
+    assertion_status: "validated"
+    known_consumers:
+      - "arcs-verify"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Trust bundle production is an implementation fact, not SRS ownership."
+    evidence_refs:
+      - id: "trust-bundle-tests"
+        path: "tests/test_srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    migration:
+      current_owner: "arcs-srs"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "dagr.mcp.gateway_service_contract"
+    owning_layer: "L3"
+    semantic_authority:
+      repository: "dagr-mcp"
+      artifact_ref: "dagr_mcp_service/contract.py"
+      version: "v0.1"
+      status: "resolved"
+    provider_implementation:
+      repository: "dagr-mcp"
+      role: "provider"
+      artifact_ref: "dagr_mcp_service/contract.py"
+      version: "v0.1"
+    consumer_implementation: null
+    relationship: "implements"
+    version: "v0.1"
+    contract_type: "runtime_api"
+    stability: "preview"
+    assertion_status: "validated"
+    known_consumers:
+      - "service adapter"
+      - "remote connector"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Neutral service composition surface; not a network proxy claim."
+    evidence_refs:
+      - id: "gateway-service-tests"
+        path: "tests/test_gateway_service_contract.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    migration:
+      current_owner: "dagr-mcp"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "garp.mcp_record_custody_gateway.v0_1"
+    owning_layer: "L4"
+    semantic_authority:
+      repository: "dagr-mcp"
+      artifact_ref: "dagr_mcp/mcp_record_custody_gateway.py"
+      version: "v0.1"
+      status: "resolved"
+    provider_implementation:
+      repository: "dagr-mcp"
+      role: "provider"
+      artifact_ref: "dagr_mcp/mcp_record_custody_gateway.py"
+      version: "v0.1"
+    consumer_implementation: null
+    relationship: "implements"
+    version: "v0.1"
+    contract_type: "proof_pack_contract"
+    stability: "frozen"
+    assertion_status: "validated"
+    known_consumers:
+      - "behavioral freeze custody fixtures"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Refs-and-hashes-only custody projection; raw content remains excluded."
+    evidence_refs:
+      - id: "custody-fixtures"
+        path: "tests/golden/behavioral_freeze/custody_projections.json"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    migration:
+      current_owner: "dagr-mcp"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "dagr.amnesiac_optional_tools"
+    owning_layer: "L5"
+    semantic_authority:
+      repository: "arcs-amnesiac"
+      artifact_ref: null
+      version: null
+      status: "unresolved"
+    provider_implementation:
+      repository: "dagr-mcp"
+      role: "adapter"
+      artifact_ref: "dagr_mcp/amnesiac_native.py"
+      version: "v0.1"
+    consumer_implementation: null
+    relationship: "implements"
+    version: "v0.1"
+    contract_type: "adapter_contract"
+    stability: "preview"
+    assertion_status: "validated"
+    known_consumers:
+      - "optional Amnesiac integration"
+    compatibility:
+      assertion_status: "partial"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Optional exposure only; DAGR MCP does not own Amnesiac memory semantics."
+    evidence_refs:
+      - id: "amnesiac-tools"
+        path: "docs/AMNESIAC_TOOLS.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    migration:
+      current_owner: "arcs-amnesiac"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+consumed:
+  - contract_id: "srs.mcp.sdk_enforcement"
+    owning_layer: "L1"
+    semantic_authority:
+      repository: "arcs-srs"
+      artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+      version: "v0.1"
+      status: "resolved"
+    provider_implementation:
+      repository: "arcs-srs"
+      role: "semantic_authority"
+      artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+      version: "v0.1"
+    consumer_implementation:
+      repository: "dagr-mcp"
+      role: "consumer"
+      artifact_ref: "dagr_mcp/srs_receipts.py"
+      version: "v0.1"
+    relationship: "consumes"
+    version: "v0.1"
+    contract_type: "evidence_profile"
+    stability: "preview"
+    assertion_status: "validated"
+    known_consumers:
+      - "dagr-mcp"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Profile ID and version are current implementation byte facts."
+    evidence_refs:
+      - id: "profile-byte-facts"
+        path: "dagr_mcp/srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "consumes"
+    migration:
+      current_owner: "arcs-srs"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "srs.core.v5_1"
+    owning_layer: "L1"
+    semantic_authority:
+      repository: "arcs-srs"
+      artifact_ref: "schemas/srs-envelope/"
+      version: null
+      status: "historical"
+    provider_implementation:
+      repository: "arcs-srs"
+      role: "semantic_authority"
+      artifact_ref: "schemas/srs-envelope/"
+      version: null
+    consumer_implementation:
+      repository: "dagr-mcp"
+      role: "consumer"
+      artifact_ref: "dagr_mcp/srs_receipts.py"
+      version: "v0.1"
+    relationship: "consumes"
+    version: "v5.1"
+    contract_type: "evidence_profile"
+    stability: "preview"
+    assertion_status: "deprecated_reference"
+    known_consumers:
+      - "DAGR MCP current fixtures"
+    compatibility:
+      assertion_status: "deprecated_reference"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "srs.core.v5.1 is internal/pre-public lineage recorded as an emitted byte fact."
+    evidence_refs:
+      - id: "receipt-version-byte-fact"
+        path: "dagr_mcp/srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "emits"
+    migration:
+      current_owner: "arcs-srs"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+    notes: "This is not a public SRS release claim."
+  - contract_id: "arcs.verify.report.v0_2"
+    owning_layer: "L6"
+    semantic_authority:
+      repository: "arcs-verify"
+      artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/verification-report.schema.json"
+      version: "v0.2"
+      status: "resolved"
+    provider_implementation:
+      repository: "arcs-verify"
+      role: "verifier_counterpart"
+      artifact_ref: "arcs_verify/dagr_report_v0_2.py"
+      version: "v0.2"
+    consumer_implementation:
+      repository: "dagr-mcp"
+      role: "consumer"
+      artifact_ref: "tests/test_gateway_service_receipt_access.py"
+      version: "v0.1"
+    relationship: "validates"
+    version: "v0.2"
+    contract_type: "verification_report"
+    stability: "preview"
+    assertion_status: "validated"
+    known_consumers:
+      - "DAGR MCP release validation"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with:
+        - "v0.1"
+      unsupported_versions: []
+      migration_notes: "ARCS Verify is an independent validation counterpart, not a runtime import dependency."
+    evidence_refs:
+      - id: "arcs-verify-fixture-tests"
+        path: "packages/dagr-mcp-sdk-v2/tests/test_arcs_verify_v0_2_acceptance.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    migration:
+      current_owner: "arcs-verify"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "fastmcp.compatibility_constraint"
+    owning_layer: "L5"
+    semantic_authority:
+      repository: "fastmcp"
+      artifact_ref: "pyproject.toml"
+      version: null
+      status: "resolved"
+    provider_implementation:
+      repository: "fastmcp"
+      role: "provider"
+      artifact_ref: null
+      version: null
+    consumer_implementation:
+      repository: "dagr-mcp"
+      role: "consumer"
+      artifact_ref: "pyproject.toml"
+      version: "v0.1"
+    relationship: "consumes"
+    version: "v3.4.4"
+    contract_type: "adapter_contract"
+    stability: "preview"
+    assertion_status: "validated"
+    known_consumers:
+      - "root dagr-mcp distribution"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Constraint is fastmcp>=3.4.4,<4."
+    evidence_refs:
+      - id: "root-pyproject"
+        path: "pyproject.toml"
+        authority: "dagr-mcp"
+        relationship: "consumes"
+    migration:
+      current_owner: "fastmcp"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "official.mcp.sdk.python.v1_constraint"
+    owning_layer: "L5"
+    semantic_authority:
+      repository: "modelcontextprotocol/python-sdk"
+      artifact_ref: "pyproject.toml"
+      version: "v1.29.0"
+      status: "resolved"
+    provider_implementation:
+      repository: "modelcontextprotocol/python-sdk"
+      role: "provider"
+      artifact_ref: null
+      version: "v1.29.0"
+    consumer_implementation:
+      repository: "dagr-mcp"
+      role: "consumer"
+      artifact_ref: "pyproject.toml"
+      version: "v0.1"
+    relationship: "consumes"
+    version: "v1.29.0"
+    contract_type: "adapter_contract"
+    stability: "frozen"
+    assertion_status: "validated"
+    known_consumers:
+      - "official-sdk extra"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Exact mcp==1.29.0 pin for official SDK 1.x path."
+    evidence_refs:
+      - id: "official-sdk-v1-doc"
+        path: "docs/OFFICIAL_MCP_SDK_BINDING.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    migration:
+      current_owner: "modelcontextprotocol/python-sdk"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
+  - contract_id: "official.mcp.sdk.python.v2_constraint"
+    owning_layer: "L5"
+    semantic_authority:
+      repository: "modelcontextprotocol/python-sdk"
+      artifact_ref: "packages/dagr-mcp-sdk-v2/pyproject.toml"
+      version: "v2.0.0"
+      status: "resolved"
+    provider_implementation:
+      repository: "modelcontextprotocol/python-sdk"
+      role: "provider"
+      artifact_ref: null
+      version: "v2.0.0"
+    consumer_implementation:
+      repository: "dagr-mcp"
+      role: "consumer"
+      artifact_ref: "packages/dagr-mcp-sdk-v2/pyproject.toml"
+      version: "v0.2"
+    relationship: "consumes"
+    version: "v2.0.0"
+    contract_type: "adapter_contract"
+    stability: "frozen"
+    assertion_status: "validated"
+    known_consumers:
+      - "dagr-mcp-sdk-v2 package"
+    compatibility:
+      assertion_status: "validated"
+      backward_compatible_with: []
+      unsupported_versions: []
+      migration_notes: "Isolated package pins mcp==2.0.0 and is not co-installed with root FastMCP/mcp 1.x environment."
+    evidence_refs:
+      - id: "sdk-v2-doc"
+        path: "docs/DAGR_MCP_SDK_V2_BINDING.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+    migration:
+      current_owner: "modelcontextprotocol/python-sdk"
+      candidate_owner: null
+      candidate_verified: false
+      migration_authorized: false
+      migration_record_ref: null
+    integrity: {}
