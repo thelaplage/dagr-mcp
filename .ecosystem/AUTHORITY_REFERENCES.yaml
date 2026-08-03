@@ -1,0 +1,314 @@
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.authority-references.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+authorities:
+  - concern: "constitutional_architecture_inputs_A0_A6"
+    constitutional_layer: "L10"
+    semantic_authority:
+      repository: "arcs-ecosystem-kit"
+      artifact_ref: "docs/ARCS_CONSTITUTIONAL_LAYER_MODEL.md"
+      version: "v0.1"
+      status: "resolved"
+    current_implementation: null
+    candidate_implementation: null
+    historical_implementations:
+      - repository: "garp-doctrine"
+        role: "semantic_authority"
+        artifact_ref: "registry/doctrine_registry.json"
+        version: null
+    consumers:
+      - repository: "dagr-mcp"
+        role: "consumer"
+        artifact_ref: ".ecosystem/"
+        version: "v0.1"
+    producers:
+      - repository: "arcs-ecosystem-kit"
+        role: "schema_coordination"
+        artifact_ref: "schemas/"
+        version: "v0.1"
+    verifier_counterparts: []
+    operational_owners: []
+    migration:
+      authorized: false
+      record_ref: null
+      notes: "The A0-A6 input labels are proposed pilot coordinates over checked-out kit documents, not ratified doctrine."
+    assertion_status: "partial"
+    evidence_refs:
+      - id: "A0.docs.ARCS_CONSTITUTIONAL_LAYER_MODEL"
+        path: "sibling:arcs-ecosystem-kit:docs/ARCS_CONSTITUTIONAL_LAYER_MODEL.md"
+        authority: "arcs-ecosystem-kit"
+        relationship: "projects"
+      - id: "A1.docs.GARP_DOCTRINE_COMPATIBILITY"
+        path: "sibling:arcs-ecosystem-kit:docs/GARP_DOCTRINE_COMPATIBILITY.md"
+        authority: "arcs-ecosystem-kit"
+        relationship: "projects"
+      - id: "A2.docs.adr.0001-schema-identifier-namespace"
+        path: "sibling:arcs-ecosystem-kit:docs/adr/0001-schema-identifier-namespace.md"
+        authority: "arcs-ecosystem-kit"
+        relationship: "projects"
+      - id: "A3.docs.SCHEMA_CATALOG"
+        path: "sibling:arcs-ecosystem-kit:docs/SCHEMA_CATALOG.md"
+        authority: "arcs-ecosystem-kit"
+        relationship: "projects"
+      - id: "A4.docs.LAYER_AUTHORITY_RULES"
+        path: "sibling:arcs-ecosystem-kit:docs/LAYER_AUTHORITY_RULES.md"
+        authority: "arcs-ecosystem-kit"
+        relationship: "projects"
+      - id: "A5.docs.SCHEMA_OWNERSHIP"
+        path: "sibling:arcs-ecosystem-kit:docs/SCHEMA_OWNERSHIP.md"
+        authority: "arcs-ecosystem-kit"
+        relationship: "projects"
+      - id: "A6.docs.EXISTING_ECOSYSTEM_ASSET_MAP"
+        path: "sibling:arcs-ecosystem-kit:docs/EXISTING_ECOSYSTEM_ASSET_MAP.md"
+        authority: "arcs-ecosystem-kit"
+        relationship: "projects"
+    notes: >-
+      No literal A0-A6 document identifiers were found in the checked-out kit;
+      this declaration records the exact document paths used as proposed,
+      unratified inputs for this DAGR MCP reconciliation.
+  - concern: "srs_evidence_semantics"
+    constitutional_layer: "L1"
+    semantic_authority:
+      repository: "arcs-srs"
+      artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+      version: "v0.1"
+      status: "resolved"
+    current_implementation:
+      repository: "dagr-mcp"
+      role: "emitter"
+      artifact_ref: "dagr_mcp/srs_receipts.py"
+      version: "v0.1"
+    candidate_implementation: null
+    historical_implementations:
+      - repository: "garp-sdk"
+        role: "historical_implementation"
+        artifact_ref: "garp_sdk/boundary/contracts.py"
+        version: null
+    consumers:
+      - repository: "dagr-mcp"
+        role: "consumer"
+        artifact_ref: "dagr_mcp/vendor/srs/"
+        version: "v0.1"
+    producers:
+      - repository: "dagr-mcp"
+        role: "producer"
+        artifact_ref: "dagr_mcp/srs_receipts.py"
+        version: "v0.1"
+    verifier_counterparts:
+      - repository: "arcs-verify"
+        role: "verifier_counterpart"
+        artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/"
+        version: "v0.2"
+    operational_owners: []
+    migration:
+      authorized: false
+      record_ref: null
+      notes: "DAGR MCP emits evidence over SRS artifacts; SRS semantics remain with arcs-srs."
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "dagr-srs-receipts"
+        path: "dagr_mcp/srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "emits"
+      - id: "arcs-srs-profile"
+        path: "sibling:arcs-srs:docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+        authority: "arcs-srs"
+        relationship: "consumes"
+      - id: "receipt-tests"
+        path: "tests/test_srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    notes: "The emitted receipt_version value srs.core.v5.1 is internal/pre-public lineage, not a public SRS release."
+  - concern: "governed_action_and_protocol_semantics"
+    constitutional_layer: "L2"
+    semantic_authority:
+      repository: null
+      artifact_ref: null
+      version: null
+      status: "unresolved"
+    current_implementation:
+      repository: "dagr-mcp"
+      role: "runtime_binding"
+      artifact_ref: "dagr_mcp_lifecycle/contract.py"
+      version: "v0.1"
+    candidate_implementation:
+      repository: "dagr-mcp"
+      role: "candidate_implementation"
+      artifact_ref: ".ecosystem/CAPABILITY_BINDINGS.yaml"
+      version: "v0.1"
+    historical_implementations:
+      - repository: "garp-sdk"
+        role: "historical_implementation"
+        artifact_ref: "garp_sdk/runtime_surface_registry_contract.py"
+        version: null
+    consumers:
+      - repository: "dagr-mcp"
+        role: "consumer"
+        artifact_ref: "dagr_mcp/enforcement_harness.py"
+        version: "v0.1"
+    producers: []
+    verifier_counterparts: []
+    operational_owners: []
+    migration:
+      authorized: false
+      record_ref: null
+      notes: "No ratified L2 owner is established by DAGR MCP evidence."
+    assertion_status: "partial"
+    evidence_refs:
+      - id: "neutral-lifecycle-contract"
+        path: "docs/NEUTRAL_LIFECYCLE_CONTRACT.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+      - id: "kit-layer-rules"
+        path: "sibling:arcs-ecosystem-kit:docs/LAYER_AUTHORITY_RULES.md"
+        authority: "arcs-ecosystem-kit"
+        relationship: "projects"
+    notes: "Policy decisions and receipt dispositions are distinct vocabularies."
+  - concern: "mcp_execution_boundary"
+    constitutional_layer: "L5"
+    semantic_authority:
+      repository: null
+      artifact_ref: null
+      version: null
+      status: "unresolved"
+    current_implementation:
+      repository: "dagr-mcp"
+      role: "runtime_binding"
+      artifact_ref: "dagr_mcp/fastmcp_binding.py"
+      version: "v0.1"
+    candidate_implementation: null
+    historical_implementations: []
+    consumers:
+      - repository: "dagr-mcp"
+        role: "consumer"
+        artifact_ref: "docs/OFFICIAL_MCP_SDK_BINDING.md"
+        version: "v0.1"
+    producers:
+      - repository: "dagr-mcp"
+        role: "adapter"
+        artifact_ref: "packages/dagr-mcp-sdk-v2/src/dagr_mcp_sdk_v2/adapter.py"
+        version: "v0.2"
+    verifier_counterparts: []
+    operational_owners: []
+    migration:
+      authorized: false
+      record_ref: null
+      notes: "No boundary ownership migration is authorized by this pilot."
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "fastmcp-binding"
+        path: "dagr_mcp/fastmcp_binding.py"
+        authority: "dagr-mcp"
+        relationship: "implements"
+      - id: "official-sdk-binding"
+        path: "dagr_mcp_sdk_binding/adapter.py"
+        authority: "dagr-mcp"
+        relationship: "implements"
+      - id: "sdk-v2-binding"
+        path: "packages/dagr-mcp-sdk-v2/src/dagr_mcp_sdk_v2/adapter.py"
+        authority: "dagr-mcp"
+        relationship: "implements"
+  - concern: "independent_verification"
+    constitutional_layer: "L6"
+    semantic_authority:
+      repository: "arcs-verify"
+      artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/verification-report.schema.json"
+      version: "v0.2"
+      status: "resolved"
+    current_implementation:
+      repository: "arcs-verify"
+      role: "verifier_counterpart"
+      artifact_ref: "arcs_verify/dagr_report_v0_2.py"
+      version: "v0.2"
+    candidate_implementation: null
+    historical_implementations: []
+    consumers:
+      - repository: "dagr-mcp"
+        role: "consumer"
+        artifact_ref: "tests/test_gateway_service_receipt_access.py"
+        version: "v0.1"
+    producers: []
+    verifier_counterparts:
+      - repository: "arcs-verify"
+        role: "verifier_counterpart"
+        artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/"
+        version: "v0.2"
+    operational_owners: []
+    migration:
+      authorized: false
+      record_ref: null
+      notes: "ARCS Verify remains outside the producer runtime."
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "arcs-verify-report-contract"
+        path: "sibling:arcs-verify:arcs_verify/contracts/dagr-srs-verification-report-v0-2/README.md"
+        authority: "arcs-verify"
+        relationship: "validates"
+      - id: "dagr-independent-fixture-contract"
+        path: "tests/test_gateway_service_receipt_access.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+  - concern: "workbench_candidate_grouping"
+    constitutional_layer: "L5"
+    semantic_authority:
+      repository: null
+      artifact_ref: null
+      version: null
+      status: "unresolved"
+    current_implementation: null
+    candidate_implementation:
+      repository: "dagr-mcp"
+      role: "candidate_implementation"
+      artifact_ref: "sibling:dagr-workbench:registry/workbench-service-ownership-v0.1.json"
+      version: "v0.1"
+    historical_implementations: []
+    consumers:
+      - repository: "dagr-workbench"
+        role: "consumer"
+        artifact_ref: "registry/workbench-service-ownership-v0.1.json"
+        version: "v0.1"
+    producers: []
+    verifier_counterparts: []
+    operational_owners: []
+    migration:
+      authorized: false
+      record_ref: null
+      notes: "Workbench service grouping does not establish DAGR MCP ownership or traffic cutover."
+    assertion_status: "partial"
+    evidence_refs:
+      - id: "workbench-service-ownership"
+        path: "sibling:dagr-workbench:registry/workbench-service-ownership-v0.1.json"
+        authority: "dagr-workbench"
+        relationship: "projects"
+  - concern: "countervail_receipt_ingest_expectation"
+    constitutional_layer: "L9"
+    semantic_authority:
+      repository: "countervail-control-plane"
+      artifact_ref: "packages/dagr-receipt-ingest/contracts/srs-mcp-sdk-enforcement-v0-1/README.md"
+      version: "v0.1"
+      status: "resolved"
+    current_implementation: null
+    candidate_implementation: null
+    historical_implementations: []
+    consumers:
+      - repository: "countervail-control-plane"
+        role: "consumer"
+        artifact_ref: "packages/dagr-receipt-ingest/"
+        version: "v0.1"
+    producers:
+      - repository: "dagr-mcp"
+        role: "producer"
+        artifact_ref: "dagr_mcp/srs_receipts.py"
+        version: "v0.1"
+    verifier_counterparts: []
+    operational_owners: []
+    migration:
+      authorized: false
+      record_ref: null
+      notes: "Countervail ingest expectations are downstream consumer facts, not a DAGR MCP runtime dependency."
+    assertion_status: "partial"
+    evidence_refs:
+      - id: "countervail-dagr-ingest"
+        path: "sibling:countervail-control-plane:packages/dagr-receipt-ingest/contracts/srs-mcp-sdk-enforcement-v0-1/README.md"
+        authority: "countervail-control-plane"
+        relationship: "consumes"

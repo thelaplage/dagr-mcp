@@ -1,0 +1,129 @@
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.dependencies.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+dependencies:
+  - repository: "cryptography"
+    dependency_type: "runtime"
+    contract:
+      contract_id: "dagr.mcp.package_runtime_dependencies"
+      semantic_authority: "dagr-mcp"
+    version_requirement:
+      version_range: ">=46.0.4,<47"
+    required: true
+    required_for_release: true
+    reason: "Runtime signing and cryptographic operations for receipts."
+    compatibility_notes: "Python package dependency from pyproject.toml."
+  - repository: "rfc8785"
+    dependency_type: "runtime"
+    contract:
+      contract_id: "dagr.mcp.package_runtime_dependencies"
+      semantic_authority: "dagr-mcp"
+    version_requirement:
+      exact_version: "0.1.4"
+    required: true
+    required_for_release: true
+    reason: "Canonical JSON serialization used by receipt signing and fixtures."
+  - repository: "fastmcp"
+    dependency_type: "adapter"
+    contract:
+      contract_id: "fastmcp.compatibility_constraint"
+      semantic_authority: "fastmcp"
+    version_requirement:
+      version_range: ">=3.4.4,<4"
+    required: true
+    required_for_release: true
+    reason: "FastMCP binding path for the root distribution."
+  - repository: "modelcontextprotocol-python-sdk-v1"
+    dependency_type: "adapter"
+    contract:
+      contract_id: "official.mcp.sdk.python.v1_constraint"
+      semantic_authority: "modelcontextprotocol/python-sdk"
+    version_requirement:
+      exact_version: "1.29.0"
+    required: false
+    required_for_release: true
+    reason: "Official MCP SDK 1.x binding is available through the official-sdk extra and is release-tested in isolation."
+  - repository: "dagr-mcp-core"
+    dependency_type: "implementation"
+    contract:
+      contract_id: "dagr.mcp.lifecycle_contract"
+      semantic_authority: "dagr-mcp"
+    version_requirement:
+      version_range: "unpinned (editable workspace path dependency); currently co-developed at 0.2.0"
+    required: true
+    required_for_release: true
+    reason: "Internal monorepo implementation package providing the protocol-neutral lifecycle and receipt substrate consumed by the SDK v2 package."
+    compatibility_notes: "packages/dagr-mcp-core is an internal package in this repository. packages/dagr-mcp-sdk-v2/pyproject.toml declares its distribution name without a version pin, and both packages are installed editable from the same monorepo checkout. This records an implementation dependency only; it does not establish a canonical architectural layer, separate repository authority, or external distribution commitment."
+  - repository: "modelcontextprotocol-python-sdk-v2"
+    dependency_type: "adapter"
+    contract:
+      contract_id: "official.mcp.sdk.python.v2_constraint"
+      semantic_authority: "modelcontextprotocol/python-sdk"
+    version_requirement:
+      exact_version: "2.0.0"
+    required: true
+    required_for_release: true
+    reason: "Official MCP SDK 2.x isolated binding package dependency."
+    compatibility_notes: "Must not be co-installed with the root FastMCP/mcp 1.x environment."
+  - repository: "arcs-amnesiac"
+    dependency_type: "implementation"
+    contract:
+      contract_id: "dagr.amnesiac_optional_tools"
+      semantic_authority: "arcs-amnesiac"
+    version_requirement:
+      version_range: ">=0.2.0"
+    required: false
+    required_for_release: false
+    reason: "Optional governed-memory integration exposed through DAGR MCP tools."
+  - repository: "garp-sdk"
+    dependency_type: "implementation"
+    contract:
+      contract_id: "garp_sdk.historical_source_estate"
+      semantic_authority: "garp-sdk"
+    version_requirement:
+      version_range: ">=0.1.0"
+    required: false
+    required_for_release: false
+    reason: "Optional integration package and historical source-estate vocabulary; not current semantic authority by default."
+  - repository: "arcs-srs"
+    dependency_type: "schema"
+    contract:
+      contract_id: "srs.mcp.sdk_enforcement"
+      semantic_authority: "arcs-srs"
+    version_requirement:
+      version_range: "v0.2.0-v0.2.1 envelope artifacts; profile v0.1"
+    required: true
+    required_for_release: true
+    reason: "Vendored SRS envelope/profile artifacts are consumed for receipt emission and validation."
+    compatibility_notes: "srs.core.v5.1 remains internal/pre-public lineage in current receipt bytes."
+  - repository: "arcs-verify"
+    dependency_type: "validation"
+    contract:
+      contract_id: "arcs.verify.report.v0_2"
+      semantic_authority: "arcs-verify"
+    version_requirement:
+      exact_version: "0.2.0"
+    required: false
+    required_for_release: true
+    reason: "Independent verifier counterpart for serialized receipts and trust bundles; not imported by runtime code."
+    compatibility_notes: "Validation/release dependency only, never a runtime import dependency."
+  - repository: "arcs-ecosystem-kit"
+    dependency_type: "validation"
+    contract:
+      contract_id: "ecosystem.schemas.v0_1"
+      semantic_authority: "arcs-ecosystem-kit"
+    version_requirement:
+      exact_version: "0.1.0"
+    required: false
+    required_for_release: false
+    reason: "Checked-out local schemas validate provisional declarations for this pilot without adding a package or runtime dependency."
+  - repository: "countervail-control-plane"
+    dependency_type: "optional_consumer"
+    contract:
+      contract_id: "countervail.dagr_receipt_ingest_contract"
+      semantic_authority: "countervail-control-plane"
+    version_requirement:
+      exact_version: "0.1.0"
+    required: false
+    required_for_release: false
+    reason: "Downstream recorded-receipt consumer expectation, not part of DAGR MCP runtime."

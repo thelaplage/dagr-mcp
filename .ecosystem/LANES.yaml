@@ -1,0 +1,89 @@
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.lanes.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+lanes:
+  - lane_id: "dagr-mcp-ecosystem-declarations-pilot-v0-1"
+    status: "complete"
+    owner:
+      name: "dagr-mcp maintainers"
+    start_date: "2026-08-02"
+    objective: >-
+      Adopt a repository-local .ecosystem/ declaration tree in dagr-mcp that
+      projects current repository bytes into the finalized arcs-ecosystem-kit
+      v0.1 schema shape, without changing runtime, receipt, policy, MCP,
+      FastMCP, Amnesiac, service, or verifier behavior.
+    repositories_touched:
+      - "dagr-mcp"
+    capabilities_touched:
+      - "TOOL_EXECUTION"
+      - "RESOURCE_READ"
+      - "EXTERNAL_ACTION"
+      - "CREDENTIALED_ACTION"
+      - "MEMORY_PROPOSE"
+      - "MEMORY_RECORD_OUTCOME"
+      - "MEMORY_COMPILE_CONTEXT"
+      - "MEMORY_REQUEST_REOPENING"
+      - "MEMORY_ADMIT"
+    contracts_touched:
+      - "dagr.mcp.lifecycle_contract"
+      - "dagr.mcp.lifecycle_binding_mask"
+      - "srs.mcp.sdk_enforcement"
+      - "arcs.verify.report.v0_2"
+      - "dagr.mcp.gateway_service_contract"
+      - "dagr.amnesiac_optional_tools"
+    produced_artifacts:
+      - artifact_id: "ecosystem-declarations"
+        artifact_type: "schema"
+        path_or_ref: ".ecosystem/"
+        claim_status: "validated"
+      - artifact_id: "ecosystem-pilot-adjudication"
+        artifact_type: "document"
+        path_or_ref: "docs/ECOSYSTEM_PILOT_ADJUDICATION.md"
+        claim_status: "validated"
+      - artifact_id: "ecosystem-declaration-tests"
+        artifact_type: "test"
+        path_or_ref: "tests/test_ecosystem_declarations.py"
+        claim_status: "validated"
+    consumed_upstream_work:
+      - work_id: "ARCS_CONSTITUTIONAL_LAYER_MODEL_v0_1"
+        semantic_authority: "arcs-ecosystem-kit"
+        claim_status: "partial"
+        notes: "Proposed, unratified input."
+      - work_id: "GARP_DOCTRINE_COMPATIBILITY"
+        semantic_authority: "arcs-ecosystem-kit"
+        claim_status: "validated"
+        notes: "Compatibility layer over existing garp-doctrine discipline."
+      - work_id: "SCHEMA_IDENTIFIER_NAMESPACE_ADR_0001"
+        semantic_authority: "arcs-ecosystem-kit"
+        claim_status: "validated"
+        notes: "Accepted in the kit lane for PR 1 schema identifiers."
+    overlap_keys:
+      - "repository_classification"
+      - "capability_mapping"
+      - "contract_declarations"
+      - "dependency_declarations"
+      - "verifier_boundary"
+      - "conformance_modeling"
+    blockers: []
+    downstream_blocks: []
+    expected_completion_milestone: "repository-local ecosystem declarations adopted"
+    completion_gates:
+      - gate_id: "focused-ecosystem-declaration-tests"
+        description: "Schema-backed declaration tests pass."
+        status: "passed"
+      - gate_id: "full-existing-tests"
+        description: "Full repository test suite passes in the isolated environment."
+        status: "passed"
+      - gate_id: "public-release-guard"
+        description: "Public-release guard passes."
+        status: "passed"
+    notes: >-
+      This lane does not touch runtime behavior, receipt semantics, SRS
+      profiles, ARCS Verify, or package dependencies. An earlier, unmerged
+      local branch (feat/ecosystem-doctrine-pilot-v0-1, no open PR) drafted an
+      equivalent declaration tree from the same repository base
+      (653946d60c6f34625008992c80daadceb5a58652) and was the source the
+      arcs-ecosystem-kit pilot fixture imported; this lane re-verifies that
+      content against live repository bytes, corrects one drifted claim (the
+      dagr-mcp-core dependency pin), and lands it on the currently designated
+      branch instead of leaving two divergent unmerged trees.

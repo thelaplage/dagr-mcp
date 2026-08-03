@@ -1,0 +1,167 @@
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.responsibilities.v0.1.schema.json"
+schema_version: "0.1"
+repository: "dagr-mcp"
+responsibilities:
+  - id: "mcp_interception_binding_behavior"
+    summary: "Implement MCP interception and binding behavior at configured boundaries."
+    constitutional_layer: "L5"
+    current_owner: "dagr-mcp"
+    candidate_owner: null
+    candidate_verified: false
+    migration_authorized: false
+    relationship: "implements"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "fastmcp-binding"
+        path: "dagr_mcp/fastmcp_binding.py"
+        authority: "dagr-mcp"
+        relationship: "implements"
+  - id: "native_mcp_to_neutral_lifecycle_projection"
+    summary: "Project native MCP activity into the neutral lifecycle contract."
+    constitutional_layer: "L3"
+    current_owner: "dagr-mcp"
+    candidate_owner: null
+    candidate_verified: false
+    migration_authorized: false
+    relationship: "projects"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "neutral-lifecycle-core"
+        path: "docs/NEUTRAL_LIFECYCLE_CORE.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+  - id: "configured_boundary_enforcement"
+    summary: "Stop refused and deferred calls before execution at the configured boundary."
+    constitutional_layer: "L3"
+    current_owner: "dagr-mcp"
+    candidate_owner: null
+    candidate_verified: false
+    migration_authorized: false
+    relationship: "implements"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "enforcement-tests"
+        path: "tests/test_enforcement_harness.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+  - id: "producer_side_receipt_emission"
+    summary: "Emit producer-side SRS admission and outcome receipts as metadata-only evidence."
+    constitutional_layer: "L4"
+    current_owner: "dagr-mcp"
+    candidate_owner: null
+    candidate_verified: false
+    migration_authorized: false
+    relationship: "emits"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "receipt-tests"
+        path: "tests/test_srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+    notes: "SRS semantics remain with arcs-srs."
+  - id: "binding_version_registration"
+    summary: "Maintain repository-local binding identifiers used in receipts."
+    constitutional_layer: "L5"
+    current_owner: "dagr-mcp"
+    candidate_owner: null
+    candidate_verified: false
+    migration_authorized: false
+    relationship: "implements"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "binding-versions"
+        path: "docs/BINDING_VERSIONS.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+  - id: "producer_side_raw_content_exclusion"
+    summary: "Exclude raw prompts, arguments, tool results, and model output from receipts."
+    constitutional_layer: "L4"
+    current_owner: "dagr-mcp"
+    candidate_owner: null
+    candidate_verified: false
+    migration_authorized: false
+    relationship: "implements"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "raw-content-exclusion"
+        path: "tests/test_srs_receipts.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+  - id: "receipt_sink_and_gap_behavior"
+    summary: "Implement receipt sink handling and local receipt-gap behavior."
+    constitutional_layer: "L4"
+    current_owner: "dagr-mcp"
+    candidate_owner: null
+    candidate_verified: false
+    migration_authorized: false
+    relationship: "implements"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "gateway-receipt-composition"
+        path: "tests/test_gateway_service_receipt_composition.py"
+        authority: "dagr-mcp"
+        relationship: "validates"
+  - id: "optional_amnesiac_operation_exposure"
+    summary: "Expose optional Amnesiac operations through DAGR MCP tool paths."
+    constitutional_layer: "L5"
+    current_owner: "dagr-mcp"
+    candidate_owner: null
+    candidate_verified: false
+    migration_authorized: false
+    relationship: "implements"
+    assertion_status: "validated"
+    evidence_refs:
+      - id: "amnesiac-tools"
+        path: "docs/AMNESIAC_TOOLS.md"
+        authority: "dagr-mcp"
+        relationship: "projects"
+unowned_responsibilities:
+  - concern: "ARCS validity"
+    authority_repository: null
+    reason: "DAGR MCP emits and validates local behavior but does not own ARCS validity."
+  - concern: "SRS normative semantics"
+    authority_repository: "arcs-srs"
+    reason: "SRS envelope/profile semantics belong to arcs-srs."
+  - concern: "independent verification verdicts"
+    authority_repository: "arcs-verify"
+    reason: "ARCS Verify owns independent verification report contracts and verdict vocabulary."
+  - concern: "organization-wide policy authority"
+    authority_repository: null
+    reason: "DAGR MCP consumes configured policy decisions but does not own organization policy."
+  - concern: "public evidence-view semantics"
+    authority_repository: "GARPedia"
+    reason: "Public projection and evidence presentation are outside this repository."
+  - concern: "historical truth of underlying events"
+    authority_repository: null
+    reason: "Receipts attest producer-side boundary facts, not underlying event truth."
+  - concern: "model or provider retention behavior"
+    authority_repository: null
+    reason: "DAGR MCP cannot govern provider retention outside the configured connector boundary."
+  - concern: "MCP traffic bypassing the configured boundary"
+    authority_repository: null
+    reason: "Only configured binding paths are governed here."
+  - concern: "underlying server-internal retention"
+    authority_repository: null
+    reason: "Underlying MCP server internals are outside DAGR MCP control."
+  - concern: "canonical governed-action/protocol capability semantics"
+    authority_repository: null
+    reason: "Current repository evidence does not establish a ratified L2 owner."
+escalation_paths:
+  - concern: "SRS envelope and profile semantics"
+    authority_repository: "arcs-srs"
+    reason: "Schema/profile questions must go to the SRS authority."
+    artifact_ref: "docs/profiles/SRS_MCP_SDK_ENFORCEMENT_PROFILE_v0_1.md"
+  - concern: "independent verification report semantics"
+    authority_repository: "arcs-verify"
+    reason: "Verification report semantics belong to the independent verifier counterpart."
+    artifact_ref: "arcs_verify/contracts/dagr-srs-verification-report-v0-2/README.md"
+  - concern: "L2 governed-action/protocol authority"
+    authority_repository: null
+    reason: "The proposed constitutional model records this as unresolved."
+    artifact_ref: ".ecosystem/AUTHORITY_REFERENCES.yaml"
+native_registry_refs:
+  - id: "repository-readme"
+    path: "README.md"
+    authority: "dagr-mcp"
+    summary_role: "Repository-local truth for mission, non-goals, and boundary limits."
+notes: "Responsibilities are implementation responsibilities only; semantic authority and verifier counterparts remain separate."

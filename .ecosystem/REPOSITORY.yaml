@@ -1,0 +1,77 @@
+schema: "https://schemas.arcs.dev/ecosystem/ecosystem.repository.v0.1.schema.json"
+schema_version: "0.1"
+repository:
+  name: "dagr-mcp"
+  types:
+    - "runtime_binding"
+    - "adapter"
+    - "reference_app"
+  lifecycle_state: "preview"
+  owning_layer: "adapter"
+  substrate_surface_role: "substrate"
+  canonical_repository_url: "https://github.com/thelaplage/dagr-mcp"
+  doctrine:
+    canonical_doctrine_repo: "thelaplage/garp-doctrine"
+    pinned_doctrine_release: "not_declared_in_this_repository"
+    last_doctrine_sync: "2026-08-02"
+constitutional_roles:
+  primary_layer: "L5"
+  secondary_layers:
+    - "L3"
+    - "L4"
+authority:
+  status: "current_implementation"
+  canonical_doctrine_repository: "thelaplage/garp-doctrine"
+  semantic_authority_for: []
+  implementation_roles:
+    - "runtime_binding"
+    - "adapter"
+    - "emitter"
+    - "producer"
+  notes: >-
+    DAGR MCP is a current implementation of the MCP execution boundary and
+    producer-side evidence emission. It is not the semantic authority for SRS,
+    governed-action capability semantics, independent verification, or
+    organization policy.
+mission: >-
+  DAGR MCP is the governed runtime boundary for MCP tool calls: it projects
+  binding-specific requests into protocol-neutral lifecycle decisions, emits
+  signed metadata-only SRS receipts, and stops refused or deferred calls before
+  execution.
+owned_concerns:
+  - "MCP interception and binding behavior at configured boundaries"
+  - "native MCP-to-neutral lifecycle projection"
+  - "execution enforcement at the configured boundary"
+  - "producer-side admission receipt emission"
+  - "producer-side outcome receipt emission"
+  - "binding-version registration"
+  - "producer-side raw-content exclusion"
+  - "receipt sink and gap behavior"
+  - "optional Amnesiac operation exposure through DAGR MCP tools"
+unowned_concerns:
+  - "ARCS validity"
+  - "SRS normative semantics"
+  - "independent verification verdicts"
+  - "organization-wide policy authority"
+  - "public evidence-view semantics"
+  - "historical truth of underlying events"
+  - "model or provider retention behavior"
+  - "MCP traffic bypassing the configured boundary"
+  - "underlying server-internal retention"
+  - "canonical governed-action or protocol capability semantics"
+ownership:
+  owners:
+    - name: "thelaplage"
+      role: "repository owner"
+status_metadata:
+  claim_status: "validated"
+  last_reviewed: "2026-08-02"
+  known_drifts:
+    - "The constitutional layer model is a proposed coordination input, not ratified doctrine."
+    - "Final package-index distribution name remains operator-gated."
+    - "L2 governed-action/protocol authority remains unresolved in current evidence."
+  requires_threat_audit: false
+  notes: >-
+    This declaration records repository-local implementation truth against the
+    checked-out arcs-ecosystem-kit v0.1 schema shape without adding a runtime
+    dependency on that kit.
