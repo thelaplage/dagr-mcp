@@ -263,5 +263,8 @@ def test_architecture_passport_known_exceptions_match_exceptions_file() -> None:
 def test_active_lane_id_is_unique_within_lane_file() -> None:
     lanes = _declarations()["LANES.yaml"]["lanes"]
     lane_ids = [lane["lane_id"] for lane in lanes]
-    assert lane_ids == ["dagr-mcp-ecosystem-declarations-pilot-v0-1"]
+    assert lane_ids == [
+        "dagr-mcp-ecosystem-declarations-pilot-v0-1",
+        "dagr-mcp-layer-declaration-v0-1",
+    ]
     assert len(lane_ids) == len(set(lane_ids))

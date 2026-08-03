@@ -87,3 +87,72 @@ lanes:
       content against live repository bytes, corrects one drifted claim (the
       dagr-mcp-core dependency pin), and lands it on the currently designated
       branch instead of leaving two divergent unmerged trees.
+  - lane_id: "dagr-mcp-layer-declaration-v0-1"
+    status: "review"
+    owner:
+      name: "dagr-mcp maintainers"
+    start_date: "2026-08-03"
+    objective: >-
+      Extend the Aug-02 .ecosystem/ declaration tree to reconcile against live
+      repository bytes after the merged F0 first-run proof harness (PR #27)
+      and confirm the Constitutional Layer Model v0.1 projection already
+      adopted in the ecosystem-declarations-pilot lane (L3 runtime and policy
+      implementation, L4 evidence production, L5 product and protocol
+      adapters). Declaration-only: no runtime, receipt, policy, MCP, FastMCP,
+      SDK-binding, Amnesiac, service, or verifier behavior changes.
+    repositories_touched:
+      - "dagr-mcp"
+    capabilities_touched:
+      - "TOOL_EXECUTION"
+    contracts_touched:
+      - "dagr.mcp.lifecycle_contract"
+      - "srs.mcp.sdk_enforcement.admission_emission"
+      - "srs.mcp.sdk_enforcement.outcome_emission"
+    produced_artifacts:
+      - artifact_id: "conformance-first-run-proof-gate"
+        artifact_type: "schema"
+        path_or_ref: ".ecosystem/CONFORMANCE_PROJECTION.yaml"
+        claim_status: "validated"
+      - artifact_id: "first-run-proof-pack-ref"
+        artifact_type: "test"
+        path_or_ref: "tests/test_first_run_proof.py"
+        claim_status: "validated"
+    consumed_upstream_work:
+      - work_id: "dagr-mcp-ecosystem-declarations-pilot-v0-1"
+        semantic_authority: "dagr-mcp"
+        claim_status: "validated"
+        notes: "Prior lane already adopted the L3/L5 primary/secondary constitutional_layers projection in ARCHITECTURE_PASSPORT.yaml and REPOSITORY.yaml; this lane reconciles it against bytes added after that lane closed."
+    overlap_keys:
+      - "conformance_modeling"
+      - "layer_projection"
+    blockers: []
+    downstream_blocks: []
+    expected_completion_milestone: "declaration tree reconciled to post-F0 live bytes with layer projection confirmed"
+    completion_gates:
+      - gate_id: "focused-ecosystem-declaration-tests"
+        description: "Schema-backed declaration tests pass against the pinned sibling arcs-ecosystem-kit checkout."
+        status: "passed"
+      - gate_id: "full-existing-tests"
+        description: "Full repository test suite passes in the isolated environment."
+        status: "passed"
+      - gate_id: "public-release-guard"
+        description: "Public-release guard passes."
+        status: "passed"
+    notes: >-
+      The L3/L4/L5 constitutional-layer projection (constitutional_layers,
+      secondary_implementation_roles, per-concern constitutional_layer fields
+      across AUTHORITY_REFERENCES.yaml, BOUNDARIES.yaml,
+      CAPABILITY_BINDINGS.yaml, CONTRACT_BINDINGS.yaml, and
+      RESPONSIBILITIES.yaml) was already adopted by the prior
+      ecosystem-declarations-pilot lane and is unchanged here. This lane's
+      only content change is recording the F0 first-run proof harness
+      (dagr_mcp/first_run_demo.py, tests/test_first_run_proof.py, merged as
+      362f7a5 / PR #27) as new L4 evidence: one CONFORMANCE_PROJECTION.yaml
+      passed_gate, one proof_pack_ref (assertion_status recorded_end_to_end,
+      not independently_verified or validated, since it is single-repository
+      and has no cross-repo or independent-verifier counterpart yet), and one
+      evidence_ref. No LAYER_CATALOG.yaml is added, consistent with the prior
+      lane's finding that it is not part of the kit's own pilot declaration
+      set. No kit fixture drift was found against arcs-ecosystem-kit @
+      20a9937d286911eb128bb015f6ab081b7f04e9d7 (unchanged since the prior
+      lane).

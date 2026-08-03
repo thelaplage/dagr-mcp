@@ -65,7 +65,7 @@ ownership:
       role: "repository owner"
 status_metadata:
   claim_status: "validated"
-  last_reviewed: "2026-08-02"
+  last_reviewed: "2026-08-03"
   known_drifts:
     - "The constitutional layer model is a proposed coordination input, not ratified doctrine."
     - "Final package-index distribution name remains operator-gated."
