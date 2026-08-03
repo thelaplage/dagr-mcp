@@ -37,9 +37,30 @@ the root distribution or select itself as a production default.
 ### Service and connector composition
 
 `dagr_mcp_service` implements neutral request/response, binding selection,
-in-process and remote connectors, receipt access and composition seams. The
-historical gateway scope document records the pre-implementation analysis and is
-marked accordingly.
+in-process, remote (Streamable HTTP), and stdio child-process connectors,
+receipt access and composition seams. The stdio connector
+(`dagr_mcp_service.connectors.stdio`) governs an unmodified, operator-launched
+external MCP server child process without importing or forking that server's
+implementation: admission happens before any process is spawned, a refused or
+deferred call never reaches the child, and every call is a fresh spawn /
+negotiate / call / teardown cycle with no long-lived child state.
+
+Its public claim is bounded to a **generic governed one-shot/restart-safe
+stdio MCP connector v0.1**. Admission is decided and the admission receipt
+emitted before the child is spawned; REFUSED and DEFERRED calls reach the
+child zero times; an ADMITTED call is forwarded exactly once. Because each
+call is one-shot, MCP servers requiring long-lived session state, server
+subscriptions, persistent server-side resources, cross-call initialization
+state, or retained sampling roots are **unsupported in v0.1** (future scope,
+not hidden defects). After a call has been forwarded, a timeout,
+cancellation, or connection loss may leave the external side effect
+**uncertain**: `outcome="exception"` records that the transport or tool
+result was not successfully observed, and does not prove the side effect did
+not occur. Verification checks the emitted evidence, not the truth of the
+real-world event.
+
+The historical gateway scope document records the pre-implementation analysis
+and is marked accordingly.
 
 ### Amnesiac operations
 
