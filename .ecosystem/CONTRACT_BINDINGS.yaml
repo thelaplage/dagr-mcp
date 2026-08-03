@@ -35,12 +35,12 @@ provided:
     assertion_status: "validated"
     known_consumers:
       - "dagr-mcp bindings"
-      - "packages/dagr-mcp-core"
+      - "internal monorepo package packages/dagr-mcp-core"
     compatibility:
       assertion_status: "validated"
       backward_compatible_with: []
       unsupported_versions: []
-      migration_notes: "Protocol-neutral lifecycle contract is tested against binding projections."
+      migration_notes: "Protocol-neutral lifecycle contract is tested against binding projections. The packages/dagr-mcp-core name identifies an internal implementation package and is not a canonical ecosystem architecture or external distribution commitment."
     evidence_refs:
       - id: "neutral-lifecycle-tests"
         path: "tests/test_neutral_lifecycle_contract.py"

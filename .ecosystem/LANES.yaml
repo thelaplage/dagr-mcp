@@ -3,7 +3,7 @@ schema_version: "0.1"
 repository: "dagr-mcp"
 lanes:
   - lane_id: "dagr-mcp-ecosystem-declarations-pilot-v0-1"
-    status: "active"
+    status: "complete"
     owner:
       name: "dagr-mcp maintainers"
     start_date: "2026-08-02"
@@ -66,7 +66,7 @@ lanes:
       - "conformance_modeling"
     blockers: []
     downstream_blocks: []
-    expected_completion_milestone: "PR P1 ready for review"
+    expected_completion_milestone: "repository-local ecosystem declarations adopted"
     completion_gates:
       - gate_id: "focused-ecosystem-declaration-tests"
         description: "Schema-backed declaration tests pass."
@@ -86,4 +86,4 @@ lanes:
       arcs-ecosystem-kit pilot fixture imported; this lane re-verifies that
       content against live repository bytes, corrects one drifted claim (the
       dagr-mcp-core dependency pin), and lands it on the currently designated
-      branch instead of leaving two divergent unmerged trees."
+      branch instead of leaving two divergent unmerged trees.

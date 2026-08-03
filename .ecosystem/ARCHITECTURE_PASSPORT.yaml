@@ -19,8 +19,8 @@ secondary_implementation_roles:
     role: "emitter"
     notes: "Producer-side metadata-only SRS receipt emission."
 mission: >-
-  DAGR MCP is the governed runtime boundary for MCP tool calls and the
-  producer-side emitter of signed metadata-only SRS receipts.
+  DAGR MCP provides a governed runtime boundary at configured MCP
+  tool-call boundaries and emits signed metadata-only SRS receipts.
 owned_concerns:
   - id: "mcp_execution_boundary"
     description: "Configured MCP tool-call interception and execution control."
@@ -216,8 +216,8 @@ non_goals:
   - "certification service"
 conformance:
   declared_level: "C"
-  status: "partial"
-  notes: "Evidence, verifier compatibility, and enforced non-execution pass; reproducible integration and cross-binding portability remain partial."
+  status: "validated"
+  notes: "Level C is validated by evidence conformance, independent-verifier compatibility, and enforced non-execution. Level D reproducibility and Level E cross-implementation portability remain partial."
 known_exceptions:
   - "DAGR-MCP-ECO-001"
   - "DAGR-MCP-ECO-002"

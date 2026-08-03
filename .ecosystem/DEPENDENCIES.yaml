@@ -32,7 +32,7 @@ dependencies:
       version_range: ">=3.4.4,<4"
     required: true
     required_for_release: true
-    reason: "Legacy FastMCP compatibility path for the root distribution."
+    reason: "FastMCP binding path for the root distribution."
   - repository: "modelcontextprotocol-python-sdk-v1"
     dependency_type: "adapter"
     contract:
@@ -52,8 +52,8 @@ dependencies:
       version_range: "unpinned (editable workspace path dependency); currently co-developed at 0.2.0"
     required: true
     required_for_release: true
-    reason: "Extracted protocol-neutral lifecycle and receipt substrate for the SDK v2 package."
-    compatibility_notes: "packages/dagr-mcp-sdk-v2/pyproject.toml declares the bare name \"dagr-mcp-core\" with no version pin; both packages are installed editable from the same monorepo checkout (pip install -e packages/dagr-mcp-core -e packages/dagr-mcp-sdk-v2), not resolved from an index."
+    reason: "Internal monorepo implementation package providing the protocol-neutral lifecycle and receipt substrate consumed by the SDK v2 package."
+    compatibility_notes: "packages/dagr-mcp-core is an internal package in this repository. packages/dagr-mcp-sdk-v2/pyproject.toml declares its distribution name without a version pin, and both packages are installed editable from the same monorepo checkout. This records an implementation dependency only; it does not establish a canonical architectural layer, separate repository authority, or external distribution commitment."
   - repository: "modelcontextprotocol-python-sdk-v2"
     dependency_type: "adapter"
     contract:

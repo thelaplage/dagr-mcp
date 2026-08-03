@@ -4,7 +4,7 @@ repository: "dagr-mcp"
 standard_identifier: "arcs.ecosystem.conformance_projection"
 standard_version: "v0.1"
 declared_conformance_level: "C"
-status: "partial"
+status: "validated"
 relationship: "projects"
 assertion_status: "validated"
 authority_repository: "arcs-ecosystem-kit"
@@ -73,7 +73,6 @@ evidence_refs:
     relationship: "validates"
 integrity: {}
 notes: >-
-  Dimension-level status remains more precise than a single A-E label. The
-  projected C level reflects evidence conformance, independent verifier
-  compatibility, and enforced non-execution; reproducibility and portability
-  remain partial.
+  Level C is validated by evidence conformance, independent-verifier
+  compatibility, and enforced non-execution. Level D reproducibility and
+  Level E cross-implementation portability remain partial.
