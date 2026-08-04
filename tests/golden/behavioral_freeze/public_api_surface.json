@@ -47,6 +47,8 @@
       "CREATE_TASK_RESULT_IMPORT_PATH",
       "DAGRMiddleware",
       "DAGRMiddlewareConfig",
+      "OperatorAdmissionDecision",
+      "OperatorAdmissionResolver",
       "RequestSnapshot",
       "project_fastmcp_tool_result"
     ],

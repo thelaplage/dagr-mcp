@@ -35,6 +35,7 @@ from dagr_mcp.fastmcp_binding import (
     BindingPolicy,
     DAGRMiddleware,
     DAGRMiddlewareConfig,
+    OperatorAdmissionDecision,
     default_actor_resolution,
     project_fastmcp_tool_result,
 )
@@ -106,6 +107,7 @@ def build_binding(
     tmp_path: Path,
     *,
     policy_resolver: Any | None = None,
+    operator_admission_resolver: Any | None = None,
     actor_resolver: Any | None = None,
     review_object_creator: Any | None = None,
     tool_classes: dict[str, str] | None = None,
@@ -136,6 +138,7 @@ def build_binding(
             policy_pack_version="2026.07.11",
             tool_classes=tool_classes or {},
             policy_resolver=policy_resolver,
+            operator_admission_resolver=operator_admission_resolver,
             actor_resolver=actor_resolver,
             review_object_creator=review_object_creator,
             emergency_spool_path=emergency_spool_path,
@@ -712,3 +715,216 @@ async def test_fixture_overrides_capture_live_middleware_projection(tmp_path: Pa
     for receipt in receipts:
         assert receipt["logical_call_id"] == "call:fixture:fastmcp:1"
         assert receipt["subject_ref"] == "tool-call:fixture:fastmcp:1"
+
+
+# --------------------------------------------------------------------------- #
+# Gate A — product-neutral operator admission resolver                       #
+# --------------------------------------------------------------------------- #
+# The operator admission resolver is a sibling seam to ``policy_resolver`` on
+# ``DAGRMiddlewareConfig``: opt-in, neutral admitted/refused + policy_refused
+# only, consulted only when ``policy_resolver`` is unset. It does not touch
+# enforcement (``on_call_tool`` still gates before the delegate runs) or
+# receipt semantics; it only supplies the disposition input.
+
+NONDETERMINISTIC_RECEIPT_FIELDS = ("receipt_id", "issued_at", "receipt_signature")
+
+
+def _content_projection(receipt: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in receipt.items()
+        if key not in NONDETERMINISTIC_RECEIPT_FIELDS
+    }
+
+
+async def test_operator_admission_resolver_admit_runs_delegate_like_default(
+    tmp_path: Path,
+):
+    called = False
+
+    def resolver(_snapshot: Any, _actor: ActorResolution) -> OperatorAdmissionDecision:
+        return OperatorAdmissionDecision(disposition="admitted")
+
+    server, _middleware, identity, directory = build_server(
+        tmp_path,
+        operator_admission_resolver=resolver,
+    )
+
+    @server.tool
+    async def lookup(record_ref: str) -> dict[str, Any]:
+        nonlocal called
+        called = True
+        return {"record_ref": record_ref, "found": True}
+
+    async with Client(server) as client:
+        result = await client.call_tool("lookup", {"record_ref": "record:1"})
+
+    assert called is True
+    assert result.data == {"record_ref": "record:1", "found": True}
+    receipts = assert_all_receipts_verify(directory, identity)
+    admission, outcome = split_pair(receipts)
+    assert admission["disposition"] == "admitted"
+    assert outcome["admission_receipt_ref"] == admission["receipt_id"]
+    assert outcome["outcome"] == "result_returned"
+
+
+async def test_operator_admission_resolver_refuse_never_invokes_delegate(
+    tmp_path: Path,
+):
+    called = False
+
+    def resolver(_snapshot: Any, _actor: ActorResolution) -> OperatorAdmissionDecision:
+        return OperatorAdmissionDecision(
+            disposition="refused", refusal_ground="policy_refused"
+        )
+
+    server, _middleware, identity, directory = build_server(
+        tmp_path,
+        operator_admission_resolver=resolver,
+    )
+
+    @server.tool
+    async def destroy() -> str:
+        nonlocal called
+        called = True
+        return "unexpected"
+
+    async with Client(server) as client:
+        with pytest.raises(ToolError, match="Call refused by admission policy"):
+            await client.call_tool("destroy", {})
+
+    assert called is False
+    receipts = assert_all_receipts_verify(directory, identity)
+    assert len(receipts) == 1
+    assert receipts[0]["disposition"] == "refused"
+    assert receipts[0]["reason_code"] == "policy_refused"
+
+
+async def test_operator_admission_resolver_refuse_default_ground_is_policy_refused(
+    tmp_path: Path,
+):
+    def resolver(_snapshot: Any, _actor: ActorResolution) -> OperatorAdmissionDecision:
+        return OperatorAdmissionDecision(disposition="refused")
+
+    middleware, identity, directory = build_binding(
+        tmp_path, operator_admission_resolver=resolver
+    )
+
+    with pytest.raises(ToolError, match="Call refused by admission policy"):
+        await call_direct(middleware, "destroy", ToolResult(content=["unused"]))
+
+    receipts = assert_all_receipts_verify(directory, identity)
+    assert len(receipts) == 1
+    assert receipts[0]["disposition"] == "refused"
+    assert receipts[0]["reason_code"] == "policy_refused"
+
+
+async def test_unconfigured_operator_admission_resolver_is_byte_identical_to_default(
+    tmp_path: Path,
+):
+    """No resolver configured (the feature is opt-in) must reproduce today's
+    default admitted behavior exactly — same disposition, same tool_class,
+    same normalized receipt content as a baseline binding that never heard of
+    ``operator_admission_resolver``."""
+
+    def build(subdir: str, **kwargs: Any) -> tuple[DAGRMiddleware, SigningIdentity, Path]:
+        directory = tmp_path / subdir / "receipts"
+        sink = RawEnvelopeFileSink(directory)
+        identity = SigningIdentity.generate(
+            issuer_id="issuer:test:fastmcp",
+            key_id="issuer.test.fastmcp/key/1",
+        )
+        emitter = SignedReceiptEmitter(identity=identity, sink=sink)
+        middleware = DAGRMiddleware(
+            emitter=emitter,
+            config=DAGRMiddlewareConfig(
+                runtime_instance_id="runtime:test:fastmcp",
+                boundary_id="boundary:test:fastmcp",
+                policy_pack_id="policy:test:fastmcp",
+                policy_pack_version="2026.07.11",
+                logical_call_id_override="call:fixture:unconfigured-parity",
+                subject_ref_override="tool-call:fixture:unconfigured-parity",
+                additional_attestation_limits=(
+                    "The middleware is installed once at the institutional trust boundary; "
+                    "receipts attest only to observations at that boundary.",
+                ),
+                **kwargs,
+            ),
+        )
+        return middleware, identity, directory
+
+    baseline_middleware, baseline_identity, baseline_dir = build("baseline")
+    unconfigured_middleware, unconfigured_identity, unconfigured_dir = build(
+        "unconfigured", operator_admission_resolver=None
+    )
+
+    result = ToolResult(content=["ok"], structured_content={"ok": True})
+    await call_direct(baseline_middleware, "lookup", result)
+    await call_direct(unconfigured_middleware, "lookup", result)
+
+    baseline_receipts = assert_all_receipts_verify(baseline_dir, baseline_identity)
+    unconfigured_receipts = assert_all_receipts_verify(unconfigured_dir, unconfigured_identity)
+
+    def _parity_projection(receipt: dict[str, Any]) -> dict[str, Any]:
+        # ``admission_receipt_ref`` on the outcome receipt is a live back-
+        # reference to the sibling admission receipt's UUID-backed
+        # ``receipt_id`` — itself excluded as nondeterministic — so it varies
+        # independently of any observable behavior and is excluded here too.
+        return {
+            key: value
+            for key, value in _content_projection(receipt).items()
+            if key != "admission_receipt_ref"
+        }
+
+    baseline_projection = [_parity_projection(r) for r in baseline_receipts]
+    unconfigured_projection = [_parity_projection(r) for r in unconfigured_receipts]
+    assert baseline_projection == unconfigured_projection
+    assert split_pair(baseline_receipts)[0]["disposition"] == "admitted"
+
+
+async def test_operator_admission_resolver_raise_fails_closed_never_invokes_delegate(
+    tmp_path: Path,
+):
+    called = False
+
+    def resolver(_snapshot: Any, _actor: ActorResolution) -> OperatorAdmissionDecision:
+        raise RuntimeError("operator admission source unavailable")
+
+    server, _middleware, identity, directory = build_server(
+        tmp_path,
+        operator_admission_resolver=resolver,
+    )
+
+    @server.tool
+    async def destroy() -> str:
+        nonlocal called
+        called = True
+        return "unexpected"
+
+    async with Client(server) as client:
+        with pytest.raises(ToolError, match="Call refused by admission policy"):
+            await client.call_tool("destroy", {})
+
+    assert called is False
+    receipts = assert_all_receipts_verify(directory, identity)
+    assert len(receipts) == 1
+    assert receipts[0]["disposition"] == "refused"
+    assert receipts[0]["reason_code"] == "policy_refused"
+
+
+def test_operator_admission_resolver_surface_carries_no_product_vocabulary():
+    """Neutral-only surface guard: the resolver protocol/decision type and the
+    module they live in must never carry Countervail/FSI/MNPI/trading
+    vocabulary. DAGR stays product-neutral; a caller translates its own
+    product decision into ``OperatorAdmissionDecision`` before it reaches this
+    seam."""
+
+    import inspect as _inspect
+
+    from dagr_mcp import fastmcp_binding
+
+    banned = ("countervail", "fsi", "mnpi", "trading")
+    source = _inspect.getsource(fastmcp_binding)
+    lowered = source.lower()
+    for token in banned:
+        assert token not in lowered, f"banned product vocabulary {token!r} found in fastmcp_binding"

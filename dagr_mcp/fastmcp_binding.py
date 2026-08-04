@@ -131,6 +131,44 @@ class PolicyResolver(Protocol):
         ...
 
 
+OperatorAdmissionDisposition: TypeAlias = Literal["admitted", "refused"]
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorAdmissionDecision:
+    """Neutral admitted/refused decision, first tranche only (Gate A).
+
+    This is deliberately narrower than :class:`BindingPolicy`: no tool class,
+    no parent-receipt linkage, no attestation limits, and no
+    ``deferred_for_review`` — a caller translates its own product decision
+    into this neutral shape before it reaches DAGR, which never learns
+    product semantics. ``refusal_ground`` is fixed to the single neutral
+    refusal ground this tranche authorizes.
+    """
+
+    disposition: OperatorAdmissionDisposition
+    refusal_ground: Literal["policy_refused"] | None = None
+
+
+class OperatorAdmissionResolver(Protocol):
+    """Opt-in seam for a product-neutral admitted/refused decision.
+
+    Sibling to :class:`PolicyResolver` on :class:`DAGRMiddlewareConfig`. Where
+    ``policy_resolver`` returns a full binding-vocabulary :class:`BindingPolicy`,
+    this hook lets a caller supply only the neutral disposition, without
+    needing to speak ``tool_class`` / attestation-limit / receipt-linkage
+    vocabulary. Consulted only when ``policy_resolver`` is unset; unconfigured,
+    it changes nothing.
+    """
+
+    def __call__(
+        self,
+        snapshot: RequestSnapshot,
+        actor: ActorResolution,
+    ) -> OperatorAdmissionDecision | Awaitable[OperatorAdmissionDecision]:
+        ...
+
+
 ReviewObjectCreator: TypeAlias = Callable[
     [RequestSnapshot, ActorResolution, BindingPolicy],
     str | Awaitable[str],
@@ -148,6 +186,7 @@ class DAGRMiddlewareConfig:
     tool_classes: Mapping[str, ToolClass] = field(default_factory=dict)
     actor_resolver: ActorResolver | None = None
     policy_resolver: PolicyResolver | None = None
+    operator_admission_resolver: OperatorAdmissionResolver | None = None
     review_object_creator: ReviewObjectCreator | Any | None = None
     pre_execution_receipt_failure: Mapping[ToolClass, ReceiptFailureMode] = field(
         default_factory=lambda: {
@@ -466,10 +505,45 @@ class DAGRMiddleware(Middleware):
             if inspect.isawaitable(resolved):
                 resolved = await resolved
             return resolved
+        if self.config.operator_admission_resolver is not None:
+            return await self._resolve_operator_admission(snapshot, actor)
         return BindingPolicy(
             disposition="admitted",
             tool_class=self.config.tool_classes.get(snapshot.tool_name, "read"),
         )
+
+    async def _resolve_operator_admission(
+        self,
+        snapshot: RequestSnapshot,
+        actor: ActorResolution,
+    ) -> BindingPolicy:
+        """Project the neutral operator-admission decision onto a BindingPolicy.
+
+        Fails closed to a neutral refusal (``policy_refused``) if the resolver
+        raises, rather than letting the call proceed — never fail-open to
+        execution.
+        """
+
+        tool_class = self.config.tool_classes.get(snapshot.tool_name, "read")
+        resolver = self.config.operator_admission_resolver
+        assert resolver is not None
+        try:
+            decision = resolver(snapshot, actor)
+            if inspect.isawaitable(decision):
+                decision = await decision
+        except Exception:  # noqa: BLE001 - resolver failure must fail closed.
+            return BindingPolicy(
+                disposition="refused",
+                tool_class=tool_class,
+                reason_code="policy_refused",
+            )
+        if decision.disposition == "refused":
+            return BindingPolicy(
+                disposition="refused",
+                tool_class=tool_class,
+                reason_code=decision.refusal_ground or "policy_refused",
+            )
+        return BindingPolicy(disposition="admitted", tool_class=tool_class)
 
     def _receipt_context(
         self,
@@ -1119,6 +1193,8 @@ __all__ = [
     "DAGRMiddleware",
     "DAGRMiddlewareConfig",
     "BindingPolicy",
+    "OperatorAdmissionDecision",
+    "OperatorAdmissionResolver",
     "RequestSnapshot",
     "project_fastmcp_tool_result",
 ]
