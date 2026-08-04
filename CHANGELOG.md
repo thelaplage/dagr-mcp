@@ -14,6 +14,29 @@ and in package metadata does not by itself mean that a tag, a release, or public
 availability exists.
 
 ### Added
+- `dagr_mcp_service.connectors.stdio`, a **generic governed
+  one-shot/restart-safe stdio MCP connector v0.1** for external MCP servers:
+  launches an operator-configured child
+  command (explicit argv, additive-only environment) and speaks the standard
+  MCP stdio `initialize` / `tools/list` / `tools/call` lifecycle to it over
+  the same pinned `mcp` client the remote connector already uses, without
+  importing or forking the child server's implementation. Plugs into the
+  existing, frozen `connector.resolve(target_handle, tool_name)` seam with no
+  change to `dagr_mcp_service.adapter`, `contract.py`, or either lifecycle
+  binding — a refused or deferred call never reaches the child, an admitted
+  call is forwarded exactly once, and every call is an independent
+  spawn/negotiate/call/teardown cycle with no long-lived child process and no
+  orphan left behind. Because each call is one-shot, MCP servers requiring
+  long-lived session state, server subscriptions, persistent server-side
+  resources, cross-call initialization state, or retained sampling roots are
+  unsupported in v0.1 and recorded as future scope. After a call has been
+  forwarded, a timeout, cancellation, child exit, malformed response, or
+  connection close may leave the external side effect uncertain:
+  `outcome="exception"` records that the transport or tool result was not
+  successfully observed and does not prove the side effect did not occur;
+  the `remote_unavailable` diagnostic is structurally reachable only from
+  the pre-spawn path. See `dagr_mcp_service/connectors/stdio.py` and
+  `docs/GATEWAY_SERVICE_ADAPTER_SCOPE.md`'s §13/§15 update note.
 - `subject_ref_origin` disclosure on the `official-mcp-sdk.python.v0.2` binding
   path, carried into `dagr-mcp-core` and `dagr-mcp-sdk-v2` when the SDK-v2 work
   was reconciled onto the base that introduced the field. Four of the five

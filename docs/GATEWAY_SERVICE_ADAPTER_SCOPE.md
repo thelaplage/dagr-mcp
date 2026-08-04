@@ -1,10 +1,58 @@
 # DAGR Gateway Service Adapter — Scope and Decision Record (v0.1)
 
 > **Historical scope record.** This document describes the repository before
-> `dagr_mcp_service` and its in-process / remote connector surfaces were
-> implemented. Statements below such as “does not exist today” are preserved as
-> historical findings at the named base commit, not as the current inventory.
-> See [PRODUCT_ARCHITECTURE.md](PRODUCT_ARCHITECTURE.md) for current state.
+> `dagr_mcp_service` and its in-process / remote / stdio connector surfaces
+> were implemented. Statements below such as “does not exist today” are
+> preserved as historical findings at the named base commit, not as the
+> current inventory. See [PRODUCT_ARCHITECTURE.md](PRODUCT_ARCHITECTURE.md)
+> for current state.
+>
+> **§13/§15 update.** `connectors/stdio.py`, named in §13's proposed package
+> shape and left optional in A9's own scope ("recommended: `connectors/http.py`
+> Streamable HTTP; `connectors/stdio.py` optional"), is now implemented as
+> `dagr_mcp_service.connectors.stdio`. It governs an operator-launched,
+> unmodified external MCP server child process over the standard stdio
+> initialize / `tools/list` / `tools/call` lifecycle, using the same pinned
+> `mcp` client transport the remote connector already uses. It required no
+> change to `dagr_mcp_service.adapter`, `contract.py`, or either lifecycle
+> binding: like the memory and remote connectors, it plugs into the existing,
+> frozen `connector.resolve(target_handle, tool_name)` seam. See
+> `dagr_mcp_service/connectors/stdio.py`'s own module docstring for the full
+> design (command-allowlist boundary, environment scoping, failure-cause
+> translation, process cleanup) and
+> `tests/test_gateway_service_stdio_connector.py` /
+> `tests/test_gateway_service_stdio_integration.py` for its proof.
+>
+> **Bounded public claim.** The connector ships as a *generic governed
+> one-shot/restart-safe stdio MCP connector v0.1*. "Generic" is with respect
+> to the child binary (any unmodified external MCP server speaking stdio),
+> not to MCP server topologies. Every governed call is an independent
+> spawn → `initialize` → one `tools/list` or `tools/call` → teardown cycle,
+> so the following are **unsupported in v0.1 and recorded here as future
+> scope, not as defects hidden behind the word "generic"**: long-lived
+> session state across calls; server subscriptions or server-push streams
+> outliving a call; persistent server-side resources; cross-call
+> initialization state; and sampling roots, elicitation, or other negotiated
+> state expected to be retained across calls. Such a server still runs, but
+> each call sees a freshly initialized process. A persistent-child connector
+> is a distinct future lane.
+>
+> **Ordering and post-forward uncertainty.** Admission is decided and the
+> admission receipt emitted *before* any child is spawned; a REFUSED or
+> DEFERRED call returns without the connector handler ever being invoked and
+> so reaches the child **zero times**. An ADMITTED call is forwarded
+> **exactly once** — one spawn, one `tools/call`, no retry layer. After that
+> forward, a timeout, cancellation, child exit, malformed response, or
+> connection close may leave the external side effect **uncertain**:
+> `outcome="exception"` means the transport or tool result was not
+> successfully observed and **does not prove the side effect did not occur**.
+> Cancellation is the one post-forward mode with a dedicated representation
+> (`outcome="cancellation"` plus `CancellationFacts.execution_state_unknown`).
+> The `remote_unavailable` diagnostic — the only one that reads as "the call
+> never reached the target" — is structurally reachable only from the
+> pre-spawn failure path. Verification checks the emitted *evidence*
+> (schema, profile, raw-content exclusion, signature, issuer trust); it does
+> not and cannot check the truth of the real-world event.
 
 **Status:** Scoping and inventory only. No server, transport, remote caller,
 queue, persistence layer, receipt-subscription service, or Bossy integration is
