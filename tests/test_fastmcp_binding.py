@@ -108,6 +108,9 @@ def build_binding(
     *,
     policy_resolver: Any | None = None,
     operator_admission_resolver: Any | None = None,
+    operator_admission_resolver_timeout_s: float | None = None,
+    operator_admission_required_tools: frozenset[str] = frozenset(),
+    operator_admission_required_tool_classes: frozenset[str] = frozenset(),
     actor_resolver: Any | None = None,
     review_object_creator: Any | None = None,
     tool_classes: dict[str, str] | None = None,
@@ -139,6 +142,11 @@ def build_binding(
             tool_classes=tool_classes or {},
             policy_resolver=policy_resolver,
             operator_admission_resolver=operator_admission_resolver,
+            operator_admission_resolver_timeout_s=operator_admission_resolver_timeout_s,
+            operator_admission_required_tools=operator_admission_required_tools,
+            operator_admission_required_tool_classes=(
+                operator_admission_required_tool_classes
+            ),
             actor_resolver=actor_resolver,
             review_object_creator=review_object_creator,
             emergency_spool_path=emergency_spool_path,
@@ -923,8 +931,383 @@ def test_operator_admission_resolver_surface_carries_no_product_vocabulary():
 
     from dagr_mcp import fastmcp_binding
 
-    banned = ("countervail", "fsi", "mnpi", "trading")
+    banned = (
+        "countervail",
+        "fsi",
+        "mnpi",
+        "brokerage",
+        "trading",
+        "compliance",
+        "arcs",
+    )
     source = _inspect.getsource(fastmcp_binding)
     lowered = source.lower()
     for token in banned:
         assert token not in lowered, f"banned product vocabulary {token!r} found in fastmcp_binding"
+
+
+# --------------------------------------------------------------------------- #
+# Gate A hardening: fail-closed conformance of the operator-admission seam.    #
+#                                                                              #
+# Every resolver-infrastructure failure below must (a) refuse before any       #
+# delegate dispatch, (b) invoke the delegate exactly zero times, and (c) emit  #
+# exactly one terminal refusal receipt and no outcome receipt.                 #
+# --------------------------------------------------------------------------- #
+
+
+async def _assert_single_refusal_no_delegate(
+    server: FastMCP,
+    identity: SigningIdentity,
+    directory: Path,
+    delegate_calls: list[int],
+    *,
+    tool_name: str,
+) -> None:
+    async with Client(server) as client:
+        with pytest.raises(ToolError, match="Call refused by admission policy"):
+            await client.call_tool(tool_name, {})
+
+    assert delegate_calls == [], "delegate must be invoked exactly zero times"
+    receipts = assert_all_receipts_verify(directory, identity)
+    assert len(receipts) == 1, "exactly one terminal refusal receipt"
+    assert receipts[0]["receipt_kind"] == "admission"
+    assert receipts[0]["disposition"] == "refused"
+    assert receipts[0]["reason_code"] == "policy_refused"
+
+
+async def test_operator_admission_resolver_unsupported_disposition_fails_closed(
+    tmp_path: Path,
+):
+    """A structurally valid decision carrying an unsupported disposition string
+    (outside the closed admitted/refused vocabulary) fails closed."""
+
+    delegate_calls: list[int] = []
+
+    def resolver(_snapshot: Any, _actor: ActorResolution) -> OperatorAdmissionDecision:
+        # ``Literal`` is not enforced at runtime; a caller could return an
+        # out-of-vocabulary disposition. It must never admit.
+        return OperatorAdmissionDecision(disposition="escalate")  # type: ignore[arg-type]
+
+    server, _mw, identity, directory = build_server(
+        tmp_path, operator_admission_resolver=resolver
+    )
+
+    @server.tool
+    async def destroy() -> str:
+        delegate_calls.append(1)
+        return "unexpected"
+
+    await _assert_single_refusal_no_delegate(
+        server, identity, directory, delegate_calls, tool_name="destroy"
+    )
+
+
+async def test_operator_admission_resolver_wrong_type_result_fails_closed(
+    tmp_path: Path,
+):
+    """A plain/duck-typed object that merely *looks* admitted is not an
+    ``OperatorAdmissionDecision`` and must fail closed rather than admit — this
+    is the fail-open hole the closed result vocabulary shuts."""
+
+    delegate_calls: list[int] = []
+
+    def resolver(_snapshot: Any, _actor: ActorResolution) -> Any:
+        return SimpleNamespace(disposition="admitted", refusal_ground=None)
+
+    server, _mw, identity, directory = build_server(
+        tmp_path, operator_admission_resolver=resolver
+    )
+
+    @server.tool
+    async def destroy() -> str:
+        delegate_calls.append(1)
+        return "unexpected"
+
+    await _assert_single_refusal_no_delegate(
+        server, identity, directory, delegate_calls, tool_name="destroy"
+    )
+
+
+async def test_operator_admission_resolver_dict_result_fails_closed(tmp_path: Path):
+    """A mapping result is not the closed decision type and fails closed."""
+
+    delegate_calls: list[int] = []
+
+    def resolver(_snapshot: Any, _actor: ActorResolution) -> Any:
+        return {"disposition": "admitted"}
+
+    server, _mw, identity, directory = build_server(
+        tmp_path, operator_admission_resolver=resolver
+    )
+
+    @server.tool
+    async def destroy() -> str:
+        delegate_calls.append(1)
+        return "unexpected"
+
+    await _assert_single_refusal_no_delegate(
+        server, identity, directory, delegate_calls, tool_name="destroy"
+    )
+
+
+async def test_operator_admission_resolver_invalid_refusal_ground_fails_closed(
+    tmp_path: Path,
+):
+    """A refusal whose ground is outside the single authorized ``policy_refused``
+    fails closed and the invalid ground is never propagated onto the receipt."""
+
+    delegate_calls: list[int] = []
+
+    def resolver(_snapshot: Any, _actor: ActorResolution) -> OperatorAdmissionDecision:
+        return OperatorAdmissionDecision(
+            disposition="refused",
+            refusal_ground="operator_blocked",  # type: ignore[arg-type]
+        )
+
+    server, _mw, identity, directory = build_server(
+        tmp_path, operator_admission_resolver=resolver
+    )
+
+    @server.tool
+    async def destroy() -> str:
+        delegate_calls.append(1)
+        return "unexpected"
+
+    # The receipt reason_code is clamped to ``policy_refused`` — the invalid
+    # ground is not emitted verbatim.
+    await _assert_single_refusal_no_delegate(
+        server, identity, directory, delegate_calls, tool_name="destroy"
+    )
+
+
+async def test_operator_admission_resolver_admitted_with_ground_fails_closed(
+    tmp_path: Path,
+):
+    """A contradictory admitted-with-refusal-ground result is malformed and must
+    fail closed rather than admit."""
+
+    delegate_calls: list[int] = []
+
+    def resolver(_snapshot: Any, _actor: ActorResolution) -> OperatorAdmissionDecision:
+        return OperatorAdmissionDecision(
+            disposition="admitted",
+            refusal_ground="policy_refused",
+        )
+
+    server, _mw, identity, directory = build_server(
+        tmp_path, operator_admission_resolver=resolver
+    )
+
+    @server.tool
+    async def destroy() -> str:
+        delegate_calls.append(1)
+        return "unexpected"
+
+    await _assert_single_refusal_no_delegate(
+        server, identity, directory, delegate_calls, tool_name="destroy"
+    )
+
+
+async def test_operator_admission_resolver_timeout_fails_closed(tmp_path: Path):
+    """An async resolver that exceeds the opt-in deterministic timeout fails
+    closed before delegate dispatch — no admit, one refusal receipt."""
+
+    delegate_calls: list[int] = []
+    started = asyncio.Event()
+
+    async def resolver(
+        _snapshot: Any, _actor: ActorResolution
+    ) -> OperatorAdmissionDecision:
+        started.set()
+        # Never completes; ``wait_for`` cancels it at the timeout. The only real
+        # wall time is the sub-millisecond timeout itself.
+        await asyncio.Event().wait()
+        return OperatorAdmissionDecision(disposition="admitted")
+
+    server, _mw, identity, directory = build_server(
+        tmp_path,
+        operator_admission_resolver=resolver,
+        operator_admission_resolver_timeout_s=0.001,
+    )
+
+    @server.tool
+    async def destroy() -> str:
+        delegate_calls.append(1)
+        return "unexpected"
+
+    await _assert_single_refusal_no_delegate(
+        server, identity, directory, delegate_calls, tool_name="destroy"
+    )
+    assert started.is_set(), "resolver ran before the timeout cancelled it"
+
+
+async def test_operator_admission_resolver_timeout_none_admits_normally(
+    tmp_path: Path,
+):
+    """With no timeout configured (the default), an async resolver that returns
+    promptly still admits — the timeout is strictly opt-in."""
+
+    delegate_calls: list[int] = []
+
+    async def resolver(
+        _snapshot: Any, _actor: ActorResolution
+    ) -> OperatorAdmissionDecision:
+        await asyncio.sleep(0)
+        return OperatorAdmissionDecision(disposition="admitted")
+
+    server, _mw, identity, directory = build_server(
+        tmp_path, operator_admission_resolver=resolver
+    )
+
+    @server.tool
+    async def lookup(record_ref: str) -> dict[str, Any]:
+        delegate_calls.append(1)
+        return {"record_ref": record_ref, "found": True}
+
+    async with Client(server) as client:
+        result = await client.call_tool("lookup", {"record_ref": "record:1"})
+
+    assert delegate_calls == [1]
+    assert result.data == {"record_ref": "record:1", "found": True}
+    receipts = assert_all_receipts_verify(directory, identity)
+    admission, outcome = split_pair(receipts)
+    assert admission["disposition"] == "admitted"
+    assert outcome["outcome"] == "result_returned"
+
+
+async def test_operator_admission_required_tool_absent_fails_closed(tmp_path: Path):
+    """A tool declared to *require* the operator-admission resolver fails closed
+    when the resolver is absent (not configured)."""
+
+    delegate_calls: list[int] = []
+
+    server, _mw, identity, directory = build_server(
+        tmp_path,
+        operator_admission_required_tools=frozenset({"destroy"}),
+    )
+
+    @server.tool
+    async def destroy() -> str:
+        delegate_calls.append(1)
+        return "unexpected"
+
+    await _assert_single_refusal_no_delegate(
+        server, identity, directory, delegate_calls, tool_name="destroy"
+    )
+
+
+async def test_operator_admission_required_tool_class_absent_fails_closed(
+    tmp_path: Path,
+):
+    """The required selector also works per tool class: a tool whose class is
+    required fails closed when the resolver is absent."""
+
+    delegate_calls: list[int] = []
+
+    server, _mw, identity, directory = build_server(
+        tmp_path,
+        tool_classes={"destroy": "destructive"},
+        operator_admission_required_tool_classes=frozenset({"destructive"}),
+    )
+
+    @server.tool
+    async def destroy() -> str:
+        delegate_calls.append(1)
+        return "unexpected"
+
+    await _assert_single_refusal_no_delegate(
+        server, identity, directory, delegate_calls, tool_name="destroy"
+    )
+
+
+async def test_operator_admission_required_selector_leaves_unrelated_tools_admitted(
+    tmp_path: Path,
+):
+    """The required selector must not affect unrelated tools or classes: with a
+    required set naming only ``destroy`` (and only the ``destructive`` class), an
+    unrelated ``read``-class tool still admits and runs exactly once."""
+
+    delegate_calls: list[int] = []
+
+    server, _mw, identity, directory = build_server(
+        tmp_path,
+        tool_classes={"destroy": "destructive"},
+        operator_admission_required_tools=frozenset({"destroy"}),
+        operator_admission_required_tool_classes=frozenset({"destructive"}),
+    )
+
+    @server.tool
+    async def lookup(record_ref: str) -> dict[str, Any]:
+        delegate_calls.append(1)
+        return {"record_ref": record_ref, "found": True}
+
+    async with Client(server) as client:
+        result = await client.call_tool("lookup", {"record_ref": "record:1"})
+
+    assert delegate_calls == [1]
+    assert result.data == {"record_ref": "record:1", "found": True}
+    receipts = assert_all_receipts_verify(directory, identity)
+    admission, outcome = split_pair(receipts)
+    assert admission["disposition"] == "admitted"
+    assert outcome["outcome"] == "result_returned"
+
+
+async def test_operator_admission_required_selector_default_empty_is_byte_identical(
+    tmp_path: Path,
+):
+    """With nothing declared required and no resolver configured, the required
+    selector changes nothing: behavior is byte-identical to a baseline binding
+    that carries neither the timeout nor the required-selector fields."""
+
+    def build(subdir: str, **kwargs: Any) -> tuple[DAGRMiddleware, SigningIdentity, Path]:
+        directory = tmp_path / subdir / "receipts"
+        sink = RawEnvelopeFileSink(directory)
+        identity = SigningIdentity.generate(
+            issuer_id="issuer:test:fastmcp",
+            key_id="issuer.test.fastmcp/key/1",
+        )
+        emitter = SignedReceiptEmitter(identity=identity, sink=sink)
+        middleware = DAGRMiddleware(
+            emitter=emitter,
+            config=DAGRMiddlewareConfig(
+                runtime_instance_id="runtime:test:fastmcp",
+                boundary_id="boundary:test:fastmcp",
+                policy_pack_id="policy:test:fastmcp",
+                policy_pack_version="2026.07.11",
+                logical_call_id_override="call:fixture:required-parity",
+                subject_ref_override="tool-call:fixture:required-parity",
+                additional_attestation_limits=(
+                    "The middleware is installed once at the institutional trust boundary; "
+                    "receipts attest only to observations at that boundary.",
+                ),
+                **kwargs,
+            ),
+        )
+        return middleware, identity, directory
+
+    baseline_mw, baseline_identity, baseline_dir = build("baseline")
+    configured_mw, configured_identity, configured_dir = build(
+        "configured",
+        operator_admission_resolver_timeout_s=None,
+        operator_admission_required_tools=frozenset(),
+        operator_admission_required_tool_classes=frozenset(),
+    )
+
+    result = ToolResult(content=["ok"], structured_content={"ok": True})
+    await call_direct(baseline_mw, "lookup", result)
+    await call_direct(configured_mw, "lookup", result)
+
+    baseline_receipts = assert_all_receipts_verify(baseline_dir, baseline_identity)
+    configured_receipts = assert_all_receipts_verify(configured_dir, configured_identity)
+
+    def _parity_projection(receipt: dict[str, Any]) -> dict[str, Any]:
+        return {
+            key: value
+            for key, value in _content_projection(receipt).items()
+            if key != "admission_receipt_ref"
+        }
+
+    assert [_parity_projection(r) for r in baseline_receipts] == [
+        _parity_projection(r) for r in configured_receipts
+    ]
+    assert split_pair(baseline_receipts)[0]["disposition"] == "admitted"

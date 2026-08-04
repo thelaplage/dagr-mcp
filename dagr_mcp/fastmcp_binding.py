@@ -187,6 +187,25 @@ class DAGRMiddlewareConfig:
     actor_resolver: ActorResolver | None = None
     policy_resolver: PolicyResolver | None = None
     operator_admission_resolver: OperatorAdmissionResolver | None = None
+    # Opt-in deterministic timeout (seconds) for an *async* operator-admission
+    # resolver. ``None`` (the default) applies no timeout and preserves prior
+    # behavior byte-for-byte. When set, an awaitable resolver that exceeds it
+    # fails closed to ``refused / policy_refused`` before delegate dispatch,
+    # exactly like any other resolver-infrastructure failure. A synchronous
+    # resolver returns before the timeout can apply and is unaffected.
+    operator_admission_resolver_timeout_s: float | None = None
+    # Opt-in "resolver required" governance selector. A tool named here, or a
+    # tool whose resolved tool class is named here, requires the operator-
+    # admission resolver to be configured; if it is *required but absent* (no
+    # ``operator_admission_resolver`` set) the call fails closed to
+    # ``refused / policy_refused`` before delegate dispatch. Empty (the default)
+    # declares nothing required and preserves prior behavior byte-for-byte.
+    operator_admission_required_tools: frozenset[str] = field(
+        default_factory=frozenset
+    )
+    operator_admission_required_tool_classes: frozenset[ToolClass] = field(
+        default_factory=frozenset
+    )
     review_object_creator: ReviewObjectCreator | Any | None = None
     pre_execution_receipt_failure: Mapping[ToolClass, ReceiptFailureMode] = field(
         default_factory=lambda: {
@@ -501,15 +520,41 @@ class DAGRMiddleware(Middleware):
         actor: ActorResolution,
     ) -> BindingPolicy:
         if self.config.policy_resolver is not None:
+            # ``policy_resolver`` precedence is preserved: when it is configured
+            # the operator-admission seam (and its required-selector gate) is not
+            # consulted, so the two resolvers are never silently both active.
             resolved = self.config.policy_resolver(snapshot, actor)
             if inspect.isawaitable(resolved):
                 resolved = await resolved
             return resolved
         if self.config.operator_admission_resolver is not None:
             return await self._resolve_operator_admission(snapshot, actor)
-        return BindingPolicy(
-            disposition="admitted",
-            tool_class=self.config.tool_classes.get(snapshot.tool_name, "read"),
+        tool_class = self.config.tool_classes.get(snapshot.tool_name, "read")
+        if self._operator_admission_required(snapshot.tool_name, tool_class):
+            # Required governance selector: the operator-admission resolver is
+            # declared required for this tool/class but is absent. Fail closed to
+            # a single terminal refusal before any delegate dispatch, exactly like
+            # a resolver-infrastructure failure — the seam mints no new authority.
+            return BindingPolicy(
+                disposition="refused",
+                tool_class=tool_class,
+                reason_code="policy_refused",
+            )
+        return BindingPolicy(disposition="admitted", tool_class=tool_class)
+
+    def _operator_admission_required(
+        self, tool_name: str, tool_class: ToolClass
+    ) -> bool:
+        """Whether the operator-admission resolver is *required* for this call.
+
+        Opt-in only: with both selector sets empty (the default) this always
+        returns ``False``, so an unconfigured binding is byte-identical to the
+        prior default-admit behavior and unrelated tools/classes are unaffected.
+        """
+
+        return (
+            tool_name in self.config.operator_admission_required_tools
+            or tool_class in self.config.operator_admission_required_tool_classes
         )
 
     async def _resolve_operator_admission(
@@ -519,31 +564,73 @@ class DAGRMiddleware(Middleware):
     ) -> BindingPolicy:
         """Project the neutral operator-admission decision onto a BindingPolicy.
 
-        Fails closed to a neutral refusal (``policy_refused``) if the resolver
-        raises, rather than letting the call proceed — never fail-open to
-        execution.
+        Every resolver-infrastructure failure — a raised exception, a timeout,
+        or a result outside the closed neutral vocabulary — fails closed to a
+        single neutral refusal (``refused / policy_refused``) before any delegate
+        dispatch, and never fails open to execution. The seam mints no new
+        authority: it may only *admit* or *refuse-on-policy_refused*; it never
+        constructs receipts, selects keys/issuers, alters subject references or
+        arguments, calls the delegate, or changes lifecycle/cardinality.
         """
 
         tool_class = self.config.tool_classes.get(snapshot.tool_name, "read")
+        refused = BindingPolicy(
+            disposition="refused",
+            tool_class=tool_class,
+            reason_code="policy_refused",
+        )
         resolver = self.config.operator_admission_resolver
         assert resolver is not None
+        timeout = self.config.operator_admission_resolver_timeout_s
         try:
             decision = resolver(snapshot, actor)
             if inspect.isawaitable(decision):
-                decision = await decision
-        except Exception:  # noqa: BLE001 - resolver failure must fail closed.
-            return BindingPolicy(
-                disposition="refused",
-                tool_class=tool_class,
-                reason_code="policy_refused",
-            )
-        if decision.disposition == "refused":
-            return BindingPolicy(
-                disposition="refused",
-                tool_class=tool_class,
-                reason_code=decision.refusal_ground or "policy_refused",
-            )
-        return BindingPolicy(disposition="admitted", tool_class=tool_class)
+                if timeout is not None:
+                    # ``asyncio.wait_for`` raises ``TimeoutError`` (an
+                    # ``Exception``) on expiry after cancelling the awaitable, so
+                    # a timeout fails closed through the same branch as any other
+                    # resolver-infrastructure failure.
+                    decision = await asyncio.wait_for(decision, timeout)
+                else:
+                    decision = await decision
+        except Exception:  # noqa: BLE001 - resolver failure/timeout must fail closed.
+            return refused
+        return self._project_operator_admission_decision(decision, tool_class, refused)
+
+    @staticmethod
+    def _project_operator_admission_decision(
+        decision: Any,
+        tool_class: ToolClass,
+        refused: BindingPolicy,
+    ) -> BindingPolicy:
+        """Closed-vocabulary projection of a resolver result onto a BindingPolicy.
+
+        Only an exact :class:`OperatorAdmissionDecision` from the closed neutral
+        vocabulary may admit. A wrong result type, an unsupported disposition
+        string, a contradictory admitted-with-ground result, or a refusal ground
+        outside the single authorized ``policy_refused`` all fail closed to the
+        pre-built ``refused / policy_refused`` policy. Nothing here mints new
+        authority — an admit yields a plain admitted policy and every other shape
+        yields the same single neutral refusal.
+        """
+
+        # Wrong result type (plain object, dict, ``None``, duck-typed lookalike):
+        # fail closed rather than trusting an unvalidated ``.disposition``.
+        if not isinstance(decision, OperatorAdmissionDecision):
+            return refused
+        if decision.disposition == "admitted":
+            # A contradictory admitted result that also carries a refusal ground
+            # is malformed; fail closed rather than admit.
+            if decision.refusal_ground is not None:
+                return refused
+            return BindingPolicy(disposition="admitted", tool_class=tool_class)
+        # ``refused`` and every other shape resolve to the same single neutral
+        # refusal. This closes the ground vocabulary too: the sole authorized
+        # ground is ``policy_refused`` (``None`` defaults to it), and an invalid
+        # ground is never propagated — it fails closed to ``policy_refused`` — so
+        # the resolver cannot mint an out-of-vocabulary refusal ground. An
+        # unsupported disposition string falls through here and fails closed.
+        return refused
 
     def _receipt_context(
         self,
