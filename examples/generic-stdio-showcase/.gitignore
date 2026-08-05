@@ -1,0 +1,10 @@
+# Generated at run time by this example -- never commit evidence, keys, or
+# venvs produced by running live_run.py / verify_receipts.py / discover_full.py
+# / bypass_check.py.
+receipts/
+trust_bundle.json
+allowed_root/
+outside_root/
+.venv/
+*.log
+*_output.json
