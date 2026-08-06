@@ -64,6 +64,7 @@ REGISTERED_BINDING_VERSIONS = frozenset({
 # binding here.
 ADDITIONAL_BINDING_VERSIONS = frozenset({
     "official-mcp-sdk.python.v0.1",
+    "official-mcp-sdk.python.v0.2",
 })
 # The full accepted set the emitter gate consults: the frozen A1 registry plus
 # any additive post-freeze registrations. Membership here — not in either
