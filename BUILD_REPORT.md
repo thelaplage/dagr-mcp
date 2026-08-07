@@ -90,7 +90,7 @@ A self-contained module implementing the full deferred tool boundary contract:
 
 ## Gate results
 
-All commands run in the worktree at `/Users/franklinvm/Developer/repos/garp-worktrees/dagr-mcp__w2-03`.
+All commands run in a local build worktree (absolute path redacted for public safety).
 
 ### New tests only
 
