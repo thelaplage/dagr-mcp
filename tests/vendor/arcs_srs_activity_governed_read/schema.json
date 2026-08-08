@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arcs.example/schemas/activity-profiles/v0.1/srs.activity.governed_read.v0.1.schema.json",
+  "title": "SRS Activity Governed Read Profile v0.1 — field schema",
+  "x-status": "provisional",
+  "x-profile-id": "srs.activity.governed_read",
+  "x-profile-version": "v0.1",
+  "x-governing-doctrine": "IN___DAGR_Activity_Profile_Family_v0_1_AUG07 (ACT0), garp-doctrine",
+  "x-specializes-envelope": "srs.signed_receipt.v0.1 / srs-envelope@0.2.1",
+  "description": "Field-level schema for one governed read against a pinned basis. Specializes the SRS signed-receipt envelope; does not fork it. PROVISIONAL until >=2 products demonstrate reuse. Implements the semantic boundary fixed by ACT0 s2 (governed_read) at the field level. All sha256 references are 'sha256:' + 64 lowercase hex. No aggregate/trust/reputation/standing field may appear (C6 no-aggregate).",
+  "type": "object",
+  "$defs": {
+    "sha256_ref": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "sha256: followed by exactly 64 lowercase hex chars."
+    }
+  },
+  "properties": {
+    "receipt_version": { "const": "srs.core.v5.1" },
+    "profile_id": { "const": "srs.activity.governed_read" },
+    "profile_version": { "const": "v0.1" },
+    "receipt_id": { "type": "string", "minLength": 1 },
+    "receipt_type": { "const": "provenance" },
+    "receipt_kind": { "const": "governed_read" },
+    "boundary_type": { "const": "governed_read_boundary" },
+    "protocol_binding": { "type": "string", "minLength": 1 },
+    "subject_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "MUST equal basis_version_ref (see allOf subject binding)."
+    },
+    "issuer_id": { "type": "string", "minLength": 1 },
+    "runtime_instance_id": { "type": "string", "minLength": 1 },
+    "boundary_id": { "type": "string", "minLength": 1 },
+    "issued_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Event time of the governed read. Identity-bearing (ACT0 s3)."
+    },
+    "visibility": {
+      "enum": ["LOCAL", "PRIVATE_ORG", "SHARED", "PUBLIC_CANDIDATE", "PUBLIC"],
+      "description": "Mandatory C8 closed-set visibility posture (ACT0 s3)."
+    },
+    "acting_principal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Declared principal identity (declared, not verified)."
+    },
+    "identity_posture": {
+      "const": "declared",
+      "description": "v0.1 identity posture is declared-only (I0)."
+    },
+    "session_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional declared session under which the read occurred."
+    },
+    "read_request_ref": {
+      "$ref": "#/$defs/sha256_ref",
+      "description": "sha256 digest of the canonical read request."
+    },
+    "basis_version_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identity-bound version reference of the pinned basis (C9)."
+    },
+    "basis_snapshot_digest": {
+      "$ref": "#/$defs/sha256_ref",
+      "description": "Fill-or-verify sha256 (C1) of the pinned basis edition."
+    },
+    "read_disposition": {
+      "enum": ["admitted", "refused"],
+      "description": "Admitted result or typed refusal (recorded, not erased)."
+    },
+    "admitted_result_ref": {
+      "$ref": "#/$defs/sha256_ref",
+      "description": "sha256 digest of the admitted result; present iff admitted."
+    },
+    "refusal_class": {
+      "enum": [
+        "POLICY_REFUSED",
+        "PRINCIPAL_NOT_PERMITTED",
+        "SCOPE_EXCEEDED",
+        "BASIS_UNAVAILABLE",
+        "DEFERRED_FOR_REVIEW"
+      ],
+      "description": "Typed refusal class; present iff refused."
+    },
+    "produced_receipt_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sha256_ref" },
+      "description": "sha256 digests of receipts this read produced; MAY be empty (absence discipline)."
+    },
+    "artifact_classes_covered": {
+      "type": "array",
+      "items": { "type": "string" },
+      "contains": { "const": "governed_read_record" },
+      "allOf": [
+        { "contains": { "const": "governed_read_record" } },
+        { "contains": { "const": "acting_principal_declaration" } },
+        { "contains": { "const": "read_basis_identity" } }
+      ]
+    },
+    "artifact_classes_excluded": {
+      "type": "array",
+      "items": { "type": "string" },
+      "allOf": [
+        { "contains": { "const": "read_result_bytes" } },
+        { "contains": { "const": "principal_identity_verification" } }
+      ]
+    },
+    "attestation_limits": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "contains": {
+        "const": "This receipt records that a governed read occurred against a declared basis under stated custody. It does not establish that the acting principal's identity was verified, that the basis content is accurate or true, that any admitted result is correct, or that any downstream reliance is warranted. A refused read is recorded as activity, not adjudicated."
+      }
+    },
+    "machine_limitations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": { "code": { "type": "string" } },
+        "required": ["code"]
+      },
+      "contains": {
+        "type": "object",
+        "properties": { "code": { "const": "CONTENT_NOT_VERIFIED" } },
+        "required": ["code"]
+      }
+    },
+    "extensions": { "type": "object" }
+  },
+  "required": [
+    "receipt_version",
+    "profile_id",
+    "profile_version",
+    "receipt_id",
+    "receipt_type",
+    "receipt_kind",
+    "boundary_type",
+    "protocol_binding",
+    "subject_ref",
+    "issuer_id",
+    "runtime_instance_id",
+    "boundary_id",
+    "issued_at",
+    "visibility",
+    "acting_principal_ref",
+    "identity_posture",
+    "read_request_ref",
+    "basis_version_ref",
+    "basis_snapshot_digest",
+    "read_disposition",
+    "produced_receipt_refs",
+    "artifact_classes_covered",
+    "artifact_classes_excluded",
+    "attestation_limits",
+    "machine_limitations",
+    "extensions"
+  ],
+  "allOf": [
+    {
+      "description": "subject_ref MUST equal basis_version_ref (subject binding).",
+      "required": ["subject_ref", "basis_version_ref"],
+      "properties": {
+        "subject_ref": { "$comment": "bound to basis_version_ref by profile rule" }
+      }
+    },
+    {
+      "description": "admitted => admitted_result_ref present, refusal_class absent.",
+      "if": {
+        "properties": { "read_disposition": { "const": "admitted" } },
+        "required": ["read_disposition"]
+      },
+      "then": {
+        "required": ["admitted_result_ref"],
+        "not": { "required": ["refusal_class"] }
+      }
+    },
+    {
+      "description": "refused => refusal_class present, admitted_result_ref absent.",
+      "if": {
+        "properties": { "read_disposition": { "const": "refused" } },
+        "required": ["read_disposition"]
+      },
+      "then": {
+        "required": ["refusal_class"],
+        "not": { "required": ["admitted_result_ref"] }
+      }
+    }
+  ],
+  "not": {
+    "description": "C6 no-aggregate: no aggregate/trust/reputation/standing field may appear.",
+    "anyOf": [
+      { "required": ["aggregate_verdict"] },
+      { "required": ["aggregate_activity_verdict"] },
+      { "required": ["trust_score"] },
+      { "required": ["reputation"] },
+      { "required": ["reputation_score"] },
+      { "required": ["activity_score"] },
+      { "required": ["reliance_score"] },
+      { "required": ["standing_score"] },
+      { "required": ["read_count_verdict"] }
+    ]
+  },
+  "additionalProperties": true
+}
