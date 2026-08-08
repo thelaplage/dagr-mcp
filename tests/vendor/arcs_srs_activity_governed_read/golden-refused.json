@@ -1,0 +1,40 @@
+{
+  "receipt_version": "srs.core.v5.1",
+  "profile_id": "srs.activity.governed_read",
+  "profile_version": "v0.1",
+  "receipt_id": "activity-governed-read-valid-refused-0001",
+  "receipt_type": "provenance",
+  "receipt_kind": "governed_read",
+  "boundary_type": "governed_read_boundary",
+  "protocol_binding": "governed-read-pipeline",
+  "subject_ref": "urn:dagr.basis:edition:corpus-beta/2026-02@7",
+  "issuer_id": "issuer.test/governed-read/2026-01",
+  "runtime_instance_id": "runtime-governed-read-test-0001",
+  "boundary_id": "boundary-governed-read-0001",
+  "issued_at": "2026-08-07T00:05:00Z",
+  "visibility": "PRIVATE_ORG",
+  "acting_principal_ref": "urn:dagr.principal:declared:analyst-7",
+  "identity_posture": "declared",
+  "read_request_ref": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+  "basis_version_ref": "urn:dagr.basis:edition:corpus-beta/2026-02@7",
+  "basis_snapshot_digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+  "read_disposition": "refused",
+  "refusal_class": "PRINCIPAL_NOT_PERMITTED",
+  "produced_receipt_refs": [],
+  "artifact_classes_covered": [
+    "governed_read_record",
+    "acting_principal_declaration",
+    "read_basis_identity"
+  ],
+  "artifact_classes_excluded": [
+    "read_result_bytes",
+    "principal_identity_verification"
+  ],
+  "attestation_limits": [
+    "This receipt records that a governed read occurred against a declared basis under stated custody. It does not establish that the acting principal's identity was verified, that the basis content is accurate or true, that any admitted result is correct, or that any downstream reliance is warranted. A refused read is recorded as activity, not adjudicated."
+  ],
+  "machine_limitations": [
+    {"code": "CONTENT_NOT_VERIFIED"}
+  ],
+  "extensions": {}
+}

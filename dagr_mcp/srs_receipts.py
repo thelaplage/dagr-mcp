@@ -22,6 +22,58 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 RECEIPT_VERSION = "srs.core.v5.1"
 PROFILE_ID = "srs.mcp.sdk_enforcement"
 PROFILE_VERSION = "v0.1"
+
+# --- Activity profile: srs.activity.governed_read.v0.1 ------------------------
+# A SECOND profile emitted through this same issuer/signing machinery. The
+# module-level ``PROFILE_ID``/``PROFILE_VERSION`` constants above name only the
+# MCP sdk_enforcement profile and cannot express a second one; rather than
+# widen those (which would silently re-stamp every existing MCP receipt), the
+# activity profile carries its own identity constants and its own envelope
+# projection. The MCP builder (``_common``) is left byte-identical, so existing
+# MCP admission/outcome receipts and their behavioral-freeze tests are
+# unaffected. Only the signing / canonicalization / sink machinery is shared.
+#
+# Field shape and vocabularies below are frozen by arcs-srs #34
+# (schemas/activity-profiles/v0.1/srs.activity.governed_read.v0.1.schema.json).
+# This module is the ISSUER only and copies NO verifier validation logic; the
+# guards here are issuer-side well-formedness on caller input, not receipt
+# adjudication (arcs-verify's independent job).
+ACTIVITY_GOVERNED_READ_PROFILE_ID = "srs.activity.governed_read"
+ACTIVITY_GOVERNED_READ_PROFILE_VERSION = "v0.1"
+ACTIVITY_GOVERNED_READ_RECEIPT_TYPE = "provenance"
+ACTIVITY_GOVERNED_READ_RECEIPT_KIND = "governed_read"
+ACTIVITY_GOVERNED_READ_BOUNDARY_TYPE = "governed_read_boundary"
+ACTIVITY_GOVERNED_READ_DEFAULT_PROTOCOL_BINDING = "governed-read-pipeline"
+ACTIVITY_GOVERNED_READ_IDENTITY_POSTURE = "declared"
+GOVERNED_READ_VISIBILITY_VALUES = frozenset({
+    "LOCAL", "PRIVATE_ORG", "SHARED", "PUBLIC_CANDIDATE", "PUBLIC",
+})
+GOVERNED_READ_DISPOSITIONS = frozenset({"admitted", "refused"})
+GOVERNED_READ_REFUSAL_CLASSES = frozenset({
+    "POLICY_REFUSED",
+    "PRINCIPAL_NOT_PERMITTED",
+    "SCOPE_EXCEEDED",
+    "BASIS_UNAVAILABLE",
+    "DEFERRED_FOR_REVIEW",
+})
+GOVERNED_READ_ARTIFACT_CLASSES_COVERED = (
+    "governed_read_record",
+    "acting_principal_declaration",
+    "read_basis_identity",
+)
+GOVERNED_READ_ARTIFACT_CLASSES_EXCLUDED = (
+    "read_result_bytes",
+    "principal_identity_verification",
+)
+GOVERNED_READ_ATTESTATION_LIMIT = (
+    "This receipt records that a governed read occurred against a declared basis "
+    "under stated custody. It does not establish that the acting principal's "
+    "identity was verified, that the basis content is accurate or true, that any "
+    "admitted result is correct, or that any downstream reliance is warranted. A "
+    "refused read is recorded as activity, not adjudicated."
+)
+GOVERNED_READ_MACHINE_LIMITATION_CODE = "CONTENT_NOT_VERIFIED"
+_SHA256_REF = re.compile(r"^sha256:[0-9a-f]{64}$")
 SIGNATURE_ALGORITHM = "Ed25519"
 CANONICALIZATION = "RFC8785-JCS"
 TRUST_BUNDLE_VERSION = "srs.trust_bundle.v0.1"
@@ -495,5 +547,184 @@ class SignedReceiptEmitter:
             binding_owned_fields=binding_owned_fields,
         )
         enforce_raw_content_exclusion(envelope)
+        signed = self.identity.sign_envelope(envelope)
+        return self.sink.write(signed)
+
+    def build_activity_governed_read(
+        self,
+        *,
+        runtime_instance_id: str,
+        boundary_id: str,
+        acting_principal_ref: str,
+        read_request_ref: str,
+        basis_version_ref: str,
+        basis_snapshot_digest: str,
+        read_disposition: str,
+        visibility: str,
+        admitted_result_ref: str | None = None,
+        refusal_class: str | None = None,
+        session_ref: str | None = None,
+        produced_receipt_refs: Sequence[str] = (),
+        protocol_binding: str = ACTIVITY_GOVERNED_READ_DEFAULT_PROTOCOL_BINDING,
+        issued_at: str | None = None,
+        receipt_id: str | None = None,
+        extensions: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build (but do not sign or write) an ``srs.activity.governed_read.v0.1``
+        receipt body, for BOTH an admitted read and a refused read.
+
+        Specializes the SRS signed-receipt envelope (``srs.signed_receipt.v0.1`` /
+        ``srs-envelope@0.2.1``); it does NOT introduce a new envelope. The profile
+        id is carried per-receipt (``srs.activity.governed_read`` / ``v0.1``) so
+        this second profile coexists with the MCP ``PROFILE_ID`` without touching
+        it. Refused reads still produce a receipt.
+
+        Required-ref → field mapping (arcs-srs #34):
+          - acting principal / session (DECLARED, not verified) →
+            ``acting_principal_ref`` + ``identity_posture="declared"`` (+ optional
+            ``session_ref``);
+          - read request → ``read_request_ref`` (sha256);
+          - basis by version_ref → ``basis_version_ref`` (+ fill-or-verify
+            ``basis_snapshot_digest``), and ``subject_ref`` is BOUND to it;
+          - outcome → ``read_disposition`` with ``admitted_result_ref`` XOR
+            ``refusal_class``;
+          - receipt refs produced → ``produced_receipt_refs`` (MAY be empty).
+
+        Guards here are issuer-side input well-formedness only (closed-vocabulary
+        checks, admitted/refused shape), NOT verifier adjudication. No aggregate /
+        reputation / standing field is ever emitted (C6).
+        """
+        if read_disposition not in GOVERNED_READ_DISPOSITIONS:
+            raise ReceiptContentError(
+                f"read_disposition outside the closed vocabulary: {read_disposition!r}"
+            )
+        if visibility not in GOVERNED_READ_VISIBILITY_VALUES:
+            raise ReceiptContentError(
+                f"visibility outside the closed C8 vocabulary: {visibility!r}"
+            )
+        for name, ref in (
+            ("read_request_ref", read_request_ref),
+            ("basis_snapshot_digest", basis_snapshot_digest),
+        ):
+            if not _SHA256_REF.match(ref):
+                raise ReceiptContentError(f"{name} is not a sha256: ref: {ref!r}")
+        produced = list(produced_receipt_refs)
+        for ref in produced:
+            if not _SHA256_REF.match(ref):
+                raise ReceiptContentError(
+                    f"produced_receipt_refs entry is not a sha256: ref: {ref!r}"
+                )
+
+        if read_disposition == "admitted":
+            if admitted_result_ref is None:
+                raise ReceiptContentError(
+                    "admitted read requires admitted_result_ref"
+                )
+            if refusal_class is not None:
+                raise ReceiptContentError(
+                    "admitted read must not carry refusal_class"
+                )
+            if not _SHA256_REF.match(admitted_result_ref):
+                raise ReceiptContentError(
+                    f"admitted_result_ref is not a sha256: ref: {admitted_result_ref!r}"
+                )
+        else:  # refused
+            if refusal_class is None:
+                raise ReceiptContentError("refused read requires refusal_class")
+            if admitted_result_ref is not None:
+                raise ReceiptContentError(
+                    "refused read must not carry admitted_result_ref"
+                )
+            if refusal_class not in GOVERNED_READ_REFUSAL_CLASSES:
+                raise ReceiptContentError(
+                    f"refusal_class outside the closed vocabulary: {refusal_class!r}"
+                )
+
+        envelope: dict[str, Any] = {
+            "receipt_version": RECEIPT_VERSION,
+            "profile_id": ACTIVITY_GOVERNED_READ_PROFILE_ID,
+            "profile_version": ACTIVITY_GOVERNED_READ_PROFILE_VERSION,
+            "receipt_id": receipt_id
+            or self._receipt_id_factory(ACTIVITY_GOVERNED_READ_RECEIPT_KIND),
+            "receipt_type": ACTIVITY_GOVERNED_READ_RECEIPT_TYPE,
+            "receipt_kind": ACTIVITY_GOVERNED_READ_RECEIPT_KIND,
+            "boundary_type": ACTIVITY_GOVERNED_READ_BOUNDARY_TYPE,
+            "protocol_binding": protocol_binding,
+            # Subject binding (profile rule): subject_ref == basis_version_ref.
+            "subject_ref": basis_version_ref,
+            "issuer_id": self.identity.issuer_id,
+            "runtime_instance_id": runtime_instance_id,
+            "boundary_id": boundary_id,
+            # Event time of the governed read; identity-bearing (ACT0 s3).
+            "issued_at": issued_at or self._issued_at_factory(),
+            "visibility": visibility,
+            "acting_principal_ref": acting_principal_ref,
+            "identity_posture": ACTIVITY_GOVERNED_READ_IDENTITY_POSTURE,
+            "read_request_ref": read_request_ref,
+            "basis_version_ref": basis_version_ref,
+            "basis_snapshot_digest": basis_snapshot_digest,
+            "read_disposition": read_disposition,
+            "produced_receipt_refs": produced,
+            "artifact_classes_covered": list(GOVERNED_READ_ARTIFACT_CLASSES_COVERED),
+            "artifact_classes_excluded": list(GOVERNED_READ_ARTIFACT_CLASSES_EXCLUDED),
+            "attestation_limits": [GOVERNED_READ_ATTESTATION_LIMIT],
+            "machine_limitations": [
+                {"code": GOVERNED_READ_MACHINE_LIMITATION_CODE}
+            ],
+            "extensions": dict(extensions) if extensions else {},
+        }
+        if session_ref is not None:
+            envelope["session_ref"] = session_ref
+        if read_disposition == "admitted":
+            envelope["admitted_result_ref"] = admitted_result_ref
+        else:
+            envelope["refusal_class"] = refusal_class
+        enforce_raw_content_exclusion(envelope)
+        return envelope
+
+    def emit_activity_governed_read(
+        self,
+        *,
+        runtime_instance_id: str,
+        boundary_id: str,
+        acting_principal_ref: str,
+        read_request_ref: str,
+        basis_version_ref: str,
+        basis_snapshot_digest: str,
+        read_disposition: str,
+        visibility: str,
+        admitted_result_ref: str | None = None,
+        refusal_class: str | None = None,
+        session_ref: str | None = None,
+        produced_receipt_refs: Sequence[str] = (),
+        protocol_binding: str = ACTIVITY_GOVERNED_READ_DEFAULT_PROTOCOL_BINDING,
+        issued_at: str | None = None,
+        receipt_id: str | None = None,
+        extensions: Mapping[str, Any] | None = None,
+    ) -> str:
+        """Build, sign, and durably write an ``srs.activity.governed_read.v0.1``
+        receipt through the shared signing / canonicalization / sink machinery.
+
+        Returns the written ``receipt_id``. See :meth:`build_activity_governed_read`
+        for the field contract and required-ref mapping.
+        """
+        envelope = self.build_activity_governed_read(
+            runtime_instance_id=runtime_instance_id,
+            boundary_id=boundary_id,
+            acting_principal_ref=acting_principal_ref,
+            read_request_ref=read_request_ref,
+            basis_version_ref=basis_version_ref,
+            basis_snapshot_digest=basis_snapshot_digest,
+            read_disposition=read_disposition,
+            visibility=visibility,
+            admitted_result_ref=admitted_result_ref,
+            refusal_class=refusal_class,
+            session_ref=session_ref,
+            produced_receipt_refs=produced_receipt_refs,
+            protocol_binding=protocol_binding,
+            issued_at=issued_at,
+            receipt_id=receipt_id,
+            extensions=extensions,
+        )
         signed = self.identity.sign_envelope(envelope)
         return self.sink.write(signed)
