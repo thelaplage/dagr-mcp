@@ -8,7 +8,7 @@ inventory.
 
 | Layer | Owns | Does not own |
 |---|---|---|
-| `garp-ingest` | source capture, extraction, derivation and provenance | durable memory admission |
+| `dagr-ingest` | source capture, extraction, derivation and provenance | durable memory admission |
 | ARCS Amnesiac | candidate, admission, refusal, reopening, supersession and context packets | MCP transport behavior |
 | DAGR MCP | runtime admission boundary, dispatch control and signed receipt emission | independent verification or durable-memory ratification |
 | ARCS Verify | recomputation from serialized artifacts | producer execution or truth of the underlying event |
