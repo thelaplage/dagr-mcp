@@ -94,8 +94,13 @@ def _tools_call_request(
     return TransformRequestRequest(context=TransformContext(), request=request)
 
 
-def test_admitted_in_scope_tools_call_returns_continue_and_emits_one_receipt(tmp_path: Path) -> None:
-    boundary, sink_dir = _build_boundary(tmp_path)
+def test_admitted_in_scope_tools_call_with_resolver_returns_continue_and_emits_one_receipt(
+    tmp_path: Path,
+) -> None:
+    boundary, sink_dir = _build_boundary(
+        tmp_path,
+        resolver=lambda _facts: IronAdmissionDecision(disposition="admitted"),
+    )
     response = boundary.TransformRequest(_tools_call_request())
 
     assert response.action == "CONTINUE"
@@ -109,6 +114,47 @@ def test_admitted_in_scope_tools_call_returns_continue_and_emits_one_receipt(tmp
     assert len(receipts) == 1
     assert receipts[0]["receipt_kind"] == "admission"
     assert receipts[0]["disposition"] == "admitted"
+
+
+def test_in_scope_tools_call_without_resolver_fails_closed_with_binding_unavailable(
+    tmp_path: Path,
+) -> None:
+    boundary, sink_dir = _build_boundary(tmp_path, resolver=None)
+    response = boundary.TransformRequest(_tools_call_request(arguments={"q": "missing-resolver"}))
+
+    assert response.action == "REJECT"
+    assert response.modified_request is None
+    assert response.response is not None
+    body = json.loads(response.response.body.decode("utf-8"))
+    assert body["error"]["message"] == "blocked by dagr governance"
+    assert response.annotations["dagr.decision"] == "refused"
+    assert response.annotations["dagr.reason_code"] == "binding_unavailable"
+
+    receipts = _read_receipts(sink_dir)
+    assert len(receipts) == 1
+    assert receipts[0]["receipt_kind"] == "admission"
+    assert receipts[0]["disposition"] == "refused"
+    assert receipts[0]["reason_code"] == "binding_unavailable"
+
+
+def test_in_scope_tools_call_with_broken_resolver_fails_closed_with_binding_unavailable(
+    tmp_path: Path,
+) -> None:
+    def broken_resolver(_facts: object) -> IronAdmissionDecision:
+        raise RuntimeError("resolver unavailable")
+
+    boundary, sink_dir = _build_boundary(tmp_path, resolver=broken_resolver)
+    response = boundary.TransformRequest(_tools_call_request(arguments={"q": "broken"}))
+
+    assert response.action == "REJECT"
+    assert response.response is not None
+    assert response.annotations["dagr.decision"] == "refused"
+    assert response.annotations["dagr.reason_code"] == "binding_unavailable"
+
+    receipts = _read_receipts(sink_dir)
+    assert len(receipts) == 1
+    assert receipts[0]["disposition"] == "refused"
+    assert receipts[0]["reason_code"] == "binding_unavailable"
 
 
 def test_refused_in_scope_tools_call_returns_reject_and_zero_downstream(tmp_path: Path) -> None:
@@ -318,4 +364,3 @@ def test_iron_transform_module_imports_no_iron_business_logic() -> None:
     assert "paradigmxyz" not in imports
     assert "fastmcp" not in imports
     assert "mcp" not in imports
-

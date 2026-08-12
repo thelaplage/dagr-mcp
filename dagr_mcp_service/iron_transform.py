@@ -364,8 +364,11 @@ def _make_jsonrpc_error_response(
     )
 
 
-def _default_decision(_facts: MCPCallFacts) -> IronAdmissionDecision:
-    return IronAdmissionDecision(disposition="admitted")
+def _binding_unavailable_decision(_facts: MCPCallFacts) -> IronAdmissionDecision:
+    return IronAdmissionDecision(
+        disposition="refused",
+        reason_code="binding_unavailable",
+    )
 
 
 def _governed_decision(
@@ -379,12 +382,13 @@ def _governed_decision(
             reason_code="unknown_tool_fail_closed",
         )
     if config.admission_resolver is None:
-        return _default_decision(facts)
-    decision = config.admission_resolver(facts)
+        return _binding_unavailable_decision(facts)
+    try:
+        decision = config.admission_resolver(facts)
+    except Exception:
+        return _binding_unavailable_decision(facts)
     if not isinstance(decision, IronAdmissionDecision):
-        raise TypeError(
-            "admission_resolver must return an IronAdmissionDecision"
-        )
+        return _binding_unavailable_decision(facts)
     return decision
 
 
