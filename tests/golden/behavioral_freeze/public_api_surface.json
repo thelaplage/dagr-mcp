@@ -29,6 +29,24 @@
       "InMemoryContextPacketStore"
     ],
     "dagr_mcp.async_sinks": null,
+    "dagr_mcp.deferred_boundary": [
+      "DeferralResult",
+      "DeferredActorMismatchError",
+      "DeferredArgumentMismatchError",
+      "DeferredBoundary",
+      "DeferredExecutionFailureError",
+      "DeferredReviewObjectSinkError",
+      "DeferredSlot",
+      "DeferredSlotError",
+      "DeferredSlotNotFoundError",
+      "DeferredSlotTerminalError",
+      "DeferredStaleResponseError",
+      "DeferredTimeoutError",
+      "ResumeResult",
+      "SlotState",
+      "make_deferred_boundary",
+      "make_review_decision"
+    ],
     "dagr_mcp.demo": null,
     "dagr_mcp.enforcement_harness": [
       "GovernedResult",
@@ -78,6 +96,12 @@
       "RAW_PAYLOAD_FIELD_NAMES",
       "build_mcp_record_custody_gateway",
       "mcp_record_custody_gateway_hash"
+    ],
+    "dagr_mcp.operator_admission_resolver": [
+      "DEFAULT_REFUSAL_REASON",
+      "OperatorAdmissionDecision",
+      "OperatorAdmissionResolverError",
+      "resolve_operator_admission"
     ],
     "dagr_mcp.policy_profile": [
       "HarnessPolicyProjection",
@@ -186,6 +210,18 @@
       "validate_tool_call_disposition_decision",
       "validate_tool_call_disposition_payload",
       "validate_tool_call_disposition_review_object"
+    ],
+    "dagr_mcp.trade_boundary_demo": [
+      "BoundaryObservation",
+      "BrokerDispatchSentinel",
+      "PLACE_TRADE_ORDER_ARGUMENTS",
+      "PLACE_TRADE_ORDER_TOOL",
+      "READ_MARKET_RESEARCH_ARGUMENTS",
+      "READ_MARKET_RESEARCH_TOOL",
+      "TradeBoundaryProof",
+      "build_side_effects_payload",
+      "build_trade_boundary_policies",
+      "run_trade_boundary_proof"
     ]
   },
   "package_public_names": [
