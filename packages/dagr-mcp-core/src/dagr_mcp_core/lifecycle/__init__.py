@@ -15,5 +15,6 @@ from __future__ import annotations
 from dagr_mcp_core.lifecycle import contract as contract
 from dagr_mcp_core.lifecycle import models as models
 from dagr_mcp_core.lifecycle import core as core
+from dagr_mcp_core.lifecycle import governed_action as governed_action
 
-__all__ = ["contract", "models", "core"]
+__all__ = ["contract", "models", "core", "governed_action"]
