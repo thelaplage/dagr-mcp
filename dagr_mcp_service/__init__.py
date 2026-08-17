@@ -41,6 +41,15 @@ resolution and composition seam:
   the repository's own parse/schema/signature discipline, and composes a
   verified admission/outcome pair. Reads only; mints no new receipt.
 
+**What Sprint A11 adds.** One more submodule — the Iron TransformService
+boundary for MCP tools/call requests:
+
+* :mod:`dagr_mcp_service.iron_transform` — a narrow adapter that recognizes
+  only explicitly scoped MCP JSON-RPC ``tools/call`` requests, reuses the
+  existing DAGR admission vocabulary and receipt machinery for the
+  pre-execution boundary, and returns Iron ``CONTINUE`` / ``REJECT`` without
+  executing any downstream request itself.
+
 **What this package still does NOT add.** No idempotency, deduplication, or
 exactly-once guarantee is encoded here or claimed by it (see scope §11 —
 those questions remain open). No subscription endpoint, receipt streaming,
@@ -74,9 +83,12 @@ __all__ = [
     "adapter",
     "connectors",
     "access",
+    "iron_transform",
 ]
 
-_LAZY_SUBMODULES = frozenset({"contract", "resolution", "adapter", "connectors", "access"})
+_LAZY_SUBMODULES = frozenset(
+    {"contract", "resolution", "adapter", "connectors", "access", "iron_transform"}
+)
 
 
 def __getattr__(name: str):

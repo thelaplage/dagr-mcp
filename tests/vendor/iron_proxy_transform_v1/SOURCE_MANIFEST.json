@@ -1,0 +1,10 @@
+{
+  "upstream_repo": "https://github.com/paradigmxyz/iron-proxy",
+  "upstream_commit": "564f7bac971dd3d3f077c23a7aaa7484671ed39f",
+  "license": "Apache-2.0",
+  "source_proto_path": "proto/transform/v1/transform.proto",
+  "source_proto_sha256": "7a47034c89081111b43b742ff399192489fb22173b36336e184a924b89aa0a86",
+  "source_grpc_path": "internal/transform/grpc/grpc.go",
+  "source_grpc_sha256": "afe63faaf8bace57f098153369208f12b0c816accae4f4bbc7ff0eab5434034e",
+  "fixture_path": "tests/vendor/iron_proxy_transform_v1/transform.proto"
+}
