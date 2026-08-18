@@ -1,0 +1,239 @@
+{
+  "admitted_error": {
+    "business_result": {
+      "payload": {
+        "message": "boom"
+      },
+      "result_kind": "error"
+    },
+    "cancellation_facts": null,
+    "custody_ref": null,
+    "decision": {
+      "disposition": "admitted",
+      "outcome": "error"
+    },
+    "diagnostic_code": "tool_error",
+    "logical_call_id": "call:vector:error",
+    "parent_receipt_ref": null,
+    "receipts": [
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-error-admission",
+        "receipt_kind": "admission"
+      },
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-error-outcome",
+        "receipt_kind": "outcome"
+      }
+    ],
+    "request_ref": "req-vector-error",
+    "retry_instruction": null,
+    "review_object_ref": null
+  },
+  "admitted_exception": {
+    "business_result": null,
+    "cancellation_facts": null,
+    "custody_ref": null,
+    "decision": {
+      "disposition": "admitted",
+      "outcome": "exception"
+    },
+    "diagnostic_code": "remote_exception",
+    "logical_call_id": "call:vector:exception",
+    "parent_receipt_ref": null,
+    "receipts": [
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-exception-admission",
+        "receipt_kind": "admission"
+      },
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-exception-outcome",
+        "receipt_kind": "outcome"
+      }
+    ],
+    "request_ref": "req-vector-exception",
+    "retry_instruction": null,
+    "review_object_ref": null
+  },
+  "admitted_result": {
+    "business_result": {
+      "payload": {
+        "items": [
+          1,
+          2
+        ],
+        "ok": true
+      },
+      "result_kind": "result"
+    },
+    "cancellation_facts": null,
+    "custody_ref": null,
+    "decision": {
+      "disposition": "admitted",
+      "outcome": "result"
+    },
+    "diagnostic_code": null,
+    "logical_call_id": "call:vector:result",
+    "parent_receipt_ref": null,
+    "receipts": [
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-result-admission",
+        "receipt_kind": "admission"
+      },
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-result-outcome",
+        "receipt_kind": "outcome"
+      }
+    ],
+    "request_ref": "req-vector-result",
+    "retry_instruction": null,
+    "review_object_ref": null
+  },
+  "admitted_timeout": {
+    "business_result": null,
+    "cancellation_facts": null,
+    "custody_ref": null,
+    "decision": {
+      "disposition": "admitted",
+      "outcome": "timeout"
+    },
+    "diagnostic_code": null,
+    "logical_call_id": "call:vector:timeout",
+    "parent_receipt_ref": null,
+    "receipts": [
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-timeout-admission",
+        "receipt_kind": "admission"
+      },
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-timeout-outcome",
+        "receipt_kind": "outcome"
+      }
+    ],
+    "request_ref": "req-vector-timeout",
+    "retry_instruction": null,
+    "review_object_ref": null
+  },
+  "cancellation": {
+    "business_result": null,
+    "cancellation_facts": {
+      "delivery_incomplete": true,
+      "execution_state_unknown": true,
+      "request_cancelled": true
+    },
+    "custody_ref": null,
+    "decision": {
+      "disposition": "admitted",
+      "outcome": "cancellation"
+    },
+    "diagnostic_code": "cancelled",
+    "logical_call_id": "call:vector:cancel",
+    "parent_receipt_ref": null,
+    "receipts": [
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-cancel-admission",
+        "receipt_kind": "admission"
+      },
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-cancel-outcome",
+        "receipt_kind": "outcome"
+      }
+    ],
+    "request_ref": "req-vector-cancel",
+    "retry_instruction": null,
+    "review_object_ref": null
+  },
+  "deferred": {
+    "business_result": null,
+    "cancellation_facts": null,
+    "custody_ref": null,
+    "decision": {
+      "disposition": "deferred",
+      "outcome": null
+    },
+    "diagnostic_code": "deferred_for_review",
+    "logical_call_id": "call:vector:deferred",
+    "parent_receipt_ref": null,
+    "receipts": [
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-deferred-admission",
+        "receipt_kind": "admission"
+      }
+    ],
+    "request_ref": "req-vector-deferred",
+    "retry_instruction": "retry_after_approval",
+    "review_object_ref": "review:vector:1"
+  },
+  "refused": {
+    "business_result": null,
+    "cancellation_facts": null,
+    "custody_ref": null,
+    "decision": {
+      "disposition": "refused",
+      "outcome": null
+    },
+    "diagnostic_code": "policy_refused",
+    "logical_call_id": "call:vector:refused",
+    "parent_receipt_ref": null,
+    "receipts": [
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-refused-admission",
+        "receipt_kind": "admission"
+      }
+    ],
+    "request_ref": "req-vector-refused",
+    "retry_instruction": null,
+    "review_object_ref": null
+  },
+  "task_submitted": {
+    "business_result": null,
+    "cancellation_facts": null,
+    "custody_ref": null,
+    "decision": {
+      "disposition": "admitted",
+      "outcome": "task_submitted"
+    },
+    "diagnostic_code": null,
+    "logical_call_id": "call:vector:task",
+    "parent_receipt_ref": null,
+    "receipts": [
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-task-admission",
+        "receipt_kind": "admission"
+      },
+      {
+        "location_handle": null,
+        "receipt_id": "r-vector-task-outcome",
+        "receipt_kind": "outcome"
+      }
+    ],
+    "request_ref": "req-vector-task",
+    "retry_instruction": null,
+    "review_object_ref": null
+  },
+  "unsupported_lifecycle": {
+    "business_result": null,
+    "cancellation_facts": null,
+    "custody_ref": null,
+    "decision": null,
+    "diagnostic_code": "unsupported_lifecycle_state",
+    "logical_call_id": "call:vector:unsupported",
+    "parent_receipt_ref": null,
+    "receipts": [],
+    "request_ref": "req-vector-unsupported",
+    "retry_instruction": null,
+    "review_object_ref": null
+  }
+}

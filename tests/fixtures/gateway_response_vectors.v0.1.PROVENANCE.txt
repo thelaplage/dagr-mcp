@@ -1,0 +1,29 @@
+GATEWAY-RESPONSE-VECTOR0 producer provenance
+
+producer_repository=thelaplage/dagr-mcp
+producer_base_commit=bba6480ce3c1eb4cd02c6e53440d9c1d0362c9d3
+contract_path=dagr_mcp_service/contract.py
+contract_blob_sha=d9be364b0289926b2392c07c750cb067c8e423a4
+lifecycle_contract_path=dagr_mcp_lifecycle/contract.py
+lifecycle_contract_blob_sha=9f91ed9ef1a065ee08f4c12fa83007b306d04af4
+generator_path=tests/fixtures/scripts/gen_gateway_response_vectors.py
+generator_blob_sha=374b08a3930d4076b14f9785a837b5f3244cb24d
+fixture_path=tests/fixtures/gateway_response_vectors.v0.1.json
+fixture_blob_sha=25d9b612c682ae5c2a078b14140a1ce1e02a7af9
+fixture_bytes_sha256=sha256:98928f9bc9a2c550b0127869a9eb58138b166ba9c3aab6e8aa713a27586937c1
+
+Generation contract:
+python tests/fixtures/scripts/gen_gateway_response_vectors.py \
+  --output tests/fixtures/gateway_response_vectors.v0.1.json
+
+The generator constructs dagr-mcp's own GovernedCallResponse / GovernedDecision /
+BusinessResult / ReceiptHandle / CancellationFacts objects and serializes each via
+GovernedCallResponse.to_dict(). The committed regression test requires byte-identical
+regeneration from those producer classes.
+
+The vector family covers admitted result/error/exception/timeout/cancellation/task-
+submitted, refused, deferred, and the service contract's non-coerced unsupported-
+lifecycle response (decision=None). It is intentionally product-neutral and carries no
+Counterplayer, research, provider-search, provider-open, identity-resolution,
+acquisition, or corpus semantics. Cross-repo consumers may interpret only the neutral
+gateway facts they own.
