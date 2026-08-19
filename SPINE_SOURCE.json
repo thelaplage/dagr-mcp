@@ -1,0 +1,14 @@
+{
+  "schema": "dagr.sdk-spine-pin.v0.1",
+  "authority": {
+    "repository": "thelaplage/dagr-sdk",
+    "path": "dagr_sdk/sdk_spine.py",
+    "commit": "bd8606e609246c53ef74d9c90a529aa737206585",
+    "git_blob_sha": "d69a72aa8af2e3d6f7104889f090472bb2cbbbda"
+  },
+  "projection": {
+    "path": "dagr_mcp/sdk_spine.py",
+    "mode": "byte_exact_generated_mirror",
+    "independent_edits_allowed": false
+  }
+}
