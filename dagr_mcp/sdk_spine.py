@@ -206,10 +206,25 @@ class ReviewDecisionLookup:
     terminal: bool
 
 
-# Canonical ``ReviewObject.governance_state`` vocabulary (plus legacy aliases below).
+# Canonical ``ReviewObject.governance_state`` vocabulary (plus aliases below).
+# ``withdrawn`` and ``superseded`` were ADDED as lifecycle states by
+# SDK-B2-CONTRACT0 (ratified in SDK-B2-VOCAB-RATIFY0): both are non-pending; both
+# are lifecycle states only and mint NO ``ReviewDecision`` (zero new merit outcome).
 REVIEW_OBJECT_STATES = frozenset(
-    {"pending", "approved", "rejected", "deferred", "expired"}
+    {
+        "pending",
+        "approved",
+        "rejected",
+        "deferred",
+        "expired",
+        "withdrawn",
+        "superseded",
+    }
 )
+# Review-DECISION outcomes are a SEPARATE closed vocabulary from lifecycle states.
+# SDK-B2-CONTRACT0 adds ZERO outcomes here: ``withdrawn``/``superseded`` are
+# lifecycle states, never merit decisions, and ``approved_with_notes`` stays inside
+# the ``approved`` outcome (see the modifier machinery below).
 REVIEW_DECISION_OUTCOMES = frozenset({"approved", "rejected", "deferred", "expired"})
 
 _ACTOR_REF_PREFIXES = frozenset(
@@ -223,18 +238,54 @@ _ACTOR_REF_PREFIXES = frozenset(
 _ACTOR_REF_SLUG_RE = re.compile(r"^[a-z0-9._-]{1,96}$")
 
 _REVIEW_OBJECT_STATE_ALIASES: dict[str, str] = {
-    # Legacy in-memory sink vocabulary maps onto canonical ``pending``.
+    # DISCARDING aliases: legacy in-memory sink vocabulary collapses onto canonical
+    # ``pending`` and the source distinction is intentionally lost at read time.
     "in_review": "pending",
     "escalated": "pending",
 }
+
+# Read-time modifier token for the ``approved`` family. ``approved_with_notes`` is
+# NOT a canonical state and NOT a new outcome (SDK-B2-VOCAB-RATIFY0): it collapses
+# into the ``approved`` base state but, UNLIKE the discarding aliases above, its
+# notes / export-conditional posture must SURVIVE normalization. This single token
+# is the minimal representation needed to distinguish ordinary ``approved`` from
+# approval-carrying-notes/export-condition.
+APPROVED_WITH_NOTES_MODIFIER = "notes_export_conditional"
+
+# PRESERVING family aliases: collapse to a canonical base state (like an alias) AND
+# carry a read-time modifier (see ``review_object_state_modifier``). Kept separate
+# from the discarding ``_REVIEW_OBJECT_STATE_ALIASES`` precisely so the preserve /
+# discard behaviours never blur together.
+_REVIEW_OBJECT_STATE_MODIFIER_ALIASES: dict[str, str] = {
+    "approved_with_notes": "approved",
+}
+_REVIEW_OBJECT_STATE_MODIFIERS: dict[str, str] = {
+    "approved_with_notes": APPROVED_WITH_NOTES_MODIFIER,
+}
+
 # Subset of governance states still awaiting disposition for ``list_pending``.
+# ``withdrawn`` and ``superseded`` are deliberately NON-pending (resolution-closed).
 REVIEW_OBJECT_PENDING_STATES = frozenset({"pending", "deferred"})
 
+# Graph (lineage) terminality — a DISTINCT axis from pendingness above and from
+# decision-outcome terminality (``ReviewDecisionLookup.terminal`` /
+# ``terminal_decision``). ``superseded`` has no outgoing lineage transition;
+# ``withdrawn`` is resolution-closed but remains supersedable (has an outgoing edge
+# to ``superseded``), so it is NOT graph-terminal. Do NOT fold this into
+# ``ReviewDecisionLookup.terminal`` — that would recreate the state/outcome
+# conflation this vocabulary removes.
+REVIEW_OBJECT_GRAPH_TERMINAL_STATES = frozenset({"superseded"})
+
 _REVIEW_OBJECT_STATE_CANONICAL_LOOKUP: dict[str, str] = {
-    alias: target for alias, target in _REVIEW_OBJECT_STATE_ALIASES.items()
+    **_REVIEW_OBJECT_STATE_ALIASES,
+    **_REVIEW_OBJECT_STATE_MODIFIER_ALIASES,
 }
 for _state in REVIEW_OBJECT_STATES:
     _REVIEW_OBJECT_STATE_CANONICAL_LOOKUP.setdefault(_state, _state)
+
+_REVIEW_OBJECT_STATE_ALIAS_DISPLAY = sorted(
+    set(_REVIEW_OBJECT_STATE_ALIASES) | set(_REVIEW_OBJECT_STATE_MODIFIER_ALIASES)
+)
 
 
 def normalize_review_object_state(value: str) -> str:
@@ -252,9 +303,63 @@ def normalize_review_object_state(value: str) -> str:
         raise ValueError(
             f"unknown review object governance_state {value!r}; "
             f"expected one of {sorted(REVIEW_OBJECT_STATES)} "
-            f"(legacy aliases: {sorted(_REVIEW_OBJECT_STATE_ALIASES)})"
+            f"(aliases: {_REVIEW_OBJECT_STATE_ALIAS_DISPLAY})"
         )
     return canonical
+
+
+def review_object_state_modifier(value: str) -> str | None:
+    """Return the read-time modifier for a raw ``governance_state``, else ``None``.
+
+    Only ``approved_with_notes`` carries a modifier today
+    (``APPROVED_WITH_NOTES_MODIFIER``): it normalizes into the ``approved`` family
+    via :func:`normalize_review_object_state` but, unlike the discarding
+    ``in_review`` / ``escalated`` aliases, its notes / export-conditional posture
+    must survive read-time normalization. Ordinary ``approved`` and every other
+    state — including the new ``withdrawn`` / ``superseded`` lifecycle states —
+    return ``None``. This never rewrites persisted bytes; it is a read-time view.
+    """
+
+    if not isinstance(value, str):
+        return None
+    return _REVIEW_OBJECT_STATE_MODIFIERS.get(value.strip().lower())
+
+
+def normalize_review_object_state_with_modifier(value: str) -> tuple[str, str | None]:
+    """Read-time normalization that PRESERVES the ``approved`` family modifier.
+
+    Returns ``(canonical_base_state, modifier_or_None)``. ``approved_with_notes``
+    yields ``("approved", APPROVED_WITH_NOTES_MODIFIER)``; ordinary ``approved`` and
+    every other canonical state yield ``(state, None)``. Additive over the
+    byte-preserving persisted value: historical rows are never rewritten, they are
+    only re-read with the modifier surfaced.
+    """
+
+    return normalize_review_object_state(value), review_object_state_modifier(value)
+
+
+def is_review_object_graph_terminal(value: str) -> bool:
+    """Return True when a review-object state is graph (lineage) terminal.
+
+    Graph terminality is a distinct axis from pendingness
+    (``REVIEW_OBJECT_PENDING_STATES``) and from decision-outcome terminality
+    (``ReviewDecisionLookup.terminal``). Only ``superseded`` is graph-terminal;
+    ``withdrawn`` is resolution-closed yet NOT graph-terminal (it is supersedable).
+    """
+
+    return normalize_review_object_state(value) in REVIEW_OBJECT_GRAPH_TERMINAL_STATES
+
+
+def is_review_object_supersedable(value: str) -> bool:
+    """Return True when a review-object state may still be superseded in lineage.
+
+    A canonical state is supersedable iff it is not itself graph-terminal, so every
+    state except ``superseded`` is supersedable — in particular ``withdrawn`` is
+    (its allowed outgoing transition is ``withdrawn -> superseded``). This encodes
+    supersedability WITHOUT overloading ``ReviewDecisionLookup.terminal``.
+    """
+
+    return normalize_review_object_state(value) not in REVIEW_OBJECT_GRAPH_TERMINAL_STATES
 
 
 def normalize_review_decision_outcome(value: str) -> str:
@@ -277,7 +382,7 @@ def normalize_review_decision_outcome(value: str) -> str:
 
 # Opaque ref returned by ``FileReviewObjectSink.record_decision`` /
 # ``GarpLocalReviewObjectSink.record_decision`` (``review_decision:<namespace>:<n>``).
-# In-memory sinks use a separate ``decision:<n>`` prefix - not validated here.
+# In-memory sinks use a separate ``decision:<n>`` prefix — not validated here.
 _REVIEW_DECISION_REF_RE = re.compile(
     r"^review_decision:(?P<ns>[A-Za-z][A-Za-z0-9_]*):(?P<idx>[1-9]\d*)$"
 )
@@ -310,7 +415,7 @@ def normalize_review_decision_ref(value: str) -> str:
 def review_decision_ref_from_sink_ref(ref: str) -> str:
     """Validate a value returned from ``record_decision`` on durable JSONL sinks.
 
-    Same rules as ``normalize_review_decision_ref`` - use when bridging sink
+    Same rules as ``normalize_review_decision_ref`` — use when bridging sink
     returns into linkage payloads without widening accepted shapes.
     """
 
@@ -416,7 +521,7 @@ class ReceiptSink(Protocol):
 
     **Verification posture:** ``verify_receipt`` returns structured ``ok=False``
     results when the sink is unavailable, IO fails, rows are malformed, or the
-    receipt is missing - callers must not treat verification as solely exceptional.
+    receipt is missing — callers must not treat verification as solely exceptional.
     Missing cryptography surfaces as explicit ``not_implemented`` / ``not_applicable``
     detail keys, not silent ``ok=True``.
 
@@ -507,7 +612,7 @@ class ReviewObjectSink(Protocol):
 class LintFindingSink(Protocol):
     """Persists lint findings; ``summarize`` is advisory.
 
-    ``summarize`` aggregates counts for dashboards - it does **not** gate execution.
+    ``summarize`` aggregates counts for dashboards — it does **not** gate execution.
 
     **Severity:** Including ``blocker`` severity describes impact only; harness/policy
     decides enforcement vs advisory posture.
@@ -972,7 +1077,9 @@ __all__ = [
     "ReceiptEnvelope",
     "ReceiptSink",
     "ReceiptVerificationError",
+    "APPROVED_WITH_NOTES_MODIFIER",
     "REVIEW_DECISION_OUTCOMES",
+    "REVIEW_OBJECT_GRAPH_TERMINAL_STATES",
     "REVIEW_OBJECT_PENDING_STATES",
     "REVIEW_OBJECT_STATES",
     "ReviewDecision",
@@ -981,8 +1088,12 @@ __all__ = [
     "ReviewObjectSink",
     "normalize_actor_ref",
     "is_review_decision_ref",
+    "is_review_object_graph_terminal",
+    "is_review_object_supersedable",
     "normalize_review_decision_outcome",
     "normalize_review_object_state",
+    "normalize_review_object_state_with_modifier",
+    "review_object_state_modifier",
     "normalize_review_decision_ref",
     "review_decision_ref_from_sink_ref",
     "SINK_DURABILITY_DATABASE",

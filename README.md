@@ -22,18 +22,41 @@ by [ARCS Verify](https://github.com/thelaplage/arcs-verify).
 | Public read and demo surfaces | GARPedia, Overlay, Showcase |
 | Commercial operator products | Countervail, Workbench, managed deployments |
 
+## Repository authority
+
+The DAGR repositories have different jobs. The names are not interchangeable.
+
+| Repository / surface | Owns | Does not own |
+|---|---|---|
+| `dagr-sdk` | canonical SDK implementation source for shared wire shapes and sink contracts | MCP execution, receipt verification, or durable action custody |
+| `dagr-mcp` | the real MCP bindings, lifecycle projection, and SRS receipt emission at the MCP boundary | the SDK contract source or independent verification |
+| `dagr-authority-runtime` | the designated shadow successor for durable governed-action execution; the current GitHub slug is still `dagr-runtime` until the repository rename is completed | current incumbent writer authority while cutover is false |
+| `arcs-verify` | independent verification of serialized receipts | producer-side execution or admission |
+
+`dagr_mcp/sdk_spine.py` is therefore **not an independently editable MCP
+implementation**. It is a byte-exact generated mirror of the pinned
+`dagr-sdk/dagr_sdk/sdk_spine.py` source recorded in `SPINE_SOURCE.json`. The test
+suite recomputes its Git blob identity and fails if the projection diverges.
+Changes to that spine happen in `dagr-sdk` first; MCP only advances the pin and
+regenerates the mirror.
+
+The authority statement above is about implementation ownership. Upstream
+semantic authority still comes from the applicable ARCS / DAGR doctrine and
+ratified contracts; a repository owning an implementation surface does not
+ratify its own semantics.
+
 ## What exists now
 
-MCP is DAGR's first supported binding. The repository is multi-binding today, and the shared lifecycle and receipt logic is not owned by any one framework.
+MCP is DAGR's first supported binding. The repository is multi-binding today, and the shared lifecycle and receipt logic is not owned by any one framework. **Only the rows marked real below are claimed as shipped adapters by this repository.**
 
 | Surface | Package / module | Status | Proven dependency |
 |---|---|---|---|
-| Legacy FastMCP runtime | root `dagr-mcp` distribution | active compatibility path | `fastmcp>=3.4.4,<4` |
-| Official MCP SDK 1.x binding | `dagr_mcp_sdk_binding` | active compatibility path | `mcp==1.29.0` through the `official-sdk` extra |
-| Protocol-neutral core | `packages/dagr-mcp-core` | active extracted substrate | no MCP or FastMCP dependency |
-| Official MCP SDK 2.x binding | `packages/dagr-mcp-sdk-v2` | active isolated binding | `mcp==2.0.0` |
-| Neutral service / connector layer | `dagr_mcp_service` | implemented internal composition surface | binding-selected |
-| Amnesiac operations | `dagr_mcp.amnesiac_*` | implemented optional integration | `arcs-amnesiac` + `garp-sdk` extra |
+| FastMCP binding | root `dagr-mcp` distribution / `dagr_mcp.quickwrap` | **real / active / tested** | `fastmcp>=3.4.4,<4` |
+| Official MCP SDK 1.x binding | `dagr_mcp_sdk_binding` | **real / active compatibility path** | `mcp==1.29.0` through the `official-sdk` extra |
+| Protocol-neutral core | `packages/dagr-mcp-core` | **real extracted substrate**; not itself a framework adapter | no MCP or FastMCP dependency |
+| Official MCP SDK 2.x binding | `packages/dagr-mcp-sdk-v2` | **real / active isolated binding** | `mcp==2.0.0` |
+| Neutral service / connector layer | `dagr_mcp_service` | implemented internal composition surface; **not a separate public adapter claim** | binding-selected |
+| Amnesiac operations | `dagr_mcp.amnesiac_*` | implemented optional integration; **not an MCP framework binding** | `arcs-amnesiac` + `garp-sdk` extra |
 
 Binding identifiers are stable receipt facts, not framework package versions.
 See [the binding registry](docs/BINDING_VERSIONS.md).
@@ -68,6 +91,27 @@ The emitter and verifier remain separate programs in separate repositories:
   key and attestation results without importing DAGR producer code.
 
 Only serialized artifacts cross that boundary.
+
+## One-line FastMCP start
+
+If you already have a FastMCP server, the convenience path is one line:
+
+```python
+from fastmcp import FastMCP
+import dagr_mcp
+
+server = FastMCP("my-server")
+dagr_mcp.quickwrap(server)
+```
+
+`quickwrap(server)` installs the existing `DAGRMiddleware`; it does not implement
+a second lifecycle or policy path. By default it writes receipts and the public
+trust bundle under `.dagr/receipts`, uses an ephemeral process-local signing
+identity, and preserves the binding's existing default-admit posture. Those
+defaults are for local evaluation and first-run integration. Governed production
+deployments should construct `SigningIdentity`, `SignedReceiptEmitter`, and
+`DAGRMiddlewareConfig` explicitly so signing custody, policy resolution,
+boundary IDs, and sink placement are deliberate.
 
 ## Start here
 
