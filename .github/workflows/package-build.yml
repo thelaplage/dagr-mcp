@@ -57,6 +57,7 @@ jobs:
         run: |
           /tmp/smoke/bin/dagr-mcp --help
           /tmp/smoke/bin/python -c "import importlib.metadata as m; print('dagr-mcp', m.version('dagr-mcp'))"
+          /tmp/smoke/bin/python -c "import dagr_mcp; assert callable(dagr_mcp.quickwrap); print('dagr_mcp.quickwrap installed-wheel API OK')"
       - name: Clean-wheel official-SDK in-process tools/list + tools/call smoke
         # Install the wheel WITH the official-sdk extra (pulling the pinned SDK) into
         # a separate clean env, then drive the second binding over the SDK's real
