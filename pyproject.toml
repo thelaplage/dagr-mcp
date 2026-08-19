@@ -25,6 +25,7 @@ classifiers = [
 ]
 dependencies = [
   "cryptography>=46.0.4,<47",
+  "dagr-sdk>=0.1.0,<0.2",
   "fastmcp>=3.4.4,<4",
   "rfc8785==0.1.4",
 ]
