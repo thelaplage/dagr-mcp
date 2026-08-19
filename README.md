@@ -108,10 +108,26 @@ dagr_mcp.quickwrap(server)
 a second lifecycle or policy path. By default it writes receipts and the public
 trust bundle under `.dagr/receipts`, uses an ephemeral process-local signing
 identity, and preserves the binding's existing default-admit posture. Those
-defaults are for local evaluation and first-run integration. Governed production
-deployments should construct `SigningIdentity`, `SignedReceiptEmitter`, and
-`DAGRMiddlewareConfig` explicitly so signing custody, policy resolution,
-boundary IDs, and sink placement are deliberate.
+defaults are for local evaluation and first-run integration.
+
+The explicit FastMCP construction surface is exported from the package root, so
+the upgrade path does not require reading internal module layout:
+
+```python
+from dagr_mcp import (
+    DAGRMiddleware,
+    DAGRMiddlewareConfig,
+    RawEnvelopeFileSink,
+    SignedReceiptEmitter,
+    SigningIdentity,
+    ToolClass,
+)
+```
+
+Governed production deployments should construct these components explicitly so
+signing custody, policy resolution, boundary IDs, tool classes, and sink
+placement are deliberate. The snippet above documents the public import surface;
+it deliberately does not prescribe production key custody or deployment policy.
 
 ## Start here
 
