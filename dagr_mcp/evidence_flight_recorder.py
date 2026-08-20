@@ -263,9 +263,8 @@ class EvidenceFlightRecorder:
     Durability
     ----------
     Each call to ``record()`` writes one JSON line to the NDJSON file and
-    calls ``fsync``.  The file is opened in append mode so concurrent writers
-    from the same process will serialize at the OS level, but multi-process
-    concurrent writes are not coordinated.
+    calls ``fsync``.  The file is opened in write mode (truncates on open);
+    concurrent writers are not coordinated.
 
     Thread safety
     -------------
@@ -480,6 +479,7 @@ class EvidenceFlightRecorder:
             return self._manifest_path
 
         self._fh.close()
+        self._closed = True  # set before manifest write; handle is now closed regardless
         manifest = self._build_manifest()
         manifest_path = self._log_path.with_suffix(".manifest.json")
         manifest_path.write_text(
@@ -487,7 +487,6 @@ class EvidenceFlightRecorder:
             encoding="utf-8",
         )
         self._manifest_path = manifest_path
-        self._closed = True
         return manifest_path
 
     def _build_manifest(self) -> FlightManifest:
@@ -548,6 +547,7 @@ class InMemoryFlightRecorder:
         self._opened_at = _now_utc_iso()
         self._records: list[FlightRecord] = []
         self._closed = False
+        self._manifest: FlightManifest | None = None
 
     def record(
         self,
@@ -589,8 +589,11 @@ class InMemoryFlightRecorder:
 
     def close(self) -> FlightManifest:
         """Mark closed and return a ``FlightManifest`` (not written to disk)."""
+        if self._closed:
+            return self._manifest  # type: ignore[return-value]
         self._closed = True
-        return self._build_manifest()
+        self._manifest = self._build_manifest()
+        return self._manifest
 
     def _build_manifest(self) -> FlightManifest:
         return _assemble_manifest(
@@ -624,7 +627,7 @@ def read_flight_log(log_path: Path | str) -> list[FlightRecord]:
 
     Blank lines are skipped.  Lines that cannot be parsed as JSON are
     represented as ``FlightRecord`` entries with:
-    - ``phase="not_evaluated"`` (a special sentinel — not a real phase)
+    - ``phase="parse_error"`` (a special sentinel — not a real phase)
     - ``status="error"``
     - ``failure_code="flight_log.parse_error"``
     - ``detail`` = the raw line text
