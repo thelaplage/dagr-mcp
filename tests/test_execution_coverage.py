@@ -199,7 +199,7 @@ class TestBuilder:
         assert cov.executed_successfully_count == 1
         assert cov.execution_failed_count == 1
         assert cov.not_attempted_count == 1
-        assert cov.attempted_action_count == 3  # == admitted_count
+        assert cov.attempted_action_count == 2  # == executed_successfully + execution_failed
         validate_execution_coverage(cov)
 
     def test_unknown_outcome_raises(self):
@@ -223,6 +223,42 @@ class TestBuilder:
         cov1 = builder.build()
         cov2 = builder.build()
         assert cov1 == cov2
+
+    def test_admitted_and_not_attempted_does_not_increment_attempted(self):
+        """admitted_and_not_attempted increments admitted_count and not_attempted_count only.
+
+        It must NOT increment attempted_action_count. An action that was admitted
+        but whose handler was never called is not an attempted action.
+        """
+        builder = ExecutionCoverageBuilder()
+        builder.record_action_outcome("admitted_and_not_attempted")
+        cov = builder.build()
+
+        assert cov.planned_action_count == 1
+        assert cov.admitted_count == 1
+        assert cov.not_attempted_count == 1
+        # The critical assertion: attempted must be 0, not 1
+        assert cov.attempted_action_count == 0
+        assert cov.executed_successfully_count == 0
+        assert cov.execution_failed_count == 0
+        validate_execution_coverage(cov)
+
+    def test_attempted_action_count_equals_executed_plus_failed(self):
+        """attempted_action_count == executed_successfully + execution_failed in all cases."""
+        outcomes = [
+            "admitted_and_executed_successfully",
+            "admitted_and_executed_successfully",
+            "admitted_and_execution_failed",
+            "admitted_and_not_attempted",  # admitted but NOT attempted
+            "refused",
+            "deferred",
+        ]
+        cov = build_execution_coverage(outcomes)
+        assert cov.attempted_action_count == cov.executed_successfully_count + cov.execution_failed_count
+        assert cov.attempted_action_count == 3  # 2 success + 1 failed
+        assert cov.admitted_count == 4           # 3 attempted + 1 not_attempted
+        assert cov.not_attempted_count == 1
+        validate_execution_coverage(cov)
 
 
 # ---------------------------------------------------------------------------
@@ -358,13 +394,11 @@ class TestValidation:
         with pytest.raises(ExecutionCoverageError, match="planned_action_count must be >= 0"):
             validate_execution_coverage(cov)
 
-    def test_attempted_ne_admitted_fails(self):
-        # Build valid counts manually and then tamper
-        cov = build_execution_coverage(["admitted_and_executed_successfully"])
-        # Manufacture an artifact with attempted != admitted
+    def test_attempted_ne_executed_plus_failed_fails(self):
+        """validate_execution_coverage rejects attempted != executed_successfully + execution_failed."""
         counts = {k: 0 for k in _DIGEST_PROJECTION_KEYS}
         counts["planned_action_count"] = 1
-        counts["attempted_action_count"] = 99  # tampered
+        counts["attempted_action_count"] = 99  # tampered — does not equal executed(1) + failed(0)
         counts["admitted_count"] = 1
         counts["executed_successfully_count"] = 1
         tampered = ExecutionCoverage(
@@ -382,15 +416,16 @@ class TestValidation:
             validate_execution_coverage(tampered)
 
     def test_admitted_total_mismatch_fails(self):
+        # attempted(1) == executed_successfully(1) + execution_failed(0) — first check passes
+        # admitted(2) != attempted(1) + not_attempted(0) — second check fails
         counts = {k: 0 for k in _DIGEST_PROJECTION_KEYS}
         counts["planned_action_count"] = 2
-        counts["attempted_action_count"] = 2
-        counts["admitted_count"] = 2
-        # executed_successfully + execution_failed + not_attempted == 1, not 2
+        counts["attempted_action_count"] = 1
+        counts["admitted_count"] = 2  # claimed 2 admitted but attempted+not_attempted = 1
         counts["executed_successfully_count"] = 1
         tampered = ExecutionCoverage(
             planned_action_count=2,
-            attempted_action_count=2,
+            attempted_action_count=1,
             admitted_count=2,
             refused_count=0,
             deferred_count=0,
@@ -422,6 +457,29 @@ class TestValidation:
             coverage_digest=_compute_coverage_digest(counts),
         )
         with pytest.raises(ExecutionCoverageError, match="planned_action_count"):
+            validate_execution_coverage(tampered)
+
+    def test_attempted_ne_executed_plus_failed_is_rejected(self):
+        """validate_execution_coverage rejects attempted_action_count != executed + failed."""
+        # Craft a coverage where attempted=2 but executed_successfully=1, execution_failed=0
+        # So attempted(2) != executed+failed(1) — must be rejected.
+        counts = {k: 0 for k in _DIGEST_PROJECTION_KEYS}
+        counts["planned_action_count"] = 2
+        counts["attempted_action_count"] = 2   # wrong: should be 1
+        counts["admitted_count"] = 2
+        counts["executed_successfully_count"] = 1
+        tampered = ExecutionCoverage(
+            planned_action_count=2,
+            attempted_action_count=2,
+            admitted_count=2,
+            refused_count=0,
+            deferred_count=0,
+            executed_successfully_count=1,
+            execution_failed_count=0,
+            not_attempted_count=1,
+            coverage_digest=_compute_coverage_digest(counts),
+        )
+        with pytest.raises(ExecutionCoverageError, match="attempted_action_count"):
             validate_execution_coverage(tampered)
 
     def test_digest_mismatch_fails(self):

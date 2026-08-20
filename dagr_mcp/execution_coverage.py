@@ -196,11 +196,13 @@ class ExecutionCoverageBuilder:
     def build(self) -> ExecutionCoverage:
         """Finalize the builder into an immutable ``ExecutionCoverage``.
 
-        ``attempted_action_count`` = admitted_count (admitted actions were
-        submitted to the handler boundary, regardless of handler outcome).
-        Refused and deferred actions were never attempted.
+        ``attempted_action_count`` = executed_successfully_count +
+        execution_failed_count. An action that was admitted but whose handler
+        was never called (``admitted_and_not_attempted``) increments
+        ``admitted_count`` and ``not_attempted_count`` only — it is NOT counted
+        as attempted. Refused and deferred actions are never attempted.
         """
-        attempted = self._admitted_count
+        attempted = self._executed_successfully_count + self._execution_failed_count
         counts: dict[str, int] = {
             "planned_action_count": self._planned_action_count,
             "attempted_action_count": attempted,
@@ -251,10 +253,10 @@ def validate_execution_coverage(coverage: ExecutionCoverage) -> None:
 
     Checks:
     - All counts are non-negative integers.
-    - planned >= attempted >= 0.
-    - attempted == admitted_count (by definition).
-    - admitted_count == executed_successfully + execution_failed + not_attempted.
-    - planned == admitted + refused + deferred.
+    - attempted_action_count == executed_successfully_count + execution_failed_count.
+    - admitted_count == attempted_action_count + not_attempted_count
+      (equivalently: admitted == executed_successfully + execution_failed + not_attempted).
+    - planned_action_count == admitted_count + refused_count + deferred_count.
     - coverage_digest matches the recomputed digest.
     - No scalar quality score is present (structural, not semantic).
 
@@ -277,10 +279,14 @@ def validate_execution_coverage(coverage: ExecutionCoverage) -> None:
         if value < 0:
             raise ExecutionCoverageError(f"{name} must be >= 0, got {value}")
 
-    if coverage.attempted_action_count != coverage.admitted_count:
+    attempted_expected = (
+        coverage.executed_successfully_count + coverage.execution_failed_count
+    )
+    if coverage.attempted_action_count != attempted_expected:
         raise ExecutionCoverageError(
             f"attempted_action_count ({coverage.attempted_action_count}) "
-            f"must equal admitted_count ({coverage.admitted_count})"
+            f"must equal executed_successfully_count + execution_failed_count "
+            f"({attempted_expected})"
         )
 
     admitted_total = (
