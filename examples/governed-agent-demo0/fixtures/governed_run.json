@@ -1,0 +1,38 @@
+{
+  "scenario": "theranos-ca9-governed-agent",
+  "authority": "none_claimed",
+  "question": "Trace the governed evidence path for the CA-9 scenario.",
+  "steps": [
+    {
+      "phase": "tool_trace",
+      "status": "complete",
+      "claims": ["tool execution observed", "receipt recorded"]
+    },
+    {
+      "phase": "evidence_flight",
+      "layers": {
+        "discovered": "present",
+        "fetched": "present",
+        "cited": "observed",
+        "relied_upon": "observed"
+      }
+    },
+    {
+      "phase": "projection",
+      "before_digest": "fixture_projection_digest_before",
+      "after_digest": "fixture_projection_digest_before",
+      "result": "MATCH"
+    },
+    {
+      "phase": "recovery",
+      "worker_a": "terminated",
+      "worker_b": "recovered_governed_bytes",
+      "hidden_process_memory": "none_claimed"
+    }
+  ],
+  "limits": [
+    "receipt != truth",
+    "projection match != authentication",
+    "recovery != hidden memory restoration"
+  ]
+}
