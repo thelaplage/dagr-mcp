@@ -389,19 +389,25 @@ def step3_evidence_trail(governed_result: dict[str, Any]) -> dict[str, Any]:
             })
 
     # Pair each fetched source with the receipt IDs from its own governing call.
-    # Fetch calls appear in order after the discover call; pair by index.
+    # Fetch calls appear in order after the discover call.
+    # Pair by position only when count matches; if any source.fetch was refused the
+    # counts diverge and we cannot safely zip — fall back to empty refs per entry.
     fetch_tool_calls = [
         tc for tc in tool_calls
         if tc["tool_name"] == "source.fetch" and tc.get("disposition") == "admitted"
     ]
-
+    counts_match = len(fetch_tool_calls) == len(FETCHED_SOURCE_REFS)
     fetched_layer = []
     for i, ref in enumerate(FETCHED_SOURCE_REFS):
-        fetch_tc = fetch_tool_calls[i] if i < len(fetch_tool_calls) else None
+        if counts_match:
+            fetch_tc = fetch_tool_calls[i]
+            obs_refs = list(fetch_tc["receipt_refs"])
+        else:
+            obs_refs = []
         entry: dict[str, Any] = {
             "source_ref": ref,
-            "fetch_status": "admitted",
-            "observation_refs": list(fetch_tc["receipt_refs"]) if fetch_tc else [],
+            "fetch_status": "admitted" if counts_match else "partial",
+            "observation_refs": obs_refs,
         }
         fetched_layer.append(entry)
 
@@ -559,6 +565,19 @@ def step5_recovery(governed_result: dict[str, Any]) -> dict[str, Any]:
     receipt_paths = governed_result.get("receipt_paths", [])
     in_memory_receipts: list[dict[str, Any]] = governed_result.get("receipts", [])
 
+    # Guard: nothing to verify if no receipt files were emitted.
+    if not receipt_paths:
+        return {
+            "schema": "flagship-demo0/recovery/v0.1",
+            "all_stable": False,
+            "replay_entries": [],
+            "recovery_posture": "NO_RECEIPTS — nothing to verify",
+            "non_claim": (
+                "no_receipts != verified_stable; "
+                "receipt_id_match != independent_verification"
+            ),
+        }
+
     # Index in-memory receipts by receipt_id for comparison
     memory_index: dict[str, dict[str, Any]] = {
         r.get("receipt_id", ""): r for r in in_memory_receipts
@@ -568,6 +587,12 @@ def step5_recovery(governed_result: dict[str, Any]) -> dict[str, Any]:
     all_stable = True
 
     for path in receipt_paths:
+        # Re-reading disk bytes here is architecturally intentional: step5 is a
+        # recovery/integrity check whose value comes from independently re-reading
+        # the serialized artifact from storage, not from trusting the in-memory copy
+        # that step2 already holds.  The in_memory_receipts above are used only to
+        # build the receipt_id index for membership comparison; the disk read is the
+        # recovery probe.  This is NOT a redundant read — it is the point of step5.
         disk_bytes = Path(path).read_bytes()
         disk_digest = "sha256:" + hashlib.sha256(disk_bytes).hexdigest()
         disk_receipt: dict[str, Any] = json.loads(disk_bytes)
