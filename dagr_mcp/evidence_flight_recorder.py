@@ -196,6 +196,44 @@ class FlightManifest:
 
 
 # ---------------------------------------------------------------------------
+# Shared manifest builder (used by both recorder implementations)
+# ---------------------------------------------------------------------------
+
+
+def _assemble_manifest(
+    *,
+    session_ref: str,
+    opened_at: str,
+    log_path: str,
+    records: list[FlightRecord],
+) -> FlightManifest:
+    by_phase: dict[str, int] = {}
+    by_status: dict[str, int] = {}
+    gaps: list[dict] = []
+    failures: list[dict] = []
+
+    for rec in records:
+        by_phase[rec.phase] = by_phase.get(rec.phase, 0) + 1
+        by_status[rec.status] = by_status.get(rec.status, 0) + 1
+        if rec.status in _GAP_STATUSES:
+            gaps.append(asdict(rec))
+        if rec.status in _FAILURE_STATUSES:
+            failures.append(asdict(rec))
+
+    return FlightManifest(
+        session_ref=session_ref,
+        opened_at=opened_at,
+        closed_at=_now_utc_iso(),
+        log_path=log_path,
+        total_records=len(records),
+        by_phase=by_phase,
+        by_status=by_status,
+        gaps=gaps,
+        failures=failures,
+    )
+
+
+# ---------------------------------------------------------------------------
 # File-backed recorder
 # ---------------------------------------------------------------------------
 
@@ -244,10 +282,12 @@ class EvidenceFlightRecorder:
         self._opened_at = _now_utc_iso()
         self._records: list[FlightRecord] = []
         self._closed = False
+        self._manifest_path: Path | None = None
 
-        # Open for exclusive creation or append.
+        # Truncate on open: each recorder instance owns exactly one session's
+        # records. Callers must use a unique path per session.
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
-        self._fh = self._log_path.open("a", encoding="utf-8")
+        self._fh = self._log_path.open("w", encoding="utf-8")
 
     # ------------------------------------------------------------------
     # Core record API
@@ -440,8 +480,6 @@ class EvidenceFlightRecorder:
             return self._manifest_path
 
         self._fh.close()
-        self._closed = True
-
         manifest = self._build_manifest()
         manifest_path = self._log_path.with_suffix(".manifest.json")
         manifest_path.write_text(
@@ -449,32 +487,15 @@ class EvidenceFlightRecorder:
             encoding="utf-8",
         )
         self._manifest_path = manifest_path
+        self._closed = True
         return manifest_path
 
     def _build_manifest(self) -> FlightManifest:
-        by_phase: dict[str, int] = {}
-        by_status: dict[str, int] = {}
-        gaps: list[dict] = []
-        failures: list[dict] = []
-
-        for rec in self._records:
-            by_phase[rec.phase] = by_phase.get(rec.phase, 0) + 1
-            by_status[rec.status] = by_status.get(rec.status, 0) + 1
-            if rec.status in _GAP_STATUSES:
-                gaps.append(asdict(rec))
-            if rec.status in _FAILURE_STATUSES:
-                failures.append(asdict(rec))
-
-        return FlightManifest(
+        return _assemble_manifest(
             session_ref=self._session_ref,
             opened_at=self._opened_at,
-            closed_at=_now_utc_iso(),
             log_path=str(self._log_path),
-            total_records=len(self._records),
-            by_phase=by_phase,
-            by_status=by_status,
-            gaps=gaps,
-            failures=failures,
+            records=self._records,
         )
 
     # ------------------------------------------------------------------
@@ -572,29 +593,11 @@ class InMemoryFlightRecorder:
         return self._build_manifest()
 
     def _build_manifest(self) -> FlightManifest:
-        by_phase: dict[str, int] = {}
-        by_status: dict[str, int] = {}
-        gaps: list[dict] = []
-        failures: list[dict] = []
-
-        for rec in self._records:
-            by_phase[rec.phase] = by_phase.get(rec.phase, 0) + 1
-            by_status[rec.status] = by_status.get(rec.status, 0) + 1
-            if rec.status in _GAP_STATUSES:
-                gaps.append(asdict(rec))
-            if rec.status in _FAILURE_STATUSES:
-                failures.append(asdict(rec))
-
-        return FlightManifest(
+        return _assemble_manifest(
             session_ref=self._session_ref,
             opened_at=self._opened_at,
-            closed_at=_now_utc_iso(),
             log_path="<in-memory>",
-            total_records=len(self._records),
-            by_phase=by_phase,
-            by_status=by_status,
-            gaps=gaps,
-            failures=failures,
+            records=self._records,
         )
 
     def records(self) -> list[FlightRecord]:
@@ -655,7 +658,7 @@ def read_flight_log(log_path: Path | str) -> list[FlightRecord]:
                     FlightRecord(
                         record_id=_new_record_id(),
                         session_ref="",
-                        phase="not_evaluated",
+                        phase="parse_error",
                         occurred_at=_now_utc_iso(),
                         subject_ref=f"log_line:{lineno}",
                         source_ref=str(path),
