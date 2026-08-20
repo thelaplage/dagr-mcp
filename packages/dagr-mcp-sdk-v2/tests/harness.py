@@ -116,6 +116,7 @@ def build_governed_test_app(
     receipts_dir: Path | None = None,
     subject_ref_override: str | None = None,
     logical_call_id_override: str | None = None,
+    mint_logical_call_id: bool = False,
 ) -> GovernedTestApp:
     """Build a real governed v2 Server + stateless ASGI app for one test.
 
@@ -143,6 +144,7 @@ def build_governed_test_app(
         ),
         subject_ref_override=subject_ref_override,
         logical_call_id_override=logical_call_id_override,
+        mint_logical_call_id=mint_logical_call_id,
     )
     adapter = SdkV2LifecycleAdapter(emitter=emitter, config=config)
 

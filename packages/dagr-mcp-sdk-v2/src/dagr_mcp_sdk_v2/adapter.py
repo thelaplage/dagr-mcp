@@ -156,6 +156,16 @@ class SdkV2BindingConfig:
     # classes structurally reachable on this path (see ``_receipt_context``).
     logical_call_id_override: str | None = None
     subject_ref_override: str | None = None
+    # Explicit opt-in: when True, this binding mints a fresh opaque
+    # ``call:<uuid4>`` logical call id for *every* governed ``tools/call``
+    # invocation, even when the trusted request context carries a
+    # ``request_id`` that would otherwise be reused as the correlation
+    # reference. Identity minting stays binding-owned -- no operator
+    # callable/factory participates (see ``_receipt_context``). Defaults to
+    # ``False`` so every existing caller's behavior is unchanged. Conflicts
+    # with ``logical_call_id_override`` (see ``__post_init__``): the operator
+    # cannot both supply a correlation id and ask the binding to mint one.
+    mint_logical_call_id: bool = False
     pre_execution_receipt_failure: Mapping[GovernedToolClass, ReceiptFailureMode] = field(
         default_factory=lambda: {
             "read": "fail_open",
@@ -164,6 +174,15 @@ class SdkV2BindingConfig:
         }
     )
     additional_attestation_limits: tuple[str, ...] = (DEFAULT_BOUNDARY_LIMIT,)
+
+    def __post_init__(self) -> None:
+        if self.logical_call_id_override is not None and self.mint_logical_call_id:
+            raise ValueError(
+                "SdkV2BindingConfig: logical_call_id_override and "
+                "mint_logical_call_id=True are conflicting operator "
+                "instructions -- supply an explicit correlation id or ask "
+                "the binding to mint one, not both."
+            )
 
 
 class SdkV2LifecycleAdapter:
@@ -299,11 +318,22 @@ class SdkV2LifecycleAdapter:
     ) -> ReceiptContext:
         request_id = getattr(ctx, "request_id", None)
         request_ref = f"request:{request_id}" if request_id is not None else None
-        logical_call_id = (
-            self.config.logical_call_id_override
-            or request_ref
-            or f"call:{uuid.uuid4()}"
-        )
+        # Precedence: an explicit operator-supplied correlation id always wins;
+        # otherwise, an explicit mint-per-invocation opt-in wins over reusing
+        # the request reference (the whole point of the flag is to ignore
+        # available request correlation for logical-call identity); otherwise
+        # the request reference is reused as before; otherwise the binding
+        # mints a fallback id. ``__post_init__`` already refuses the
+        # ``logical_call_id_override`` + ``mint_logical_call_id=True``
+        # combination, so at most one of the first two conditions is ever true.
+        if self.config.logical_call_id_override:
+            logical_call_id = self.config.logical_call_id_override
+        elif self.config.mint_logical_call_id:
+            logical_call_id = f"call:{uuid.uuid4()}"
+        elif request_ref:
+            logical_call_id = request_ref
+        else:
+            logical_call_id = f"call:{uuid.uuid4()}"
         # Each branch below both obtains the subject reference and declares how it
         # was obtained. The last two branches build the same subject string but
         # are not the same decision: one derives it from a correlation the
@@ -320,6 +350,9 @@ class SdkV2LifecycleAdapter:
         if self.config.subject_ref_override:
             subject_ref = self.config.subject_ref_override
             subject_ref_origin = "supplied_subject"
+        elif self.config.mint_logical_call_id:
+            subject_ref = f"tool-call:{logical_call_id}"
+            subject_ref_origin = "binding_minted"
         elif request_ref:
             subject_ref = request_ref
             subject_ref_origin = "derived_from_request"
