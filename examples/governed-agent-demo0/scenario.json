@@ -1,0 +1,17 @@
+{
+  "scenario": "theranos_governed_agent_run",
+  "authority_movement": "0",
+  "steps": [
+    {"name": "research_question", "status": "declared"},
+    {"name": "mcp_actions", "status": "receipts_available"},
+    {"name": "evidence_flight_recorder", "status": "observed"},
+    {"name": "graph_explanation", "status": "bounded"},
+    {"name": "projection_resurrection", "status": "byte_identity_checked"},
+    {"name": "worker_recovery", "status": "governed_refs_only"}
+  ],
+  "claims": {
+    "receipt_is_truth": false,
+    "admission_is_source_truth": false,
+    "byte_stable_is_authentication": false
+  }
+}
