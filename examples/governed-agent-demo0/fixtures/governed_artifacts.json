@@ -1,0 +1,26 @@
+{
+  "scenario": "theranos_governed_agent_run",
+  "authority_movement": "0",
+  "evidence": {
+    "discovery": "recorded",
+    "fetch": "recorded",
+    "citation": "observed_or_absent",
+    "reliance": "recorded"
+  },
+  "graph": {
+    "edge_rules": [
+      "co_reference != supported_by",
+      "citation != support",
+      "temporal_relation != causation"
+    ]
+  },
+  "projection": {
+    "resurrection": "byte_identity_checked",
+    "authentication_claim": false
+  },
+  "recovery": {
+    "worker_a": "terminated",
+    "worker_b": "recovered_governed_refs",
+    "hidden_memory_recovered": false
+  }
+}
