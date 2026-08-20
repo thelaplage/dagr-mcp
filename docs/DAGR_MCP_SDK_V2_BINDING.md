@@ -50,9 +50,13 @@ branch that actually determines the subject reference
 | --- | --- | --- |
 | `supplied_subject` | yes | `SdkV2BindingConfig.subject_ref_override` is set |
 | `derived_from_session` | **no — structurally unreachable** | see below |
-| `derived_from_request` | yes | `ctx.request_id` is present (every ordinary HTTP call) |
+| `derived_from_request` | yes | `ctx.request_id` is present (every ordinary HTTP call) and `mint_logical_call_id` is not set |
 | `derived_from_supplied_correlation` | yes | no request id, but `logical_call_id_override` is set |
-| `binding_minted` | yes | no request id and no operator correlation |
+| `binding_minted` | yes | no request id and no operator correlation, **or** `mint_logical_call_id=True` |
+
+`SdkV2BindingConfig.subject_ref_override`, when set, always wins regardless of
+`mint_logical_call_id` — minting a fresh `logical_call_id` never changes an
+operator-supplied `subject_ref`.
 
 `derived_from_session` cannot arise on this path, and that is a property of the
 protocol rather than an omission in this binding. Protocol `2026-07-28` — the
@@ -69,6 +73,59 @@ Absence remains a distinct reading: a receipt with no `subject_ref_origin`
 reads as `not_declared`, which is never emitted and is not a member of the
 vocabulary. A value outside the vocabulary is refused by the neutral core
 before signing rather than degraded into absence.
+
+## 1b. `mint_logical_call_id` — per-invocation binding-minted call identity
+
+`SdkV2BindingConfig.mint_logical_call_id: bool = False` is an explicit
+opt-in seam (SDKV2-CALLID-MINT0). Setting it to `True` means: **ignore
+available request correlation for logical-call identity and let the binding
+mint a fresh opaque call identifier (`call:<uuid4()>`) for every `tools/call`
+invocation**, even when `ctx.request_id` is present and would otherwise be
+reused as `request:<id>`.
+
+What it does *not* mean:
+
+- stronger authentication or actor identity — actor resolution is untouched
+  (`SdkV2ActorResolver`, trusted-context only, unaffected by this flag);
+- a globally durable distributed trace identity — the minted id is a local,
+  per-invocation opaque value, nothing more;
+- admission authority — admission/refusal decisions are unaffected;
+- subject identity, unless `subject_ref` is otherwise binding-derived — an
+  explicit `subject_ref_override` always wins (§1a);
+- a receipt-pairing requirement — **`outcome.admission_receipt_ref` remains
+  the canonical outcome→admission edge.** A unique `logical_call_id` is useful
+  correlation metadata, not a substitute for `admission_receipt_ref`.
+
+Precedence in `_receipt_context`:
+
+1. `logical_call_id_override` (if supplied) — used verbatim.
+2. `mint_logical_call_id=True` — mint `call:{uuid.uuid4()}`.
+3. `ctx.request_id` present — reuse `request:{request_id}` (existing default
+   behavior, unchanged when the flag is `False`).
+4. otherwise — mint `call:{uuid.uuid4()}` (existing fallback, unchanged).
+
+`logical_call_id_override` and `mint_logical_call_id=True` are conflicting
+operator instructions — the operator cannot both supply a fixed correlation id
+and ask the binding to mint a fresh one per call. `SdkV2BindingConfig.__post_init__`
+raises `ValueError` at construction time for that combination; it fails
+closed rather than silently privileging one over the other.
+
+Identity minting stays binding-owned throughout: no operator-supplied
+callable, factory, timestamp, counter, or model/request-argument content ever
+participates in the minted value — the only production code path to a minted
+id is `uuid.uuid4()` called directly in `_receipt_context`.
+
+Minting happens once per governed invocation, inside `_receipt_context`,
+which is called once near the top of `governed_call_tool` and its result
+(the one `ReceiptContext`) is reused for both the admission and the outcome
+receipt of that invocation — so admission and outcome always carry the
+identical `logical_call_id`, and two separate invocations (even sharing the
+same `ctx.request_id`) always mint two different ids.
+
+Default (`False`) is fully backward compatible: every existing caller,
+including the `ctx.request_id == 0` edge case (`0 is not None`, so
+`request:0` is still produced), is unaffected. See
+`packages/dagr-mcp-sdk-v2/tests/test_mint_logical_call_id_v2.py`.
 
 ## 2. The governed `tools/call` handler contract
 
