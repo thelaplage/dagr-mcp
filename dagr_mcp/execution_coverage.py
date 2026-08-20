@@ -23,8 +23,6 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Literal, Sequence
 
-from dagr_mcp.sdk_spine import stable_payload_hash
-
 
 # ---------------------------------------------------------------------------
 # Vocabulary

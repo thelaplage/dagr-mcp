@@ -299,6 +299,30 @@ class TestDigest:
         assert d1 == d2
         assert d1.startswith("sha256:")
 
+    def test_digest_golden_vectors(self):
+        """Byte-pinned vectors — a silent _DIGEST_PROJECTION_KEYS reorder must break this."""
+        # All-zero plan (empty).
+        zero = {k: 0 for k in _DIGEST_PROJECTION_KEYS}
+        assert _compute_coverage_digest(zero) == (
+            "sha256:ebdbfd7020b2dac81babd141a7e33a8f0b6483f3345fee3968bd9db8cd0b283c"
+        )
+        # One admitted+executed_successfully.
+        one_success = dict(zero)
+        one_success["planned_action_count"] = 1
+        one_success["attempted_action_count"] = 1
+        one_success["admitted_count"] = 1
+        one_success["executed_successfully_count"] = 1
+        assert _compute_coverage_digest(one_success) == (
+            "sha256:1a506ccdf0fa289d77b56b0ffdc893e9c40cee7687fd2f3dbfaeca5eaaebf2f4"
+        )
+        # One refused.
+        one_refused = dict(zero)
+        one_refused["planned_action_count"] = 1
+        one_refused["refused_count"] = 1
+        assert _compute_coverage_digest(one_refused) == (
+            "sha256:357f841f3ec9378255c06a320c220dea8bad3b5e8987e8c93b0814c85caaab17"
+        )
+
 
 # ---------------------------------------------------------------------------
 # 5. validate_execution_coverage
