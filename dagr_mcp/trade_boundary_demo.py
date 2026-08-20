@@ -10,11 +10,11 @@ what signed SRS receipts were emitted.
 Tool identities and their admission outcomes are supplied by the caller of
 this demo (see ``build_trade_boundary_policies``), exactly as an operator's
 own policy authority would supply them in a real deployment. This module
-itself carries no finance-, compliance-, MNPI-, issuer-, or
-restricted-list-specific vocabulary: it knows two tool names
-(``read_market_research``, ``place_trade_order``) as opaque strings and two
-neutral outcomes (``admitted``, ``refused``) -- nothing about *why* either
-outcome was chosen. The fake broker handler is a demonstration stand-in with
+itself carries no vocabulary specific to any tool-calling domain: it knows
+two tool names (``read_market_research``, ``place_trade_order``) as opaque
+strings and two neutral outcomes (``admitted``, ``refused``) -- nothing
+about *why* either outcome was chosen. The fake broker handler is a
+demonstration stand-in with
 no real brokerage integration; its only observable effect is an in-process
 invocation counter and ledger, identical in kind to
 ``dagr_mcp.first_run_demo.NativeActionSentinel``.

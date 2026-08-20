@@ -337,3 +337,28 @@ def test_generated_receipts_pass_the_real_arcs_verify_cli(tmp_path):
         assert report["passed"] is True
         assert report["raw_content_exclusion"] is True
         assert report["signature_valid"] is True
+
+
+# ---------------------------------------------------------------------------
+# Structural guard: this module's own source text (comments and docstrings
+# included) must never spell out domain-specific vocabulary, even to
+# disavow it -- a disavowal sentence that names the banned terms defeats
+# itself the moment it's read out of context. Mirrors the same guard on
+# operator_admission_resolver.py; this file has weaker obligations (it is
+# allowed to know the two demo tool names) but the same banned-terms list.
+# ---------------------------------------------------------------------------
+
+
+def test_trade_boundary_demo_source_has_no_disavowed_domain_vocabulary():
+    import inspect
+
+    from dagr_mcp import trade_boundary_demo
+
+    source = inspect.getsource(trade_boundary_demo).lower()
+    banned_substrings = [
+        "countervail", "mnpi", "insider", "restricted list",
+        "restricted_list", "compliance", "fsi", "watchlist", "wall-crossed",
+        "wall_crossed",
+    ]
+    hits = [needle for needle in banned_substrings if needle in source]
+    assert hits == [], f"trade_boundary_demo.py contains domain vocabulary: {hits}"
