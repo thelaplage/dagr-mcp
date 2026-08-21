@@ -1,6 +1,14 @@
 {
   "modules": {
-    "dagr_mcp": null,
+    "dagr_mcp": [
+      "DAGRMiddleware",
+      "DAGRMiddlewareConfig",
+      "RawEnvelopeFileSink",
+      "SignedReceiptEmitter",
+      "SigningIdentity",
+      "ToolClass",
+      "quickwrap"
+    ],
     "dagr_mcp.amnesiac_contracts": null,
     "dagr_mcp.amnesiac_fastmcp": [
       "AMNESIAC_TOOL_CLASSES",
@@ -29,6 +37,22 @@
       "InMemoryContextPacketStore"
     ],
     "dagr_mcp.async_sinks": null,
+    "dagr_mcp.cg_extension": [
+      "AUTHORITY_EFFECT",
+      "CGExtensionError",
+      "build_cg_extension",
+      "validate_cg_extension"
+    ],
+    "dagr_mcp.coverage": [
+      "COVERAGE_CONTRACT_ID",
+      "COVERAGE_POSTURES",
+      "CoverageConformanceError",
+      "CoverageObservation",
+      "CoveragePosture",
+      "INCOMPARABLE_INVARIANT",
+      "NON_EQUIVALENCES",
+      "create_mcp_action_observation"
+    ],
     "dagr_mcp.deferred_boundary": [
       "DeferralResult",
       "DeferredActorMismatchError",
@@ -57,6 +81,34 @@
       "ToolPolicy",
       "effective_required_sink_names",
       "wrap_handler"
+    ],
+    "dagr_mcp.evidence_flight_recorder": [
+      "EvidenceFlightRecorder",
+      "EvidencePhase",
+      "EvidenceStatus",
+      "FlightManifest",
+      "FlightRecord",
+      "InMemoryFlightRecorder",
+      "PHASE_CITED",
+      "PHASE_DISCOVERED",
+      "PHASE_FETCHED",
+      "PHASE_RELIED_UPON",
+      "STATUS_ABSENT",
+      "STATUS_ERROR",
+      "STATUS_FAILED",
+      "STATUS_NOT_EVALUATED",
+      "STATUS_PRESENT",
+      "read_flight_log"
+    ],
+    "dagr_mcp.execution_coverage": [
+      "ActionAdmissionOutcome",
+      "ActionExecutionOutcome",
+      "ActionOutcome",
+      "ExecutionCoverage",
+      "ExecutionCoverageBuilder",
+      "ExecutionCoverageError",
+      "build_execution_coverage",
+      "validate_execution_coverage"
     ],
     "dagr_mcp.fastmcp_binding": [
       "ActorResolution",
@@ -114,7 +166,11 @@
       "project_policy_profile",
       "sink_requirements_from_profile"
     ],
+    "dagr_mcp.quickwrap": [
+      "quickwrap"
+    ],
     "dagr_mcp.sdk_spine": [
+      "APPROVED_WITH_NOTES_MODIFIER",
       "ArtifactSink",
       "DEGRADED_WITH_NOTE",
       "EventEnvelope",
@@ -132,6 +188,7 @@
       "LintFindingSink",
       "PayloadValue",
       "REVIEW_DECISION_OUTCOMES",
+      "REVIEW_OBJECT_GRAPH_TERMINAL_STATES",
       "REVIEW_OBJECT_PENDING_STATES",
       "REVIEW_OBJECT_STATES",
       "ReceiptEnvelope",
@@ -177,14 +234,18 @@
       "VerificationResult",
       "capabilities_for_sink_type",
       "is_review_decision_ref",
+      "is_review_object_graph_terminal",
+      "is_review_object_supersedable",
       "make_sink_health",
       "maybe_assign_ref",
       "normalize_actor_ref",
       "normalize_review_decision_outcome",
       "normalize_review_decision_ref",
       "normalize_review_object_state",
+      "normalize_review_object_state_with_modifier",
       "now_utc_iso",
       "review_decision_ref_from_sink_ref",
+      "review_object_state_modifier",
       "sink_supports_capability",
       "stable_payload_hash",
       "validate_actor_ref"
