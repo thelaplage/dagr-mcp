@@ -1,0 +1,23 @@
+{
+  "repo": "dagr-mcp",
+  "doctrine_status": "active_implementation_emitter",
+  "canonical_doctrine_repo": "thelaplage/garp-doctrine",
+  "pinned_doctrine_release": "doctrine-2026.06.13",
+  "pinned_doctrine_revision": "r2",
+  "last_doctrine_sync": "2026-08-21",
+  "consumes": [
+    "srs.v5.schema_2_2",
+    "srs.core.v5_1",
+    "srs.field_normalization.v0_2",
+    "garp.body_placement.v0_2",
+    "garp.threat_model.v0_1"
+  ],
+  "implements": [
+    "srs.mcp.sdk_enforcement",
+    "srs.activity.governed_read.v0.1"
+  ],
+  "known_drifts": [
+    "Initial doctrine manifest admission; no .garp dir existed prior to L10 lane."
+  ],
+  "requires_threat_audit": true
+}
