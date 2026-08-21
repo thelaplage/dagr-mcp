@@ -10,7 +10,7 @@ import os
 import re
 import tempfile
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -18,6 +18,8 @@ from typing import Any, Callable, Mapping, Sequence
 import rfc8785
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from dagr_mcp.dagr_constitutional_consumer import DAGR_CONSTITUTIONAL_CONTRACT_ID
 
 RECEIPT_VERSION = "srs.core.v5.1"
 PROFILE_ID = "srs.mcp.sdk_enforcement"
@@ -319,6 +321,7 @@ class ReceiptContext:
     workspace_id: str | None = None
     binding_version: str = "direct-harness.v0.1"
     parent_receipt_ref: str | None = None
+    dagr_constitution_id: str = field(default=DAGR_CONSTITUTIONAL_CONTRACT_ID)
 
 
 class RawEnvelopeFileSink:
