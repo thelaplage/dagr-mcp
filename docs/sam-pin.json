@@ -1,0 +1,11 @@
+{
+  "upstream": "https://github.com/google/sam",
+  "release": "v0.1.0-alpha.7",
+  "role": "transport_adapter_only",
+  "constitutional_dependency": false,
+  "notes": [
+    "SAM peer identity is not Counterpedia node identity.",
+    "SAM routing/discovery does not confer Countervail authorization or DAGR standing.",
+    "Portable Counterpedia/SRS artifact contracts must remain usable without SAM."
+  ]
+}
