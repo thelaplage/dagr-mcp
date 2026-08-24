@@ -48,9 +48,14 @@ each of the ten required assertion categories, recording:
 - the **minimal meaning** that surface actually licenses;
 - explicit **non-equivalences**: what it does *not* prove;
 - a semantic class (`identity`, `discovery`, `transport`, `authorization`,
-  `execution`, `evidence`, or `derived_state`);
-- an `authority_effect`, which is `none` for every single entry in this
-  lane (see [AUTHORITY_MOVEMENT](#authority_movement)).
+  `execution`, `evidence`, or `derived_state`).
+
+No entry carries an `authority_effect` or any other authority/admission/
+trust/standing-shaped field (rule NE-11: "no authority" must be structural
+absence, not a field pinned to `"none"`). Non-authority is expressed instead
+by each entry's `minimal_meaning` plus its `does_not_prove` list, which
+states explicitly what that meaning does not license -- see
+[AUTHORITY_MOVEMENT](#authority_movement).
 
 The machine-readable form is
 [`generated/recon/sam-semantics-crosswalk.v0.1.json`](../../generated/recon/sam-semantics-crosswalk.v0.1.json),
@@ -206,14 +211,19 @@ public repository source at the pinned revision.
 
 ## AUTHORITY_MOVEMENT
 
-`AUTHORITY_MOVEMENT = 0`. Every entry in the crosswalk carries
-`authority_effect: "none"`, because no existing dagr-mcp contract currently
-licenses any SAM assertion -- identity, discovery, or authorization -- to
-carry DAGR admission, evidentiary, or authorization weight. This recon adds
-mapping and vocabulary, not trust. dagr-mcp's own repository contract
-(`CLAUDE.md`) already draws this line for its own receipts ("emitting a
-receipt != verifying it != it being true"); this lane extends the same
-discipline to an external substrate rather than making an exception for it.
+`AUTHORITY_MOVEMENT = 0`, recorded once as top-level run/recon metadata.
+No existing dagr-mcp contract currently licenses any SAM assertion --
+identity, discovery, or authorization -- to carry DAGR admission,
+evidentiary, or authorization weight, and no entry in the crosswalk defines
+an authority-shaped field to say so: absence is structural, enforced at
+construction time by `_reject_authority_shaped_fields()` in
+`tools/generate_sam_semantics_crosswalk.py`, not expressed by a per-entry
+field pinned to `"none"`. Each entry's `minimal_meaning` and `does_not_prove`
+list carry that non-authority in words instead. This recon adds mapping and
+vocabulary, not trust. dagr-mcp's own repository contract (`CLAUDE.md`)
+already draws this line for its own receipts ("emitting a receipt !=
+verifying it != it being true"); this lane extends the same discipline to
+an external substrate rather than making an exception for it.
 
 ## PR posture
 

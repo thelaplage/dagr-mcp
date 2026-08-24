@@ -6,9 +6,11 @@ SAM <-> DAGR/MCP semantics crosswalk (generated/recon/sam-semantics-crosswalk
 
 - every required assertion category is covered;
 - every mapping carries at least one explicit `does_not_prove` entry;
-- `authority_effect` defaults to "none" everywhere, since no existing
-  dagr-mcp contract currently licenses a SAM assertion to carry any other
-  effect (AUTHORITY_MOVEMENT = 0 for this lane);
+- no entry carries any authority/admission/trust/standing-shaped field
+  (rule NE-11): non-authority is expressed by those fields being
+  structurally ABSENT, not by a field pinned to "none" (AUTHORITY_MOVEMENT
+  = 0 for this lane is recorded once, at the top level, as run/recon
+  metadata -- never per-entry);
 - unknown/unstable SAM surfaces are marked `observation_only`, never
   asserted as a grounded mapping;
 - the mandatory non-equivalence ladder from the lane spec is preserved
@@ -28,11 +30,14 @@ from pathlib import Path
 import pytest
 
 from tools.generate_sam_semantics_crosswalk import (
+    FORBIDDEN_AUTHORITY_FIELDS,
     NON_EQUIVALENCE_LADDER,
     OUTPUT_PATH,
     REQUIRED_CATEGORIES,
     SEMANTIC_CLASSES,
     STATUSES,
+    _entry,
+    _reject_authority_shaped_fields,
     build_crosswalk,
     generate_crosswalk,
     render,
@@ -113,12 +118,77 @@ def test_every_mapping_has_at_least_one_does_not_prove_entry(crosswalk: dict):
         assert all(isinstance(item, str) and item.strip() for item in entry["does_not_prove"])
 
 
-def test_authority_effect_defaults_to_none_everywhere(crosswalk: dict):
-    """AUTHORITY_MOVEMENT = 0: no SAM assertion is licensed to carry weight
-    beyond `none` by any existing dagr-mcp contract in this lane."""
+def test_no_entry_carries_an_authority_shaped_field(crosswalk: dict):
+    """Rule NE-11: "no authority" must be structural absence, not a field
+    pinned to a benign value. No SAM assertion is licensed to carry any
+    authority/admission/trust/standing weight in this lane, and that must
+    show up as those fields being entirely absent from every entry -- never
+    as e.g. `authority_effect: "none"`."""
     for entry in crosswalk["entries"]:
-        assert entry["authority_effect"] == "none", entry["id"]
+        present = FORBIDDEN_AUTHORITY_FIELDS & entry.keys()
+        assert not present, (entry["id"], present)
+    # AUTHORITY_MOVEMENT is recorded exactly once, as top-level run/recon
+    # metadata describing the lane -- not as a per-entry artifact field.
     assert crosswalk["authority_movement"] == 0
+    assert "authority_movement" not in crosswalk["entries"][0]
+
+
+def _minimal_valid_entry_kwargs() -> dict:
+    return dict(
+        id="SAM-TEST-00",
+        category=REQUIRED_CATEGORIES[0],
+        status="grounded",
+        sam_source_surface="test/fixture.go L1-2",
+        observed_surface="test.Fixture",
+        minimal_meaning="a test fixture asserts nothing",
+        does_not_prove=["does not prove anything beyond this fixture"],
+        semantic_class="identity",
+    )
+
+
+@pytest.mark.parametrize(
+    "forbidden_field",
+    ["authority_effect", "admission_effect", "trust_effect", "standing_effect"],
+)
+def test_entry_construction_fails_closed_on_authority_shaped_kwargs(forbidden_field):
+    """`_entry()` no longer accepts these fields as keyword arguments at
+    all, so attempting to inject one -- e.g. a hostile/legacy call site
+    still passing `authority_effect="none"` -- must fail closed with a
+    TypeError rather than silently being accepted and serialized."""
+    kwargs = _minimal_valid_entry_kwargs()
+    kwargs[forbidden_field] = "none"
+    with pytest.raises(TypeError):
+        _entry(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "injected_fields",
+    [
+        {"authority_effect": "none"},
+        {"authority_effect": "admitted"},
+        {"trusted": True},
+        {"admitted": True},
+        {"authority_posture": "descriptive_only"},
+        {"standing": "evidentiary"},
+    ],
+)
+def test_reject_authority_shaped_fields_fails_closed_on_injected_data(injected_fields):
+    """Defense in depth: even if an authority-shaped key reached a
+    constructed entry dict by some other path (e.g. untrusted/merged data),
+    `_reject_authority_shaped_fields` must refuse it rather than pass it
+    through pinned to a benign-looking value."""
+    entry = dict(_minimal_valid_entry_kwargs())
+    entry.update(injected_fields)
+    with pytest.raises(ValueError):
+        _reject_authority_shaped_fields(entry)
+
+
+def test_reject_authority_shaped_fields_accepts_a_clean_entry():
+    """The guard must not reject a legitimate, field-clean entry -- absence
+    is enforced, not over-enforced."""
+    entry = _entry(**_minimal_valid_entry_kwargs())
+    _reject_authority_shaped_fields(entry)  # must not raise
+    assert not (FORBIDDEN_AUTHORITY_FIELDS & entry.keys())
 
 
 def test_status_values_are_known_and_unresolved_items_fail_closed(crosswalk: dict):

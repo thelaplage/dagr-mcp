@@ -3,7 +3,6 @@
   "crosswalk_version": "0.1.0",
   "entries": [
     {
-      "authority_effect": "none",
       "category": "policy_role_target_authorization",
       "does_not_prove": [
         "authorized_for_this_context is evaluated independently by every callee for every request; it is not a global, portable, or previously-recorded admission decision, and a grant by one node says nothing about any other node's evaluation of the same Biscuit",
@@ -18,7 +17,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "policy_role_target_authorization",
       "does_not_prove": [
         "does not prove the role assignment reflects current control-plane operator intent -- only that the Biscuit, as signed, carries a role() fact of that name",
@@ -33,7 +31,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "policy_role_target_authorization",
       "does_not_prove": [
         "gossip-declared labels (see SAM-SVC-ADV-02) are explicitly a ranking/routing hint only; only this control-plane-attested Biscuit check is treated by SAM's own code as authorization-grade",
@@ -48,7 +45,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "lease_session_connection",
       "does_not_prove": [
         "a locally-observed 'stable' connection state says nothing about connection quality or authorization state as seen by the remote router -- it is this node's own reconnection-loop bookkeeping",
@@ -63,11 +59,11 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "service_discovery",
       "does_not_prove": [
         "a peer appearing in this list has been contacted, is currently reachable, or will accept a connection -- it is aggregated from provider records that are themselves not authorization inputs (see SAM-SVC-ADV-01/02)",
-        "does not prove the provider's tools are invocable by the querying node under current policy"
+        "does not prove the provider's tools are invocable by the querying node under current policy",
+        "a cached discovery entry carries no authority or admission weight of its own; it is not evidentiary standing for any tool call and is not a decision of any kind"
       ],
       "id": "SAM-DISC-01",
       "minimal_meaning": "discover_remote_services returns the set of DHT/gossip-observed providers currently known to the local node's discovery view for a given service type/name: a read of local, possibly stale, cached observation state.",
@@ -78,7 +74,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "node_identity_enrollment",
       "does_not_prove": [
         "does not prove the peer_id belongs to any real-world organization, person, or Counterpedia subject",
@@ -95,11 +90,11 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "node_identity_enrollment",
       "does_not_prove": [
         "a SAM agent identifier is a policy-string convention local to one SAM mesh's operator namespace; it is never equivalent to, and must not be mapped onto, Counterpedia record/subject identity or any real-world entity identity",
-        "the agent claim is asserted by the calling node, not independently verified by SAM at the point of use -- 'agent=X' on a request proves only that the connecting node said X"
+        "the agent claim is asserted by the calling node, not independently verified by SAM at the point of use -- 'agent=X' on a request proves only that the connecting node said X",
+        "an asserted agent claim licenses no authority or admission on its own: it is not authorization, it is not evidentiary standing for any downstream decision, and it is not published as any DAGR/Counterpedia record"
       ],
       "id": "SAM-ID-02",
       "minimal_meaning": "SAM defines a second, DNS-shaped, operator-namespaced 'agent' principal string distinct from a node's libp2p peer_id. A connector translates an external identity (e.g. a SPIFFE URI) into this string; the calling node then asserts which agent it speaks for on each request. middleware.go injects this claim into the Datalog authorizer 'rather than trusted from the token, so it is visible to policy while staying plainly what it is: an assertion by the peer at the other end' (L250-253).",
@@ -110,7 +105,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "inference_provider_routing",
       "does_not_prove": [
         "a model appearing in this view proves only that some peer's /v1/models responded with that model ID at probe time -- not a claim about quality, availability guarantees, or the caller's authorization to use it",
@@ -125,7 +119,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "inference_provider_routing",
       "does_not_prove": [
         "round-robin selection does not prove the chosen provider is the best, cheapest, most authorized, or most trustworthy option -- it is unweighted rotation over whichever providers most recently answered a models probe"
@@ -139,7 +132,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "invocation_request",
       "does_not_prove": [
         "completing the Biscuit handshake proves the caller is authenticated to that peer at that moment -- it does not by itself prove the specific tool call will be authorized (evaluated server-side per request; see SAM-AUTHZ-01) or will execute correctly",
@@ -154,7 +146,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "invocation_result",
       "does_not_prove": [
         "executed (a CallToolResult was returned) != output_trusted -- SAM authenticates the channel and the calling/called peers, not the semantic correctness or truthfulness of the tool's output content",
@@ -169,11 +160,11 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "lease_session_connection",
       "does_not_prove": [
         "a successful refresh proves key possession, not that the original enrollment grounds (JWT claims, labels, role) are still accurate -- refresh explicitly skips re-verifying them",
-        "revocation propagation timing and mid-session enforcement were not traced end-to-end in this recon; see SAM-UNRESOLVED-01"
+        "revocation propagation timing and mid-session enforcement were not traced end-to-end in this recon; see SAM-UNRESOLVED-01",
+        "a token refresh or revoke changes only SAM's own local credential lifecycle; it confers no DAGR admission, evidentiary standing, or publication status, and is not itself a DAGR/Counterpedia decision"
       ],
       "id": "SAM-LEASE-01",
       "minimal_meaning": "A node can renew its Biscuit before expiry by proving continued possession of its private key, without a fresh OIDC/bootstrap round-trip; VerifyAndExtractPeerID's own doc comment says it 'does NOT perform time checks, making it suitable for token refresh flows' (L364-366). The control plane can separately revoke a peer_id.",
@@ -184,7 +175,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "router_relay_membership",
       "does_not_prove": [
         "relay membership is a transport-layer decision made independently by each router's own in-memory map, not a mesh-wide or control-plane-recorded state -- one router's authenticatedPeers entry says nothing about any other router",
@@ -199,11 +189,11 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "router_relay_membership",
       "does_not_prove": [
         "connected_peers and dht_size are the router's own unverified self-report -- the observation records what the router claimed, not an independently measured mesh topology fact",
-        "a successful lease renewal proves the router's Biscuit was valid at renewal time, not that the router is healthy, reachable, or behaving correctly as a relay"
+        "a successful lease renewal proves the router's Biscuit was valid at renewal time, not that the router is healthy, reachable, or behaving correctly as a relay",
+        "a lease self-report is a connectivity/liveness fact only: it grants no authority, admission, or evidentiary standing to the router or to any peer it reports, and it is not itself a published DAGR/Counterpedia record"
       ],
       "id": "SAM-ROUTER-02",
       "minimal_meaning": "A router periodically self-reports its own addresses, its currently connected peer set, and its DHT routing-table size to the control plane over HTTPS, authenticated by its own Biscuit; the control plane responds with a lease expiry, or a 401 that triggers re-enrollment.",
@@ -214,7 +204,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "service_advertisement",
       "does_not_prove": [
         "DHT presence means 'the node observed this backend answer a liveness probe recently' -- it is not a claim that the backend correctly implements MCP, that its tools work, or that it is authorized for any particular caller",
@@ -229,7 +218,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "service_advertisement",
       "does_not_prove": [
         "SAM's own source states this is never an authorization input: authenticated (pubsub-signed, and peer_id claim checked against the message signer in observe(), internal/node/discovery/view.go L117-122) != authorized_for_this_context",
@@ -244,7 +232,6 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "tool_discovery",
       "does_not_prove": [
         "a verified tool listing proves the peer's MCP server currently advertises a tool of that name/schema at ListTools time -- it does not prove the tool is authorized for this caller (see SAM-AUTHZ-01) or that invoking it will succeed",
@@ -259,10 +246,10 @@
       "status": "grounded"
     },
     {
-      "authority_effect": "none",
       "category": "lease_session_connection",
       "does_not_prove": [
-        "does not establish that revocation is propagated synchronously mesh-wide, or that an already-open authenticated stream is forcibly closed when a BANNED event for its peer arrives elsewhere in the mesh"
+        "does not establish that revocation is propagated synchronously mesh-wide, or that an already-open authenticated stream is forcibly closed when a BANNED event for its peer arrives elsewhere in the mesh",
+        "even where confirmed, SAM's own ban/policy propagation is a mesh-transport control decision internal to SAM; it is not, and does not become, a DAGR admission, evidentiary standing, or publication decision"
       ],
       "id": "SAM-UNRESOLVED-01",
       "minimal_meaning": "Routers listen for and cryptographically verify (verifyEvent) BANNED/KEY_ROTATION/POLICY_UPDATE gossip events. This recon confirms the event shape and that verification happens, but did NOT trace the full propagation-latency and mid-session-eviction contract (e.g. internal/controlplane/*, dnstcp.go were out of scope for this pass) -- per the lane's STOP conditions, this stays unresolved rather than being asserted.",

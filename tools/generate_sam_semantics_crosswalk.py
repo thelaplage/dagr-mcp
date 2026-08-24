@@ -12,9 +12,16 @@ docs/dispatch/SAM-SEMANTICS-RECON0.md for the full lane spec):
 - This module imports nothing from dagr_mcp and is imported by nothing in
   dagr_mcp. SAM is not, and must not become, a constitutional dependency of
   this repository. AUTHORITY_MOVEMENT = 0.
-- Every entry's `authority_effect` is "none": no existing dagr-mcp contract
-  currently licenses any SAM assertion to carry DAGR admission, evidentiary,
-  or authorization weight, so nothing here may default to anything else.
+- No entry in this crosswalk carries DAGR admission, evidentiary, or
+  authorization weight -- and that is expressed structurally: no entry
+  defines an authority/admission/standing field at all (rule NE-11: "no
+  authority" must be structural absence, not a field pinned to "none"). Each
+  entry's `minimal_meaning` states only what its SAM source surface actually
+  licenses, and its `does_not_prove` list states explicitly what that
+  meaning does not license -- including, where relevant, that it is not
+  authorization, not a DAGR admission decision, not evidentiary standing,
+  and not publication. `_reject_authority_shaped_fields()` below enforces
+  this at construction time: it is not merely a convention.
 - Output is deterministic: same input, same bytes, every run.
 """
 
@@ -84,6 +91,45 @@ SEMANTIC_CLASSES: tuple[str, ...] = (
 
 STATUSES: tuple[str, ...] = ("grounded", "observation_only")
 
+# rule NE-11: fields that would give an entry authority/admission/trust/
+# standing shape. None of these may ever appear on a crosswalk entry -- not
+# even pinned to a benign value like "none" or 0. "No authority" must be
+# expressed by these keys being structurally ABSENT from the entry, never by
+# serializing one of them with a none-pinned value.
+FORBIDDEN_AUTHORITY_FIELDS: frozenset[str] = frozenset({
+    "authority_effect",
+    "admission_effect",
+    "trust_effect",
+    "standing_effect",
+    "truth_effect",
+    "registry_mutation_effect",
+    "authority_posture",
+    "trusted",
+    "authorized",
+    "admitted",
+    "standing",
+})
+
+
+def _reject_authority_shaped_fields(entry: dict[str, Any]) -> None:
+    """Fail closed against any authority-shaped field on a crosswalk entry.
+
+    This is the enforcement half of rule NE-11: it is not enough that the
+    generator's own literal source happens not to set one of these fields
+    today. Absence must be enforced at construction time so that neither a
+    future edit nor untrusted/injected entry data can reintroduce one --
+    even pinned to a "none"/benign value, which NE-11 treats as equally
+    non-compliant as a live value.
+    """
+    present = FORBIDDEN_AUTHORITY_FIELDS & entry.keys()
+    if present:
+        raise ValueError(
+            f"{entry.get('id', '<unknown>')}: refusing to emit "
+            f"authority-shaped field(s) {sorted(present)} on a SAM "
+            "crosswalk entry -- non-authority must be structural absence, "
+            "never a none-pinned field (rule NE-11)"
+        )
+
 
 def _entry(
     *,
@@ -95,14 +141,13 @@ def _entry(
     minimal_meaning: str,
     does_not_prove: list[str],
     semantic_class: str,
-    authority_effect: str = "none",
     notes: str = "",
 ) -> dict[str, Any]:
     assert category in REQUIRED_CATEGORIES, category
     assert status in STATUSES, status
     assert semantic_class in SEMANTIC_CLASSES, semantic_class
     assert does_not_prove, f"{id}: every entry needs >=1 does_not_prove item"
-    return {
+    entry = {
         "id": id,
         "category": category,
         "status": status,
@@ -111,9 +156,10 @@ def _entry(
         "minimal_meaning": minimal_meaning,
         "does_not_prove": does_not_prove,
         "semantic_class": semantic_class,
-        "authority_effect": authority_effect,
         "notes": notes,
     }
+    _reject_authority_shaped_fields(entry)
+    return entry
 
 
 def _build_entries() -> list[dict[str, Any]]:
@@ -184,6 +230,10 @@ def _build_entries() -> list[dict[str, Any]]:
                 "independently verified by SAM at the point of use -- "
                 "'agent=X' on a request proves only that the connecting "
                 "node said X",
+                "an asserted agent claim licenses no authority or admission "
+                "on its own: it is not authorization, it is not evidentiary "
+                "standing for any downstream decision, and it is not "
+                "published as any DAGR/Counterpedia record",
             ],
             semantic_class="identity",
         ),
@@ -247,6 +297,10 @@ def _build_entries() -> list[dict[str, Any]]:
                 "a successful lease renewal proves the router's Biscuit was "
                 "valid at renewal time, not that the router is healthy, "
                 "reachable, or behaving correctly as a relay",
+                "a lease self-report is a connectivity/liveness fact only: "
+                "it grants no authority, admission, or evidentiary standing "
+                "to the router or to any peer it reports, and it is not "
+                "itself a published DAGR/Counterpedia record",
             ],
             semantic_class="derived_state",
         ),
@@ -347,6 +401,9 @@ def _build_entries() -> list[dict[str, Any]]:
                 "authorization inputs (see SAM-SVC-ADV-01/02)",
                 "does not prove the provider's tools are invocable by the "
                 "querying node under current policy",
+                "a cached discovery entry carries no authority or admission "
+                "weight of its own; it is not evidentiary standing for any "
+                "tool call and is not a decision of any kind",
             ],
             semantic_class="discovery",
         ),
@@ -593,6 +650,10 @@ def _build_entries() -> list[dict[str, Any]]:
                 "revocation propagation timing and mid-session enforcement "
                 "were not traced end-to-end in this recon; see "
                 "SAM-UNRESOLVED-01",
+                "a token refresh or revoke changes only SAM's own local "
+                "credential lifecycle; it confers no DAGR admission, "
+                "evidentiary standing, or publication status, and is not "
+                "itself a DAGR/Counterpedia decision",
             ],
             semantic_class="derived_state",
         ),
@@ -721,6 +782,10 @@ def _build_entries() -> list[dict[str, Any]]:
                 "synchronously mesh-wide, or that an already-open "
                 "authenticated stream is forcibly closed when a BANNED "
                 "event for its peer arrives elsewhere in the mesh",
+                "even where confirmed, SAM's own ban/policy propagation is "
+                "a mesh-transport control decision internal to SAM; it is "
+                "not, and does not become, a DAGR admission, evidentiary "
+                "standing, or publication decision",
             ],
             semantic_class="derived_state",
             notes=(
