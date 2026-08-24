@@ -14,8 +14,13 @@ Required invariants (enforced, not just documented):
 Concretely: a ``SamPeer`` refuses construction if its transport peer id and
 its locally-bound Counterpedia node reference collapse to the same value, and
 ``SamTransportAdapter.invoke`` refuses any transport arguments or response
-that carry a standing/admission/authorization field — a successful route is
-never allowed to become an allow decision.
+that carry a standing/admission/authorization/trust field, including any
+authority-shaped *_effect field (e.g. ``authority_effect``) regardless of the
+value it carries — a successful route is never allowed to become an allow
+decision, and "no authority" is never expressed as a benign-looking value on
+the wire. The adapter's own return objects (``CapabilityObservation``,
+``TransportResult``) express "no authority" the same way: by never defining
+an authority field at all, not by pinning one to ``"none"``.
 
 Fail-closed error categories map onto the four failure classes the adapter
 must never silently swallow: identity, version, payload, and transport. All
@@ -66,9 +71,14 @@ COUNTERPEDIA_SAM_OPERATIONS = frozenset({
     "cp.witness.submit",
 })
 
-# Fields that would smuggle a standing/admission/authorization decision
+# Fields that would smuggle a standing/admission/authorization/trust decision
 # through what must remain a bare transport hop. Checked on both request
-# arguments and transport responses.
+# arguments and transport responses. Includes the authority-shaped effect
+# fields themselves (e.g. "authority_effect", "trust_effect"): a value like
+# "none" would re-introduce exactly the none-pinned-field pattern this
+# adapter's own data model (CapabilityObservation, TransportResult) refuses
+# to carry — "no authority" is expressed by the field's structural absence,
+# never by a benign-looking value smuggled in from the wire (NE-11).
 _AUTHORITY_FIELDS = frozenset({
     "standing",
     "admitted",
@@ -76,6 +86,14 @@ _AUTHORITY_FIELDS = frozenset({
     "authorized",
     "decision",
     "countervail_allow",
+    "trusted",
+    "authority_effect",
+    "admission_effect",
+    "trust_effect",
+    "standing_effect",
+    "truth_effect",
+    "registry_mutation_effect",
+    "authority_posture",
 })
 
 
@@ -175,7 +193,6 @@ class CapabilityObservation:
     operations: tuple[str, ...]
     contract_version: str = SAM_ADAPTER_CONTRACT_VERSION
     transport: str = "sam"
-    authority_effect: str = "none"
 
 
 @dataclass(frozen=True)
@@ -183,7 +200,6 @@ class TransportResult:
     peer_id: str
     operation: str
     payload: Mapping[str, Any]
-    authority_effect: str = "none"
 
 
 class RemoteToolCaller(Protocol):

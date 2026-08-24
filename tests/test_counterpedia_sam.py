@@ -1,9 +1,11 @@
+import dataclasses
 import json
 
 import pytest
 
 from dagr_mcp.counterpedia_sam import (
     SAM_PIN,
+    CapabilityObservation,
     FakeSamTransport,
     RealSamTransport,
     RealSamTransportUnavailable,
@@ -13,6 +15,7 @@ from dagr_mcp.counterpedia_sam import (
     SamTransportAdapter,
     SamTransportError,
     SamVersionError,
+    TransportResult,
     load_pin_record,
     sam_available,
 )
@@ -23,7 +26,17 @@ def test_capability_observation_is_transport_only():
     observation = SamTransportAdapter.observe_capabilities(peer, ["cp.submission.submit", "cp.receipt.fetch"])
     assert observation.peer_id == "sam:peer-a"
     assert observation.counterpedia_node_id == "node:researcher-a"
-    assert observation.authority_effect == "none"
+
+
+def test_capability_observation_has_no_authority_field():
+    # NE-11: "no authority" is expressed by the field's structural absence,
+    # never by an authority-shaped field pinned to a benign value.
+    peer = SamPeer(peer_id="sam:peer-a", counterpedia_node_id="node:researcher-a")
+    observation = SamTransportAdapter.observe_capabilities(peer, ["cp.receipt.fetch"])
+    assert not hasattr(observation, "authority_effect")
+    field_names = {f.name for f in dataclasses.fields(CapabilityObservation)}
+    assert "authority_effect" not in field_names
+    assert "authority_effect" not in dataclasses.asdict(observation)
 
 
 def test_successful_route_does_not_become_allow():
@@ -39,9 +52,16 @@ def test_successful_route_does_not_become_allow():
         "cp.submission.submit",
         {"packet_digest": "sha256:" + "a" * 64},
     )
-    assert result.authority_effect == "none"
+    assert not hasattr(result, "authority_effect")
+    assert "authority_effect" not in dataclasses.asdict(result)
     assert "decision" not in result.payload
     assert calls
+
+
+def test_transport_result_has_no_authority_field():
+    # NE-11: TransportResult must not carry a none-pinned authority field.
+    field_names = {f.name for f in dataclasses.fields(TransportResult)}
+    assert "authority_effect" not in field_names
 
 
 @pytest.mark.parametrize("field", ["standing", "admitted", "published", "authorized", "decision"])
@@ -49,6 +69,46 @@ def test_transport_rejects_authority_injection(field):
     adapter = SamTransportAdapter(lambda *_: {"ok": True})
     with pytest.raises(ValueError):
         adapter.invoke(SamPeer(peer_id="sam:p"), "cp.receipt.fetch", {field: True})
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("authority_effect", "none"),
+        ("authority_effect", "admitted"),
+        ("trusted", True),
+        ("admitted", True),
+        ("admission_effect", "none"),
+        ("trust_effect", "none"),
+        ("standing_effect", "none"),
+        ("truth_effect", "none"),
+        ("registry_mutation_effect", "none"),
+        ("authority_posture", "descriptive_only"),
+    ],
+)
+def test_transport_rejects_authority_shaped_field_injection_on_arguments(field, value):
+    # NE-11: injecting an authority-shaped field into transport arguments
+    # must fail closed regardless of the value carried — even a none-pinned
+    # ("no authority") value is rejected, because the field must never be
+    # serialized at all.
+    adapter = SamTransportAdapter(lambda *_: {"ok": True})
+    with pytest.raises(SamPayloadError):
+        adapter.invoke(SamPeer(peer_id="sam:p"), "cp.receipt.fetch", {field: value})
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("authority_effect", "none"),
+        ("authority_effect", "admitted"),
+        ("trusted", True),
+        ("admitted", True),
+    ],
+)
+def test_transport_rejects_authority_shaped_field_injection_on_response(field, value):
+    adapter = SamTransportAdapter(lambda *_: {field: value})
+    with pytest.raises(SamPayloadError):
+        adapter.invoke(SamPeer(peer_id="sam:p"), "cp.receipt.fetch", {"digest": "sha256:" + "a" * 64})
 
 
 def test_response_guard_rejects_authority_injection():
@@ -124,7 +184,7 @@ def test_invoke_succeeds_within_locator_ttl():
     result = adapter.invoke(
         peer, "cp.receipt.fetch", {"digest": "sha256:" + "a" * 64}, now=1000.0 + 30
     )
-    assert result.authority_effect == "none"
+    assert not hasattr(result, "authority_effect")
 
 
 # --------------------------------------------------------------------------- #
@@ -166,11 +226,11 @@ def test_fake_transport_round_trip_is_byte_identical():
     }
 
     announce = adapter.invoke(peer, "cp.receipt.announce", fixture)
-    assert announce.authority_effect == "none"
+    assert not hasattr(announce, "authority_effect")
     assert announce.payload["echo"] == fixture
 
     fetch = adapter.invoke(peer, "cp.receipt.fetch", {"packet_digest": fixture["packet_digest"]})
-    assert fetch.authority_effect == "none"
+    assert not hasattr(fetch, "authority_effect")
     assert fetch.payload["object"] == fixture
     assert "decision" not in fetch.payload
     assert "admitted" not in fetch.payload
