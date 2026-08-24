@@ -703,6 +703,52 @@ def test_freeze_binding_and_receipt_projection_agree():
 # FREEZE ITEM 12 — import and public API surfaces                             #
 # --------------------------------------------------------------------------- #
 
+# The committed golden snapshot (tests/golden/behavioral_freeze/public_api_surface.json)
+# is never edited in place to make a surface change disappear: doing so would let a
+# real removal pass the freeze test without ever being visible in the test file's
+# own history. Instead, each deliberately reviewed removal is named here, with the
+# PR and rationale that authorized it. The comparison below still computes a live
+# vs. committed diff and fails loudly on ANYTHING else that drifts; only the exact
+# symbols listed here are permitted to be absent from the live surface.
+_REVIEWED_SURFACE_REMOVALS: tuple[dict[str, str], ...] = (
+    {
+        "module": "dagr_mcp.cg_extension",
+        "symbol": "AUTHORITY_EFFECT",
+        "pr": "dagr-mcp#66",
+        "date": "2026-08-24",
+        "rationale": (
+            "NE-11 structural-absence repair: execution_packet_ref must be "
+            "structurally unable to carry an authority_effect key at all, so the "
+            "pinned AUTHORITY_EFFECT = 'none' constant is removed rather than kept "
+            "as a none-pinned value (non-authority objects express 'no authority' "
+            "by absence of authority-shaped fields, never by a none-pinned value). "
+            "See dagr_mcp/cg_extension.py and tests/test_cg_extension.py."
+        ),
+    },
+)
+
+
+def _committed_surface_with_reviewed_removals_applied(
+    committed_modules: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply each named, reviewed removal from ``_REVIEWED_SURFACE_REMOVALS`` to a
+    copy of the committed snapshot, so the comparison still asserts byte-for-byte
+    equality on everything except those specific, dated, rationale-documented
+    exceptions. If a listed symbol is no longer present in the committed snapshot
+    (e.g. a later PR regenerates the golden file with the removal baked in), the
+    entry is stale and must be deleted — this is asserted, not silently ignored."""
+
+    adjusted = copy.deepcopy(committed_modules)
+    for entry in _REVIEWED_SURFACE_REMOVALS:
+        module_all = adjusted.get(entry["module"])
+        assert module_all is not None and entry["symbol"] in module_all, (
+            f"stale _REVIEWED_SURFACE_REMOVALS entry: {entry['symbol']!r} is no "
+            f"longer present in the committed snapshot for {entry['module']!r} "
+            f"({entry['pr']}). Delete this entry."
+        )
+        adjusted[entry["module"]] = sorted(s for s in module_all if s != entry["symbol"])
+    return adjusted
+
 
 def test_freeze_public_api_surface_matches_committed_snapshot():
     import importlib
@@ -711,6 +757,7 @@ def test_freeze_public_api_surface_matches_committed_snapshot():
     import dagr_mcp
 
     committed = _committed("public_api_surface.json")
+    expected = _committed_surface_with_reviewed_removals_applied(committed["modules"])
 
     names = ["dagr_mcp"]
     for module_info in pkgutil.walk_packages(dagr_mcp.__path__, prefix="dagr_mcp."):
@@ -720,7 +767,7 @@ def test_freeze_public_api_surface_matches_committed_snapshot():
         module = importlib.import_module(name)
         all_ = getattr(module, "__all__", None)
         live[name] = sorted(all_) if all_ is not None else None
-    assert live == committed["modules"]
+    assert live == expected
 
 
 def test_freeze_package_reexports_nothing_but_submodules():

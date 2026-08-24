@@ -38,6 +38,7 @@
     ],
     "dagr_mcp.async_sinks": null,
     "dagr_mcp.cg_extension": [
+      "AUTHORITY_EFFECT",
       "CGExtensionError",
       "build_cg_extension",
       "validate_cg_extension"
