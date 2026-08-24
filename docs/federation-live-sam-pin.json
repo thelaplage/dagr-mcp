@@ -1,0 +1,8 @@
+{
+  "schema": "dagr.mcp.federation-live-sam-pin.v0.1",
+  "package": "google/sam",
+  "release": "v0.1.0-alpha.7",
+  "commit": "a5f2c4e",
+  "constitutional_dependency": false,
+  "note": "Transport/discovery pin only. SAM is not a semantic dependency of DAGR, SRS, or Counterpedia identity; a mismatch between this file and dagr_mcp.federation_live_sam.SAM_RELEASE/SAM_COMMIT must fail closed (see load_pin_record())."
+}
