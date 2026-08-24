@@ -1,0 +1,24 @@
+{
+  "x-evidence-contract": {
+    "contract_version": "mcp.evidence_contract.v0.1",
+    "output_kind": "captured_source",
+    "evidence_guarantees": {
+      "exact_bytes_available": true,
+      "stable_identity_available": true,
+      "digest_available": true,
+      "digest_algorithm": null,
+      "retrieval_observation_available": true,
+      "provenance_lineage_ref_available": true
+    },
+    "eligible_uses": [
+      "discovery",
+      "evidence_candidate"
+    ],
+    "ineligible_uses": [
+      "admission",
+      "publication",
+      "factual_truth"
+    ],
+    "authority_effect": "none"
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dagr-mcp.example/schemas/mcp-evidence-contract/v0.1/x-evidence-contract.v0.1.schema.json",
+  "title": "MCP Evidence Contract x-evidence-contract v0.1",
+  "description": "Portable, additive, transport- and vendor-neutral evidence-capability declaration that MAY be attached to an MCP tool description under the 'x-evidence-contract' key. A declaration is a claim about the tool contract, not proof that any particular invocation satisfied it. tool_declares_capability != invocation_produced_artifact != artifact_verified != evidence_supported != admitted != published. This extension is additive only: an existing MCP tool descriptor that omits it remains fully valid, and the extension carries no authority, admission, or publication effect (authority_effect is fixed to 'none' in v0.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "output_kind",
+    "evidence_guarantees",
+    "eligible_uses",
+    "ineligible_uses",
+    "authority_effect"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "mcp.evidence_contract.v0.1",
+      "description": "Fixed identity of this contract schema version. Consumers that do not recognize a contract_version MUST fail closed (ignore or reject the extension) rather than guess semantics."
+    },
+    "output_kind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Generic, vendor-neutral token naming the kind of output the tool produces (e.g. 'source_candidate', 'captured_source'). MUST NOT encode a product-specific record identity (e.g. no Counterpedia record identities, no SAM node identities)."
+    },
+    "evidence_guarantees": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exact_bytes_available",
+        "stable_identity_available",
+        "digest_available",
+        "digest_algorithm",
+        "retrieval_observation_available",
+        "provenance_lineage_ref_available"
+      ],
+      "properties": {
+        "exact_bytes_available": {
+          "type": "boolean",
+          "description": "Whether the tool's output is claimed to carry the exact bytes of the underlying artifact, as opposed to a paraphrase, summary, or rendering."
+        },
+        "stable_identity_available": {
+          "type": "boolean",
+          "description": "Whether the tool's output is claimed to carry an identity reference stable enough to re-resolve the same artifact across invocations."
+        },
+        "digest_available": {
+          "type": "boolean",
+          "description": "Whether the tool's output is claimed to carry a content digest of the artifact."
+        },
+        "digest_algorithm": {
+          "type": ["string", "null"],
+          "enum": ["sha256", "sha512", null],
+          "description": "The digest algorithm promised when digest_available is true. MUST be null when digest_available is false, and MUST be a recognized algorithm token (never a prose description) when digest_available is true."
+        },
+        "retrieval_observation_available": {
+          "type": "boolean",
+          "description": "Whether the tool's output is claimed to carry an observation of the retrieval event itself (e.g. that a fetch occurred), independent of the fetched content's truth."
+        },
+        "provenance_lineage_ref_available": {
+          "type": "boolean",
+          "description": "Whether the tool's output is claimed to carry a reference to the artifact's provenance/lineage chain, as a reference only (never inline provenance content)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "digest_available": { "const": true } },
+            "required": ["digest_available"]
+          },
+          "then": {
+            "properties": { "digest_algorithm": { "enum": ["sha256", "sha512"] } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "digest_available": { "const": false } },
+            "required": ["digest_available"]
+          },
+          "then": {
+            "properties": { "digest_algorithm": { "const": null } }
+          }
+        }
+      ]
+    },
+    "eligible_uses": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["discovery", "evidence_candidate", "citation_candidate"]
+      },
+      "description": "Closed vocabulary of v0.1 eligible uses. Values that would assert admission, publication, or factual-truth standing are structurally excluded from this enum, never merely discouraged."
+    },
+    "ineligible_uses": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["admission", "publication", "factual_truth"]
+      },
+      "allOf": [
+        { "contains": { "const": "admission" } },
+        { "contains": { "const": "publication" } },
+        { "contains": { "const": "factual_truth" } }
+      ],
+      "description": "v0.1 fixes the ineligible-use vocabulary to exactly {admission, publication, factual_truth}. A declaration MUST always disclose all three as ineligible; none of the three may be omitted or reclassified as eligible."
+    },
+    "authority_effect": {
+      "const": "none",
+      "description": "Fixed to 'none' in v0.1. This extension never grants, implies, or upgrades admission, publication, or verification standing."
+    }
+  }
+}
