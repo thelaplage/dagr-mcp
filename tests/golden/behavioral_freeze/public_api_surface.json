@@ -132,6 +132,16 @@
     "dagr_mcp.governed_memory_demo": null,
     "dagr_mcp.lint": null,
     "dagr_mcp.lint.matter_scope": null,
+    "dagr_mcp.market_selective_disclosure": [
+      "AUTHORITY_EFFECT",
+      "DISCLOSURE_KIND",
+      "DisclosureRule",
+      "MARKET_FORBIDDEN_SEGMENTS",
+      "MarketSelectiveDisclosureError",
+      "SelectiveDisclosureEnvelope",
+      "disclose",
+      "is_market_forbidden_field"
+    ],
     "dagr_mcp.mcp_record_custody_gateway": [
       "AGENT_DELEGATION_BODY_KINDS",
       "CREDENTIAL_SECRET_FIELD_NAMES",
