@@ -2,13 +2,17 @@
 
 EXECUTION-BINDING0 L07 — dagr-mcp producer-side helper.
 
-REF-ONLY discipline: only digest + packet_id in the extension. authority_effect
-always "none". Vocabulary (EXECUTION-BINDING-VOCAB0): ref != replay != truth.
+REF-ONLY discipline: only digest + packet_id in the extension. The object
+carries no authority claim at all — authority_effect (and any other
+authority-shaped key) is structurally absent, not a pinned "none" value.
+Injecting such a key is rejected fail-closed (NE-11 remediation).
+Vocabulary (EXECUTION-BINDING-VOCAB0): ref != replay != truth.
 
 Tests cover:
   - build_cg_extension: valid construction, format validation, digest/id cross-check
   - validate_cg_extension: None/empty pass-through, valid shape, malformed shape
-  - vocabulary discipline: authority_effect=none is structurally enforced
+  - vocabulary discipline: authority_effect is structurally absent and fail-closed
+    rejected if injected
   - integration: extension produced by build_cg_extension passes validate_cg_extension
   - no raw content keys survive (REF-ONLY)
 """
@@ -18,7 +22,6 @@ from __future__ import annotations
 import pytest
 
 from dagr_mcp.cg_extension import (
-    AUTHORITY_EFFECT,
     CGExtensionError,
     build_cg_extension,
     validate_cg_extension,
@@ -46,17 +49,16 @@ class TestBuildCGExtensionValid:
         ref = ext["cg"]["execution_packet_ref"]
         assert ref["execution_packet_digest"] == _DIGEST_A
         assert ref["packet_id"] == _PACKET_ID_A
-        assert ref["authority_effect"] == "none"
 
-    def test_authority_effect_is_always_none(self):
-        ext = build_cg_extension(_DIGEST_A, _PACKET_ID_A)
-        assert ext["cg"]["execution_packet_ref"]["authority_effect"] == AUTHORITY_EFFECT
-        assert AUTHORITY_EFFECT == "none"
-
-    def test_exactly_three_ref_fields(self):
+    def test_no_authority_effect_field(self):
         ext = build_cg_extension(_DIGEST_A, _PACKET_ID_A)
         ref = ext["cg"]["execution_packet_ref"]
-        assert set(ref.keys()) == {"execution_packet_digest", "packet_id", "authority_effect"}
+        assert "authority_effect" not in ref
+
+    def test_exactly_two_ref_fields(self):
+        ext = build_cg_extension(_DIGEST_A, _PACKET_ID_A)
+        ref = ext["cg"]["execution_packet_ref"]
+        assert set(ref.keys()) == {"execution_packet_digest", "packet_id"}
 
     def test_different_digest_accepted(self):
         ext = build_cg_extension(_DIGEST_B, _PACKET_ID_B)
@@ -121,7 +123,7 @@ class TestValidateCGExtension:
         ext = build_cg_extension(_DIGEST_A, _PACKET_ID_A)
         validate_cg_extension(ext)  # no raise
 
-    def test_authority_effect_not_none_rejected(self):
+    def test_authority_effect_injection_rejected(self):
         ext = {
             "cg": {
                 "execution_packet_ref": {
@@ -134,13 +136,40 @@ class TestValidateCGExtension:
         with pytest.raises(CGExtensionError, match="authority_effect"):
             validate_cg_extension(ext)
 
+    def test_authority_effect_none_still_rejected(self):
+        # Even a pinned "none" value is rejected: the field must be
+        # structurally absent, not present-with-a-safe-looking-value.
+        ext = {
+            "cg": {
+                "execution_packet_ref": {
+                    "execution_packet_digest": _DIGEST_A,
+                    "packet_id": _PACKET_ID_A,
+                    "authority_effect": "none",
+                }
+            }
+        }
+        with pytest.raises(CGExtensionError, match="authority_effect"):
+            validate_cg_extension(ext)
+
+    def test_other_authority_shaped_key_injection_rejected(self):
+        ext = {
+            "cg": {
+                "execution_packet_ref": {
+                    "execution_packet_digest": _DIGEST_A,
+                    "packet_id": _PACKET_ID_A,
+                    "admitted": True,
+                }
+            }
+        }
+        with pytest.raises(CGExtensionError, match="admitted"):
+            validate_cg_extension(ext)
+
     def test_malformed_digest_in_extension_rejected(self):
         ext = {
             "cg": {
                 "execution_packet_ref": {
                     "execution_packet_digest": "bad-digest",
                     "packet_id": _PACKET_ID_A,
-                    "authority_effect": "none",
                 }
             }
         }
@@ -153,7 +182,6 @@ class TestValidateCGExtension:
                 "execution_packet_ref": {
                     "execution_packet_digest": _DIGEST_A,
                     "packet_id": _PACKET_ID_B,  # encodes different hex
-                    "authority_effect": "none",
                 }
             }
         }
@@ -168,7 +196,9 @@ class TestValidateCGExtension:
         with pytest.raises(CGExtensionError, match="must be a dict"):
             validate_cg_extension({"cg": {"execution_packet_ref": "bad"}})
 
-    def test_missing_authority_effect_rejected(self):
+    def test_missing_authority_effect_is_fine(self):
+        # No authority_effect key is the correct, expected shape now —
+        # its absence must never be treated as an error.
         ext = {
             "cg": {
                 "execution_packet_ref": {
@@ -177,8 +207,7 @@ class TestValidateCGExtension:
                 }
             }
         }
-        with pytest.raises(CGExtensionError, match="authority_effect"):
-            validate_cg_extension(ext)
+        validate_cg_extension(ext)  # no raise
 
 
 # ── round-trip: build → validate ─────────────────────────────────────────────
@@ -199,8 +228,10 @@ class TestRoundTrip:
 class TestVocabularyDiscipline:
     """EXECUTION-BINDING-VOCAB0: ref != replay != truth != authority."""
 
-    def test_authority_effect_constant_is_none(self):
-        assert AUTHORITY_EFFECT == "none"
+    def test_authority_effect_structurally_absent(self):
+        ext = build_cg_extension(_DIGEST_A, _PACKET_ID_A)
+        ref = ext["cg"]["execution_packet_ref"]
+        assert "authority_effect" not in ref
 
     def test_no_raw_content_keys_in_extension(self):
         ext = build_cg_extension(_DIGEST_A, _PACKET_ID_A)
@@ -208,12 +239,21 @@ class TestVocabularyDiscipline:
         forbidden = {
             "raw_content", "result", "result_bytes", "tool_result",
             "response_body", "request_body", "prompt", "verified",
-            "proof", "evidence", "admitted",
+            "proof", "evidence", "admitted", "authority_effect",
         }
         assert not (set(ref.keys()) & forbidden), (
             f"forbidden keys in extension ref: {set(ref.keys()) & forbidden}"
         )
 
-    def test_authority_effect_never_elevated(self):
-        ext = build_cg_extension(_DIGEST_A, _PACKET_ID_A)
-        assert ext["cg"]["execution_packet_ref"]["authority_effect"] == "none"
+    def test_authority_effect_injection_never_accepted(self):
+        ext = {
+            "cg": {
+                "execution_packet_ref": {
+                    "execution_packet_digest": _DIGEST_A,
+                    "packet_id": _PACKET_ID_A,
+                    "authority_effect": "none",
+                }
+            }
+        }
+        with pytest.raises(CGExtensionError):
+            validate_cg_extension(ext)
