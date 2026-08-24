@@ -10,7 +10,6 @@ import dataclasses
 import pytest
 
 from dagr_mcp.market_selective_disclosure import (
-    AUTHORITY_EFFECT,
     DISCLOSURE_KIND,
     MARKET_FORBIDDEN_SEGMENTS,
     DisclosureRule,
@@ -32,7 +31,7 @@ def test_forbidden_fields_never_disclosed():
         rule=DisclosureRule("buyer", ("offer_id", "price", "trusted", "private_key")),
     )
     assert e.disclosed == {"offer_id": "o1", "price": 20}
-    assert e.authority_effect == "none"
+    assert not hasattr(e, "authority_effect")
 
 
 def test_disclosed_never_includes_hard_blocked_family_even_when_present_and_requested():
@@ -131,13 +130,77 @@ def test_disclosure_never_admits_and_is_not_a_verdict():
     rule = DisclosureRule("buyer", ("offer_id",))
     e = disclose(object_id="o1", object_digest=VALID_DIGEST, payload=p, rule=rule)
 
-    assert e.authority_effect == AUTHORITY_EFFECT == "none"
     assert e.disclosure_kind == DISCLOSURE_KIND
     field_names = {f.name for f in dataclasses.fields(SelectiveDisclosureEnvelope)}
     # Never structurally confusable with an SRS receipt.
     assert "disposition" not in field_names
     assert "receipt_kind" not in field_names
     assert "receipt_version" not in field_names
+    # NE-11: "grants no authority" is structural absence, not a none-pinned
+    # field. No authority-shaped field is defined on the envelope at all.
+    for authority_field in (
+        "authority_effect",
+        "admission_effect",
+        "trust_effect",
+        "standing_effect",
+        "truth_effect",
+        "registry_mutation_effect",
+        "authority_posture",
+    ):
+        assert authority_field not in field_names
+    assert not hasattr(e, "authority_effect")
+
+
+def test_authority_effect_field_is_structurally_absent_not_none_pinned():
+    """NE-11: constructing an envelope with authority_effect fails closed.
+
+    The field must not exist on the dataclass at all — not merely default
+    to "none" — so any attempt to inject one is rejected at construction
+    time by Python's own slotted-dataclass machinery.
+    """
+    kwargs = dict(
+        disclosure_kind=DISCLOSURE_KIND,
+        object_id="o1",
+        object_digest=VALID_DIGEST,
+        audience="buyer",
+        disclosed={"offer_id": "o1"},
+        redacted_fields=(),
+        blocked_fields=(),
+    )
+    # Sanity: the legitimate construction still works without the field.
+    SelectiveDisclosureEnvelope(**kwargs)
+
+    for hostile_kwargs in (
+        {**kwargs, "authority_effect": "none"},
+        {**kwargs, "authority_effect": "admitted"},
+    ):
+        with pytest.raises(TypeError):
+            SelectiveDisclosureEnvelope(**hostile_kwargs)
+
+
+@pytest.mark.parametrize(
+    "hostile_field,hostile_value",
+    [
+        ("authority_effect", "none"),
+        ("authority_effect", "admitted"),
+        ("trusted", True),
+        ("admitted", True),
+    ],
+)
+def test_hostile_authority_field_injection_fails_closed_never_disclosed(
+    hostile_field, hostile_value
+):
+    """NE-11: injecting an authority-shaped field into payload/rule.fields
+    must fail closed — the field is never disclosed, regardless of the
+    audience explicitly requesting it, and it never reaches ``disclosed``
+    under any key or value."""
+    p = {"offer_id": "o1", hostile_field: hostile_value}
+    rule = DisclosureRule("buyer", ("offer_id", hostile_field))
+    e = disclose(object_id="o1", object_digest=VALID_DIGEST, payload=p, rule=rule)
+
+    assert hostile_field not in e.disclosed
+    assert hostile_field in e.blocked_fields
+    assert hostile_value not in e.disclosed.values()
 
 
 @pytest.mark.parametrize("bad_digest", ["", "not-hex", "sha256:tooshort", "SHA256:" + "a" * 64])
@@ -189,7 +252,14 @@ def test_envelope_and_rule_are_immutable():
         object_id="o1", object_digest=VALID_DIGEST, payload={"offer_id": "o1"}, rule=rule
     )
     with pytest.raises(dataclasses.FrozenInstanceError):
+        e.audience = "other"
+    # authority_effect is not merely frozen — it is not a field of this
+    # dataclass at all (structural absence, not a locked-in "none" value).
+    # Assignment is still refused (the frozen __setattr__ intercepts first),
+    # but reading it back confirms there is no such attribute to read.
+    with pytest.raises(dataclasses.FrozenInstanceError):
         e.authority_effect = "full"
+    assert not hasattr(e, "authority_effect")
 
 
 def test_market_forbidden_segments_covers_all_four_named_families():

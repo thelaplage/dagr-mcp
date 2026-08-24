@@ -133,7 +133,6 @@
     "dagr_mcp.lint": null,
     "dagr_mcp.lint.matter_scope": null,
     "dagr_mcp.market_selective_disclosure": [
-      "AUTHORITY_EFFECT",
       "DISCLOSURE_KIND",
       "DisclosureRule",
       "MARKET_FORBIDDEN_SEGMENTS",

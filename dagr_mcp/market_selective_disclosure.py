@@ -20,14 +20,21 @@ Vocabulary (MARKET-SELECTIVE-DISCLOSURE-VOCAB0):
   disclosure != verdict
   disclosed_field != admitted_field
   a hard-blocked field is refused from disclosure, never leaked as a value
-  authority_effect is always "none"
+  a ``SelectiveDisclosureEnvelope`` carries no authority-shaped field at
+  all (no ``authority_effect``, ``admission_effect``, ``trust_effect``,
+  or similar) — it expresses "grants no authority" by the *absence* of
+  any such field from its definition, not by serializing one pinned to
+  "none". Even a caller-supplied ``authority_effect`` value is unrepresentable:
+  the envelope's constructor has no such parameter, so any attempt to set
+  one fails closed with a ``TypeError``.
 
-Non-goals: this module does not admit, gate, or emit an SRS receipt. It
-performs no policy evaluation beyond the fixed hard-block field families
-below, and it does not resolve or authenticate the audience it is scoped
-to — audience is an opaque caller-supplied label. Emitting the governed
-record's own admission/outcome receipt remains the job of
-``dagr_mcp.srs_receipts``; this module only ever produces a
+Non-goals: this module does not admit, gate, or emit an SRS receipt, and it
+makes no claim about authority, trust, or standing — it has no field capable
+of asserting one. It performs no policy evaluation beyond the fixed
+hard-block field families below, and it does not resolve or authenticate
+the audience it is scoped to — audience is an opaque caller-supplied label.
+Emitting the governed record's own admission/outcome receipt remains the
+job of ``dagr_mcp.srs_receipts``; this module only ever produces a
 ``SelectiveDisclosureEnvelope``, never a receipt.
 
 Usage::
@@ -41,7 +48,7 @@ Usage::
         rule=DisclosureRule(audience="buyer", fields=("offer_id", "price", "trusted")),
     )
     # envelope.disclosed == {"offer_id": "o1", "price": 20}
-    # envelope.authority_effect == "none"
+    # "trusted" was hard-blocked, not disclosed as some none-value
 """
 
 from __future__ import annotations
@@ -52,7 +59,6 @@ from typing import Any, Mapping
 
 from dagr_mcp.srs_receipts import RAW_KEYS
 
-AUTHORITY_EFFECT = "none"
 DISCLOSURE_KIND = "market_selective_disclosure.v0.1"
 
 _DIGEST_PATTERN = re.compile(r"^(?:sha256:)?[0-9a-f]{64}$")
@@ -100,9 +106,13 @@ class SelectiveDisclosureEnvelope:
 
     Deliberately carries no ``receipt_kind``, ``disposition``, or
     ``receipt_version`` field: a ``SelectiveDisclosureEnvelope`` is not an
-    SRS receipt and must never be mistaken for one. ``authority_effect`` is
-    always ``"none"`` — disclosing a field grants no authority and does not
-    admit.
+    SRS receipt and must never be mistaken for one. It also carries no
+    ``authority_effect`` (or any other authority-shaped) field at all —
+    disclosing a field grants no authority and does not admit, and that
+    fact is expressed by the field's *absence* from this dataclass, not by
+    a value pinned to ``"none"``. Constructing an envelope with an
+    ``authority_effect`` keyword argument fails closed with ``TypeError``,
+    since no such field is defined.
     """
 
     disclosure_kind: str
@@ -112,7 +122,6 @@ class SelectiveDisclosureEnvelope:
     disclosed: dict[str, Any]
     redacted_fields: tuple[str, ...]
     blocked_fields: tuple[str, ...]
-    authority_effect: str = AUTHORITY_EFFECT
 
 
 def is_market_forbidden_field(field_name: str) -> bool:
@@ -144,9 +153,12 @@ def disclose(
     Only fields the audience *requested* (``rule.fields``) and that are
     *present* in ``payload`` are disclosed, minus anything hard-blocked
     (``MARKET_FORBIDDEN_SEGMENTS``) or raw-content-excluded (``RAW_KEYS``).
-    Disclosure is a projection, not a verdict: this function never admits,
-    never emits a receipt, and ``authority_effect`` on the result is always
-    ``"none"``.
+    ``authority_effect`` itself is a forbidden segment (``"authority"``), so
+    a hostile ``rule.fields`` naming it is blocked like any other
+    authority-shaped field — it can never appear in ``disclosed``. Disclosure
+    is a projection, not a verdict: this function never admits and never
+    emits a receipt; the returned envelope has no field capable of claiming
+    otherwise.
 
     Raises:
         MarketSelectiveDisclosureError: if ``object_id``/``object_digest`` are
@@ -189,12 +201,10 @@ def disclose(
         disclosed=disclosed,
         redacted_fields=redacted_fields,
         blocked_fields=blocked_fields,
-        authority_effect=AUTHORITY_EFFECT,
     )
 
 
 __all__ = [
-    "AUTHORITY_EFFECT",
     "DISCLOSURE_KIND",
     "MARKET_FORBIDDEN_SEGMENTS",
     "DisclosureRule",
