@@ -13,11 +13,15 @@ Required invariants (enforced, not just documented):
     sam_transport_failure != evidence_absence
 
 Concretely: ``SamPeerBinding`` refuses construction if its transport peer id
-and its bound Counterpedia node id collapse to the same value, and refuses
-any non-``"none"`` ``authority_effect`` — a successful route can never carry a
-standing/admission/authorization fact. ``observe_transfer`` always returns an
-observation, even when the underlying transfer fails closed, so a transport
-failure is recorded as evidence rather than silently dropped.
+and its bound Counterpedia node id collapse to the same value. None of this
+module's objects declare an authority/admission/trust/standing-shaped field
+at all — a successful route can never carry a standing/admission/authorization
+fact because there is no field on the wire to carry one; a caller attempting
+to inject ``authority_effect`` (or any sibling authority-shaped key) at
+construction time fails closed with ``TypeError`` before an instance exists.
+``observe_transfer`` always returns an observation, even when the underlying
+transfer fails closed, so a transport failure is recorded as evidence rather
+than silently dropped.
 
 CRITICAL: live SAM status must NEVER be read as a Countervail or DAGR
 governance decision. Parity/liveness of the transport is not admission or
@@ -203,13 +207,20 @@ class SamPeerBinding:
     FEDERATION-IDENTITY0-compatible metadata may pass it through this field;
     absent that, the binding stays honestly unresolved rather than fabricating
     a resolved identity link.
+
+    This dataclass declares no authority/admission/trust/standing-shaped
+    field. "SAM route success != Countervail ALLOW" is expressed by the
+    field's structural absence, not by a field pinned to ``"none"``: the
+    class uses ``slots=True``, so a caller cannot construct an instance with
+    an ``authority_effect=`` (or sibling) keyword — it fails closed with
+    ``TypeError`` — nor attach one to an already-constructed instance, which
+    fails closed with ``AttributeError``.
     """
 
     sam_peer_id: str
     counterpedia_node_id: str
     role: str = RESEARCHER_ORCHESTRATOR
     identity_binding: str = "unresolved"
-    authority_effect: str = "none"
 
     def __post_init__(self) -> None:
         if not self.sam_peer_id or not self.sam_peer_id.strip():
@@ -222,8 +233,6 @@ class SamPeerBinding:
             )
         if self.role not in REFERENCE_ROLES:
             raise SamIdentityError(f"unknown federation role: {self.role!r}")
-        if self.authority_effect != "none":
-            raise SamIdentityError("SAM identity binding cannot carry a delegated-authority effect")
 
 
 def reference_topology(node_prefix: str = "cp-node") -> tuple[SamPeerBinding, ...]:
@@ -251,21 +260,20 @@ class SamTransferObservation:
     response_digest: str | None = None
     latency_seconds: float | None = None
     error: str | None = None
-    authority_effect: str = "none"
     schema_version: str = SCHEMA
 
 
 @dataclass(frozen=True, slots=True)
 class SamCapabilityObservation:
-    """Discovery output: what a peer says it can do, with zero authority
-    effect. This is an observation, never an admission — SAM discovery !=
-    DAGR admission."""
+    """Discovery output: what a peer says it can do. This is an observation,
+    never an admission — SAM discovery != DAGR admission — expressed by
+    declaring no authority/admission-shaped field at all rather than one
+    pinned to a benign value."""
 
     peer_id: str
     sam_release: str
     sam_commit: str
     operations: tuple[str, ...]
-    authority_effect: str = "none"
 
 
 # --------------------------------------------------------------------------- #
@@ -312,16 +320,14 @@ def transfer_exact(
     its canonical bytes/digest.
 
     Fails closed (raises a ``SamAdapterError`` subclass) on: unknown
-    operation, non-``"none"`` authority effect, transport exception, timeout,
-    partial/empty response, and a payload/response digest mismatch against an
-    explicitly expected digest. Never treats a successful route as an
-    admission or Countervail decision — the returned observation always
-    carries ``authority_effect="none"``.
+    operation, transport exception, timeout, partial/empty response, and a
+    payload/response digest mismatch against an explicitly expected digest.
+    Never treats a successful route as an admission or Countervail decision —
+    the returned observation carries no authority/admission field at all, so
+    there is nothing on it that could be mistaken for a standing fact.
     """
     if operation not in KNOWN_OPERATIONS:
         raise SamPayloadError(f"unknown remote operation: {operation!r}")
-    if binding.authority_effect != "none":
-        raise SamIdentityError("binding must carry authority_effect='none'; SAM route success != Countervail ALLOW")
 
     payload_digest = _digest_bytes(payload)
     started = time.monotonic()
@@ -605,7 +611,6 @@ def run_reference_proof(transport: SamTransport | None = None) -> Mapping[str, A
                 "route_succeeded": o.route_succeeded,
                 "latency_seconds": o.latency_seconds,
                 "error": o.error,
-                "authority_effect": o.authority_effect,
             }
             for o in observations
         ],

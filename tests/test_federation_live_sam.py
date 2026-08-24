@@ -74,7 +74,8 @@ def test_pinned_release_and_identity_separation():
     assert SAM_RELEASE == "v0.1.0-alpha.7" and SAM_COMMIT == "a5f2c4e"
     b = SamPeerBinding("sam:peer-a", "cp-node:a")
     o = transfer_exact(Fake(), b, "submission.fetch", b"abc")
-    assert o.route_succeeded and o.authority_effect == "none"
+    assert o.route_succeeded
+    assert not hasattr(o, "authority_effect")
     assert o.peer_id != o.node_id
 
 
@@ -133,7 +134,7 @@ def test_reference_topology_has_three_distinct_roles():
     assert len({b.counterpedia_node_id for b in bindings}) == 3
     for b in bindings:
         assert b.sam_peer_id != b.counterpedia_node_id
-        assert b.authority_effect == "none"
+        assert not hasattr(b, "authority_effect")
 
 
 def test_binding_rejects_role_outside_reference_topology():
@@ -141,9 +142,33 @@ def test_binding_rejects_role_outside_reference_topology():
         SamPeerBinding("sam:x", "cp-node:x", role="not_a_role")
 
 
-def test_binding_rejects_delegated_authority_effect():
-    with pytest.raises(SamIdentityError):
-        SamPeerBinding("sam:x", "cp-node:x", authority_effect="admitted")
+def test_binding_rejects_authority_shaped_field_injection():
+    """NE-11: "no authority" is structural absence, not a field pinned to a
+    benign value. SamPeerBinding declares no authority_effect (or sibling)
+    field at all, so injecting one — whatever value it carries — fails
+    closed at construction time instead of being silently accepted."""
+    hostile_kwargs = [
+        {"authority_effect": "none"},
+        {"authority_effect": "admitted"},
+        {"admission_effect": "admitted"},
+        {"trust_effect": "granted"},
+        {"standing_effect": "granted"},
+        {"trusted": True},
+        {"admitted": True},
+    ]
+    for kwargs in hostile_kwargs:
+        with pytest.raises(TypeError):
+            SamPeerBinding("sam:x", "cp-node:x", **kwargs)
+
+
+def test_binding_has_no_authority_effect_slot_at_all():
+    """Defense in depth is structural, not a runtime re-check: SamPeerBinding
+    uses ``slots=True``, so a caller cannot forge an authority-shaped
+    attribute onto an already-constructed instance either. Attempting it
+    fails closed with AttributeError because there is no such slot."""
+    binding = SamPeerBinding("sam:x", "cp-node:x", role="worker_registrar")
+    with pytest.raises(AttributeError):
+        object.__setattr__(binding, "authority_effect", "admitted")
 
 
 def test_binding_identity_binding_defaults_unresolved():
@@ -163,7 +188,7 @@ def test_discover_peer_returns_observation_not_admission():
     transport = FakeSamTransport()
     obs = discover_peer(transport, "sam:worker_registrar")
     assert isinstance(obs, SamCapabilityObservation)
-    assert obs.authority_effect == "none"
+    assert not hasattr(obs, "authority_effect")
     assert obs.sam_release == SAM_RELEASE and obs.sam_commit == SAM_COMMIT
     assert set(obs.operations) <= KNOWN_OPERATIONS
 
@@ -223,7 +248,7 @@ def test_observe_transfer_captures_failure_as_evidence_not_absence():
     assert obs is not None
     assert obs.route_succeeded is False
     assert obs.error is not None and "SamTransportError" in obs.error
-    assert obs.authority_effect == "none"
+    assert not hasattr(obs, "authority_effect")
     assert obs.latency_seconds is not None
 
 
@@ -282,17 +307,19 @@ def test_unknown_operation_fails_closed():
         transfer_exact(FakeSamTransport(), binding, "not.a.real.op", b"x")
 
 
-def test_binding_authority_effect_enforced_at_transfer_time():
-    # __post_init__ already refuses this, but transfer_exact must also guard
-    # the invariant defensively rather than trusting the caller.
-    binding = object.__new__(SamPeerBinding)
-    object.__setattr__(binding, "sam_peer_id", "sam:x")
-    object.__setattr__(binding, "counterpedia_node_id", "cp-node:x")
-    object.__setattr__(binding, "role", "worker_registrar")
-    object.__setattr__(binding, "identity_binding", "unresolved")
-    object.__setattr__(binding, "authority_effect", "admitted")
-    with pytest.raises(SamIdentityError):
-        transfer_exact(FakeSamTransport(), binding, "receipt.announce", b"x")
+def test_binding_authority_effect_injection_fails_before_transfer_is_reached():
+    # There is no authority_effect slot to forge onto a constructed binding
+    # (see test_binding_has_no_authority_effect_slot_at_all), and no keyword
+    # to inject one at construction time (see
+    # test_binding_rejects_authority_shaped_field_injection): both fail
+    # closed before a binding carrying such a fact could ever reach
+    # transfer_exact. This asserts transfer_exact's own guard surface is
+    # narrower now — only routing-shaped concerns (unknown operation, etc.)
+    # remain to check on a valid binding.
+    binding = SamPeerBinding("sam:x", "cp-node:x", role="worker_registrar")
+    obs = transfer_exact(FakeSamTransport(), binding, "receipt.announce", b"x")
+    assert obs.route_succeeded
+    assert not hasattr(obs, "authority_effect")
 
 
 def test_transport_timeout_fails_closed():
@@ -343,7 +370,7 @@ def test_run_reference_proof_defaults_to_labeled_reference_mode():
     assert report["mode"] == "reference"
     assert report["all_routes_succeeded"] is True
     assert set(report["artifact_refs"]) == {"submission", "receipt", "registry"}
-    assert all(o["authority_effect"] == "none" for o in report["observations"])
+    assert all("authority_effect" not in o for o in report["observations"])
 
 
 def test_run_reference_proof_never_claims_real_mode_without_a_real_transport():
