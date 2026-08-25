@@ -53,6 +53,7 @@
       "NON_EQUIVALENCES",
       "create_mcp_action_observation"
     ],
+    "dagr_mcp.dagr_constitutional_consumer": null,
     "dagr_mcp.deferred_boundary": [
       "DeferralResult",
       "DeferredActorMismatchError",
