@@ -375,14 +375,7 @@ def step3_evidence_trail(governed_result: dict[str, Any]) -> dict[str, Any]:
     receipts = governed_result.get("receipts", [])
     tool_calls = governed_result.get("tool_calls", [])
 
-    # Map tool_name → admitted call outcome
-    admitted_calls = {
-        tc["tool_name"]: tc
-        for tc in tool_calls
-        if tc.get("disposition") == "admitted"
-    }
-
-    # Observation references: receipt IDs for the fetch calls
+    # Observation references: receipt IDs for all admitted admission receipts.
     observation_refs: list[dict[str, str]] = []
     for receipt in receipts:
         if receipt.get("receipt_kind") == "admission" and receipt.get("disposition") == "admitted":
@@ -395,26 +388,26 @@ def step3_evidence_trail(governed_result: dict[str, Any]) -> dict[str, Any]:
                 "boundary_id": receipt.get("boundary_id", ""),
             })
 
-    # Content digests from admitted fetch calls (from receipt outcome data)
-    fetch_digests: dict[str, str] = {}
-    for receipt in receipts:
-        if (receipt.get("receipt_kind") == "outcome"
-                and receipt.get("result_hash") is not None):
-            # Map by admission_receipt_ref to find which fetch this outcome covers
-            fetch_digests[receipt.get("admission_receipt_ref", "")] = (
-                "sha256:" + receipt.get("result_hash", "")
-            )
-
-    # Build admitted fetch entries with observation references
+    # Pair each fetched source with the receipt IDs from its own governing call.
+    # Fetch calls appear in order after the discover call.
+    # Pair by position only when count matches; if any source.fetch was refused the
+    # counts diverge and we cannot safely zip — fall back to empty refs per entry.
+    fetch_tool_calls = [
+        tc for tc in tool_calls
+        if tc["tool_name"] == "source.fetch" and tc.get("disposition") == "admitted"
+    ]
+    counts_match = len(fetch_tool_calls) == len(FETCHED_SOURCE_REFS)
     fetched_layer = []
-    for ref in FETCHED_SOURCE_REFS:
+    for i, ref in enumerate(FETCHED_SOURCE_REFS):
+        if counts_match:
+            fetch_tc = fetch_tool_calls[i]
+            obs_refs = list(fetch_tc["receipt_refs"])
+        else:
+            obs_refs = []
         entry: dict[str, Any] = {
             "source_ref": ref,
-            "fetch_status": "admitted",
-            "observation_refs": [
-                o["receipt_id"]
-                for o in observation_refs
-            ],
+            "fetch_status": "admitted" if counts_match else "partial",
+            "observation_refs": obs_refs,
         }
         fetched_layer.append(entry)
 
@@ -559,16 +552,31 @@ def step4_projection(governed_result: dict[str, Any]) -> dict[str, Any]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def step5_recovery(governed_result: dict[str, Any]) -> dict[str, Any]:
-    """Replay: re-read receipt bytes from disk and check digest binding.
+    """Re-read receipt files from disk and check receipt_id membership.
 
-    Confirms that the bytes on disk match what was emitted (no post-emission drift).
-    This is the precondition for independent verification: arcs-verify recomputes
-    from the exact serialized bytes, so byte stability is foundational.
+    Confirms that each receipt file on disk parses to a receipt_id that was
+    present in the emission-time in-memory index (id_in_memory_index=True).
+    This does NOT compare byte digests or prove byte-level stability; disk_sha256
+    is recorded but not compared against any emission-time digest.
 
-    Authority limit: byte_stable != authenticated; no_drift != real_world_event_proven.
+    Authority limit: id_in_memory_index != byte_stable != authenticated;
+    no_drift_detected != real_world_event_proven.
     """
     receipt_paths = governed_result.get("receipt_paths", [])
     in_memory_receipts: list[dict[str, Any]] = governed_result.get("receipts", [])
+
+    # Guard: nothing to verify if no receipt files were emitted.
+    if not receipt_paths:
+        return {
+            "schema": "flagship-demo0/recovery/v0.1",
+            "all_stable": False,
+            "replay_entries": [],
+            "recovery_posture": "NO_RECEIPTS — nothing to verify",
+            "non_claim": (
+                "no_receipts != verified_stable; "
+                "receipt_id_match != independent_verification"
+            ),
+        }
 
     # Index in-memory receipts by receipt_id for comparison
     memory_index: dict[str, dict[str, Any]] = {
@@ -579,6 +587,12 @@ def step5_recovery(governed_result: dict[str, Any]) -> dict[str, Any]:
     all_stable = True
 
     for path in receipt_paths:
+        # Re-reading disk bytes here is architecturally intentional: step5 is a
+        # recovery/integrity check whose value comes from independently re-reading
+        # the serialized artifact from storage, not from trusting the in-memory copy
+        # that step2 already holds.  The in_memory_receipts above are used only to
+        # build the receipt_id index for membership comparison; the disk read is the
+        # recovery probe.  This is NOT a redundant read — it is the point of step5.
         disk_bytes = Path(path).read_bytes()
         disk_digest = "sha256:" + hashlib.sha256(disk_bytes).hexdigest()
         disk_receipt: dict[str, Any] = json.loads(disk_bytes)
