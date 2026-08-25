@@ -10,22 +10,41 @@ jobs:
         include:
           - python-version: '3.11'
             fastmcp-spec: 'fastmcp==3.4.4'
+            # DAGR-MCP-CI-RECON0: pin the ecosystem-authoritative MCP SDK
+            # (pyproject `official-sdk` extra == mcp==1.29.0) so the stable gate
+            # provisions the recorded SDK deterministically instead of letting
+            # fastmcp float mcp to a newer patch (e.g. 1.29.1), which breaks the
+            # recorded-version/protocol assertions. Reproducibility repair only.
+            mcp-spec: 'mcp==1.29.0'
             lane: fastmcp-3.4.4
             allow-failure: false
           - python-version: '3.12'
             fastmcp-spec: 'fastmcp==3.4.4'
+            mcp-spec: 'mcp==1.29.0'
             lane: fastmcp-3.4.4
             allow-failure: false
           - python-version: '3.13'
             fastmcp-spec: 'fastmcp==3.4.4'
+            mcp-spec: 'mcp==1.29.0'
             lane: fastmcp-3.4.4
             allow-failure: false
           - python-version: '3.13'
             fastmcp-spec: 'fastmcp>=3.4.4,<4'
+            # REQUIRED compatibility gate (Design A): "latest FastMCP" and
+            # "latest MCP SDK" are independent variables. This lane tests the
+            # newest released fastmcp 3.x AGAINST the constitutional SDK pin, so
+            # it MUST provision mcp==1.29.0 too — otherwise it floats mcp (to
+            # 1.29.1) and the recorded-version assertion is structurally red on a
+            # required lane. Verified co-resolvable: fastmcp 3.4.7 + mcp 1.29.0.
+            mcp-spec: 'mcp==1.29.0'
             lane: fastmcp-latest-3
             allow-failure: false
           - python-version: '3.13'
             fastmcp-spec: 'fastmcp @ git+https://github.com/PrefectHQ/fastmcp@main'
+            # Drift-detection lane (Design B): advisory only (allow-failure), so
+            # it deliberately floats mcp — an exact-version assertion is expected
+            # to fail here when @main resolves a non-pinned SDK.
+            mcp-spec: ''
             lane: fastmcp-main-canary
             allow-failure: true
     name: ${{ matrix.lane }} / py${{ matrix.python-version }}
@@ -34,7 +53,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -e '.[dev]' '${{ matrix.fastmcp-spec }}'
+      - run: pip install -e '.[dev]' '${{ matrix.fastmcp-spec }}' ${{ matrix.mcp-spec }}
       - run: python -c "import fastmcp, sys; print('lane=${{ matrix.lane }}'); print('python=' + sys.version.split()[0]); print('fastmcp=' + getattr(fastmcp, '__version__', 'unknown'))"
       - name: Verify committed FastMCP fixtures
         if: ${{ matrix.fastmcp-spec == 'fastmcp==3.4.4' && matrix.python-version == '3.13' }}
