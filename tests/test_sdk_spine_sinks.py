@@ -366,12 +366,19 @@ def test_deferred_decision_closes_pending_queue_entry() -> None:
 
 
 def test_review_object_states_constant_matches_public_contract() -> None:
+    # DAGR-MCP-FREEZE-ACCEPT0: `withdrawn`/`superseded` were added to the SDK
+    # spine review-object lifecycle vocabulary by LEGIBILITY0 (1636cbc), which
+    # synced dagr-mcp's mirror to the CANONICAL dagr-sdk spine (SDK-B2-CONTRACT0)
+    # — dagr-mcp consumes, it does not author, this vocabulary. Accepting the
+    # canonical set as the frozen public contract.
     assert REVIEW_OBJECT_STATES == {
         "pending",
         "approved",
         "rejected",
         "deferred",
         "expired",
+        "withdrawn",
+        "superseded",
     }
 
 

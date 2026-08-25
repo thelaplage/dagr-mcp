@@ -723,17 +723,27 @@ def test_freeze_public_api_surface_matches_committed_snapshot():
     assert live == committed["modules"]
 
 
-def test_freeze_package_reexports_nothing_but_submodules():
+def test_freeze_package_reexports_match_declared_allowlist():
     import types
 
     import dagr_mcp
 
-    for name in dir(dagr_mcp):
-        if name.startswith("_"):
-            continue
-        value = getattr(dagr_mcp, name)
-        # The package surface is submodules only; no re-exported classes/functions.
-        assert isinstance(value, types.ModuleType), name
+    # DAGR-MCP-FREEZE-ACCEPT0: LEGIBILITY0 (1636cbc, "expose quickwrap at package
+    # root") and LEGIBILITY1 (#50, e4a4f92, "expose explicit FastMCP construction
+    # surface") deliberately re-export a small, explicit construction surface at
+    # the package root. The frozen invariant is therefore NOT "submodules only"
+    # but "top-level non-module names are EXACTLY dagr_mcp.__all__" — this still
+    # fails closed on any UNINTENDED new re-export (a non-module name absent from
+    # the declared allowlist), so the guard is preserved, not removed.
+    reexported = {
+        name
+        for name in dir(dagr_mcp)
+        if not name.startswith("_")
+        and not isinstance(getattr(dagr_mcp, name), types.ModuleType)
+    }
+    assert reexported == set(dagr_mcp.__all__), (
+        "package top-level re-exports drifted from the declared __all__ allowlist"
+    )
 
 
 def test_freeze_key_module_all_lists_are_exact():
