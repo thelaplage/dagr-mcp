@@ -10,7 +10,16 @@ the SRS retention_class_applied: "hash_only" posture.
 
 Vocabulary (EXECUTION-BINDING-VOCAB0):
   ref != replay, replay != truth, digest_present != replay_complete
-  authority_effect is always "none"
+
+NE-11 structural absence (per the #149 CGResearchInput ruling — there is NO
+EXECUTION-BINDING carve-out): this object carries no authority-shaped field
+at all. It expresses non-authority the same way every other non-authority
+artifact in this codebase does — by the CLOSED SHAPE containing no
+authority_effect / authority_movement / admission_effect / standing_effect /
+trust_effect key, not by pinning any such field to "none". The shape is
+closed (validate_cg_extension rejects any unexpected key), so an injected
+authority-shaped field is structurally rejected rather than tolerated at a
+frozen value.
 
 Usage::
 
@@ -22,7 +31,7 @@ Usage::
         execution_packet_digest="sha256:<64 hex>",
         packet_id="cg:execution-packet:sha256:<same 64 hex>",
     )
-    # ext == {"cg": {"execution_packet_ref": {..., "authority_effect": "none"}}}
+    # ext == {"cg": {"execution_packet_ref": {execution_packet_digest, packet_id}}}
     receipt = builder.build_activity_governed_read(..., extensions=ext)
 """
 
@@ -36,9 +45,10 @@ _PACKET_ID_PATTERN = re.compile(r"^cg:execution-packet:sha256:[0-9a-f]{64}$")
 _SHA256_PREFIX = "sha256:"
 _PACKET_ID_PREFIX = "cg:execution-packet:sha256:"
 
-AUTHORITY_EFFECT = "none"
 _EXTENSION_KEY = "cg"
 _EXEC_PACKET_REF_KEY = "execution_packet_ref"
+# Closed shape: exactly these keys are permitted in execution_packet_ref.
+_ALLOWED_REF_KEYS = frozenset({"execution_packet_digest", "packet_id"})
 
 
 class CGExtensionError(ValueError):
@@ -52,7 +62,8 @@ def build_cg_extension(
     """Build a validated extensions.cg sub-object for an SRS receipt.
 
     REF-ONLY: only the digest reference is carried, never raw content.
-    authority_effect is always "none" — EXECUTION-BINDING-VOCAB0.
+    No authority-shaped field is present — structural absence, not a
+    pinned-to-none value (NE-11 / #149 ruling).
 
     Args:
         execution_packet_digest: sha256 digest of the CG execution packet.
@@ -95,7 +106,6 @@ def build_cg_extension(
             _EXEC_PACKET_REF_KEY: {
                 "execution_packet_digest": execution_packet_digest,
                 "packet_id": packet_id,
-                "authority_effect": AUTHORITY_EFFECT,
             }
         }
     }
@@ -142,17 +152,19 @@ def validate_cg_extension(extensions: dict[str, Any] | None) -> None:
             "extensions.cg.execution_packet_ref.packet_id does not encode "
             "execution_packet_digest"
         )
-    authority_effect = ref.get("authority_effect")
-    if authority_effect != AUTHORITY_EFFECT:
+    # Closed shape (NE-11 structural absence): no authority-shaped field —
+    # or any other unexpected key — is permitted here. Non-authority is
+    # expressed by the absence of such a key, never by pinning one to a
+    # frozen/negative value. See #149 ruling: no EXECUTION-BINDING carve-out.
+    extra_keys = set(ref.keys()) - _ALLOWED_REF_KEYS
+    if extra_keys:
         raise CGExtensionError(
-            "extensions.cg.execution_packet_ref.authority_effect must be "
-            f"{AUTHORITY_EFFECT!r} per EXECUTION-BINDING-VOCAB0; "
-            f"got {authority_effect!r}"
+            "extensions.cg.execution_packet_ref must not contain unexpected "
+            f"keys (closed shape); got extra keys: {sorted(extra_keys)!r}"
         )
 
 
 __all__ = [
-    "AUTHORITY_EFFECT",
     "CGExtensionError",
     "build_cg_extension",
     "validate_cg_extension",
