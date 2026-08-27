@@ -55,9 +55,16 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         params = urllib.parse.parse_qs(self.rfile.read(length).decode())
         client_id = params.get("client_id", ["node-client"])[0]
-        roles = ["sam:role:router"] if client_id == "router-client" else ["sam:role:node"]
+        # Identity separation: the router carries the "routers" group and the
+        # router role; ordinary fixture nodes carry the "sam-live-chain0" group
+        # and the node role. Distinct groups let /policies bind each group only
+        # to its own role, so a node identity can never assume the router role.
+        if client_id == "router-client":
+            roles, groups = ["sam:role:router"], ["routers"]
+        else:
+            roles, groups = ["sam:role:node"], ["sam-live-chain0"]
         now = int(time.time())
-        token = jwt.encode({"iss": ISSUER, "aud": "sam-mesh-audience", "sub": client_id, "iat": now, "exp": now + 3600, "roles": roles, "groups": ["sam-live-chain0"]}, KEY, algorithm="RS256", headers={"kid": "sam-live-chain0"})
+        token = jwt.encode({"iss": ISSUER, "aud": "sam-mesh-audience", "sub": client_id, "iat": now, "exp": now + 3600, "roles": roles, "groups": groups}, KEY, algorithm="RS256", headers={"kid": "sam-live-chain0"})
         self._json(200, {"access_token": token, "id_token": token, "token_type": "Bearer", "expires_in": 3600})
 
 

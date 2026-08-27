@@ -47,11 +47,16 @@ and `EVIDENCE_MANIFEST.md`.
 - a governed market call using the merged `SamNativeConnector` and existing
   gateway adapter to emit a new admission/outcome packet.
 
-The reconstructed harness has been syntax-checked in isolation, but this draft
-**does not claim a second native SAM execution from this GitHub-only authoring
-seat**. Owner review should keep the clean-host replay gate open until the
-harness is run on the Darwin host with the pinned release bytes and the resulting
-packet is independently replayed by ARCS.
+The reconstructed harness has now been **run on the Darwin host** from a clean,
+isolated checkout with the pinned release bytes and with the historical
+`_sam-runtime` directory moved out of reach (proving self-sufficiency). The
+clean-checkout reproduction passed every acceptance gate below, and its newly
+emitted packet was independently replayed by ARCS at aggregate exit code `0`.
+That reproduction evidence is frozen **separately** under
+`evidence/sam-live-chain0-repro/`, a second native execution distinct from the
+2026-08-26 historical bundle — new UUIDs, signatures, and logs, matched on
+structural and constitutional facts, not byte identity. Owner review still gates
+ready-flip and merge; this lane asserts no `AUTHORITY_MOVEMENT`.
 
 ## Clean replay acceptance
 

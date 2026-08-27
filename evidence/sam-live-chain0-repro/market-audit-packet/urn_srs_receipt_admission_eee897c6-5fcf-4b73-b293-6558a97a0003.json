@@ -1,8 +1,8 @@
 {
   "actor_ref": "actor:sam-live-chain0",
-  "admission_receipt_ref": "urn:srs:receipt:admission:3e14200a-44ff-4048-8696-f6e3fc986d22",
+  "argument_digest": "sha256:dddabb19563bf098ba99881edaa1bfc850067cd957f2b8a261d6848eb618c42b",
   "artifact_classes_covered": [
-    "tool_call_outcome"
+    "tool_call_admission"
   ],
   "artifact_classes_excluded": [
     "raw_prompt",
@@ -12,36 +12,38 @@
   ],
   "attestation_limits": [
     "The receipt attests only to governance conditions at the named admission boundary.",
-    "The receipt establishes the request, admission disposition, and semantic result returned at the configured boundary. It does not independently establish that the underlying tool body executed for this invocation, because middleware such as caches may satisfy a call without handler execution.",
     "The market backend is a deterministic fixture; result_returned does not establish a real financial settlement."
   ],
   "boundary_id": "boundary:sam-live-chain0",
   "boundary_type": "mcp_tool_call",
+  "disposition": "admitted",
   "extensions": {
     "mcp": {
       "binding_version": "fastmcp.middleware.v0.1"
     }
   },
-  "issued_at": "2026-08-27T04:01:28Z",
+  "issued_at": "2026-08-27T04:30:13Z",
   "issuer_id": "issuer:sam-live-chain0",
   "logical_call_id": "req:live-market0:1",
-  "outcome": "result_returned",
+  "policy_pack_id": "policy:sam-live-chain0",
+  "policy_pack_version": "2026.08.26",
   "profile_id": "srs.mcp.sdk_enforcement",
   "profile_version": "v0.1",
   "protocol_binding": "mcp",
-  "receipt_id": "urn:srs:receipt:outcome:f9ed24cf-2646-494b-9bd6-5e5203def803",
-  "receipt_kind": "outcome",
+  "receipt_id": "urn:srs:receipt:admission:eee897c6-5fcf-4b73-b293-6558a97a0003",
+  "receipt_kind": "admission",
   "receipt_signature": {
     "algorithm": "Ed25519",
     "canonicalization": "RFC8785-JCS",
     "key_id": "issuer.sam-live-chain0/key/1",
-    "signature": "K8qUx3-37cHTVsvVb7kVLnK-6dl2T4HKyVZzfmVV5yOMWy5Ac_uPobJJMcJD3n2i3fbjt7wHo2neu1eiXsdJDw"
+    "signature": "5I9f13iB2DALaQk0R0YfjHd5O35bMmST_DlRShseBeWLdsRahK7W2ZI26OLKZsXK-fFdBdCaNabI8X2z88OYDQ"
   },
   "receipt_type": "sdk_enforcement",
   "receipt_version": "srs.core.v5.1",
-  "result_digest": "sha256:1df4e996ff3b39e0890390542f43f9227b38abb243edf7339091ae366b0515f4",
+  "requested_tool_name": "settle",
   "retention_class_applied": "hash_only",
   "runtime_instance_id": "runtime:sam-live-chain0",
   "subject_ref": "tool-call:req:live-market0:1",
-  "subject_ref_origin": "derived_from_supplied_correlation"
+  "subject_ref_origin": "derived_from_supplied_correlation",
+  "tool_resolution_status": "not_observed"
 }

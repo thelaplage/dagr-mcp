@@ -1,0 +1,18 @@
+PASS sam_Darwin_arm64.tar.gz sha256:6c97d964e118bded0d25133e1f8a20d723648ea7415108788ce058006b061a81
+PASS bin/sam-control-plane sha256:b1e8457409012bde0f9f0fde02517d3aff4e48b0a0c02ea129b843f2c509ad49
+PASS bin/sam-router sha256:0299d54df4c69c1189d7f37b19c8a915a6224c7b9fe4767ad96bf28961ccb6ce
+PASS bin/sam-node sha256:4f5775af9fd679a1fc4e9de5f3338c2ddd05c095407223cac8df67bcc006dfd8
+PASS bin/mcp-client sha256:01330bad86b999e371a7abf5ef08ddac2a3d63db00d9216437b8708cf4fa8e23
+ready: mock-oidc :18080
+ready: control-plane :18081
+policy seeded: group:routers -> sam:role:router; group:sam-live-chain0 -> sam:role:node
+hostile node->router enrollment refused (fail-closed): PASS
+ready: router :18082
+ready: greeter :7778
+ready: market :7779
+ready: node-orchestrator MCP :18101
+ready: node-provider MCP :18102
+ready: node-witness MCP :18103
+SAM-LIVE-CHAIN0 semantic parity: PASS — discover→find→describe→call_remote_tool; Hello, SAM!
+SAM-LIVE-CHAIN0 mesh bring-up: PASS
+next: /Users/franklinvm/Developer/repos/dagr-mcp/.venv/bin/python /Users/franklinvm/Developer/worktrees/SAM-LIVE-CHAIN0-REPRO/wt/tools/sam_live_chain0/live_market0.py --output /Users/franklinvm/Developer/worktrees/SAM-LIVE-CHAIN0-REPRO/wt/.sam-live-chain0/evidence/market-audit-packet

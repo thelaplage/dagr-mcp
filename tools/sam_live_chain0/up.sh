@@ -81,14 +81,39 @@ wait_tcp 18081 control-plane
 # denies enrollment for a requested role unless a group->role binding authorizes
 # the identity (clean-replay attempt 1 @3be3749 failed here: router got
 # "403 requested role sam:role:router is not authorized for this identity").
-# This fixture's mock_oidc issues groups:["sam-live-chain0"] to EVERY client
-# (router-client included), so both roles bind to that single group. Node role is
-# scoped to exactly the services this replay uses; router keeps alpha.7's "*".
+# Identity separation: router-client carries group "routers" -> sam:role:router;
+# ordinary nodes carry group "sam-live-chain0" -> sam:role:node. Distinct groups
+# mean a node identity is never authorized for the router role (see the hostile
+# node->router refusal check below). Node role is scoped to exactly the services
+# this replay uses; router keeps alpha.7's "*".
 curl -fsS -X POST "$CP_URL/policies" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer sam-live-chain0-admin" \
-  -d '{"roles":[{"name":"sam:role:router","allowed_services":["*"],"allowed_targets":["*"]},{"name":"sam:role:node","allowed_services":["system://sam.catalog","mcp://greeter","mcp://market"],"allowed_targets":["*"]}],"bindings":[{"role":"sam:role:router","members":["group:sam-live-chain0"]},{"role":"sam:role:node","members":["group:sam-live-chain0"]}]}' >/dev/null
-echo "policy seeded: group:sam-live-chain0 -> sam:role:router, sam:role:node"
+  -d '{"roles":[{"name":"sam:role:router","allowed_services":["*"],"allowed_targets":["*"]},{"name":"sam:role:node","allowed_services":["system://sam.catalog","mcp://greeter","mcp://market"],"allowed_targets":["*"]}],"bindings":[{"role":"sam:role:router","members":["group:routers"]},{"role":"sam:role:node","members":["group:sam-live-chain0"]}]}' >/dev/null
+echo "policy seeded: group:routers -> sam:role:router; group:sam-live-chain0 -> sam:role:node"
+
+# Hostile check: a node identity (group sam-live-chain0) must NOT be able to
+# enroll as a router. Mint a node-role token, attempt router enrollment with it
+# on a throwaway port, and require a fail-closed refusal. This proves the
+# group->role separation actually denies cross-role assumption, rather than
+# merely asserting it in config.
+mint_token node-hostile "$RUNTIME/tokens/node-hostile.jwt"
+set +e
+"$BIN/sam-router" \
+  --control-plane "$CP_URL" \
+  --listen /ip4/127.0.0.1/tcp/18089 \
+  --external-addr /ip4/127.0.0.1/tcp/18089 \
+  --oidc-token "$(cat "$RUNTIME/tokens/node-hostile.jwt")" \
+  --keys-path "$RUNTIME/state/hostile-router.key" \
+  --allow-loopback --low-watermark 1 --high-watermark 32 \
+  >"$RUNTIME/logs/hostile-node-as-router.log" 2>&1
+hostile_rc=$?
+set -e
+if [[ $hostile_rc -eq 0 ]] || ! grep -qi 'not authorized\|forbidden\|403' "$RUNTIME/logs/hostile-node-as-router.log"; then
+  echo "HOSTILE REFUSAL FAILED: a node identity was able to enroll as router (rc=$hostile_rc)" >&2
+  exit 4
+fi
+echo "hostile node->router enrollment refused (fail-closed): PASS"
 
 mint_token router-client "$RUNTIME/tokens/router.jwt"
 ROUTER_TOKEN="$(cat "$RUNTIME/tokens/router.jwt")"
