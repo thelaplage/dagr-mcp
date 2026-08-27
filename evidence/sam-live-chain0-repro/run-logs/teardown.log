@@ -1,0 +1,16 @@
+SAM-LIVE-CHAIN0 gen-3 teardown verification (retained artifact)
+captured post-run; tested executable head 6d783574d018794d28393754bed61d264b697132
+--- down.sh ---
+SAM-LIVE-CHAIN0 teardown: PASS — tracked processes stopped; known TCP ports free
+--- SAM processes ---
+sam_processes_running=0
+--- harness ports ---
+port 18080 free
+port 18081 free
+port 18082 free
+port 18089 free
+port 18101 free
+port 18102 free
+port 18103 free
+port 7778 free
+port 7779 free

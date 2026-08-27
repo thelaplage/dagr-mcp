@@ -7,3 +7,6 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# SAM-LIVE-CHAIN0 harness runtime state (logs/pids/db/tokens/keys)
+.sam-live-chain0/

@@ -1,0 +1,12 @@
+version: "v1alpha1"
+attenuation:
+  policies:
+services:
+  - type: "mcp"
+    name: "greeter"
+    description: "Loopback greeting fixture"
+    target_url: "http://127.0.0.1:7778/mcp"
+  - type: "mcp"
+    name: "market"
+    description: "Deterministic loopback market fixture; authority_effect none"
+    target_url: "http://127.0.0.1:7779/mcp"
