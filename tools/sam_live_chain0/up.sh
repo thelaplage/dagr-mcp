@@ -77,6 +77,19 @@ SAM_ADMIN_TOKEN="sam-live-chain0-admin" start_bg control-plane \
   --key-rotation-interval 0
 wait_tcp 18081 control-plane
 
+# Seed mesh authorization policy BEFORE any enrollment. alpha.7's control-plane
+# denies enrollment for a requested role unless a group->role binding authorizes
+# the identity (clean-replay attempt 1 @3be3749 failed here: router got
+# "403 requested role sam:role:router is not authorized for this identity").
+# This fixture's mock_oidc issues groups:["sam-live-chain0"] to EVERY client
+# (router-client included), so both roles bind to that single group. Node role is
+# scoped to exactly the services this replay uses; router keeps alpha.7's "*".
+curl -fsS -X POST "$CP_URL/policies" \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer sam-live-chain0-admin" \
+  -d '{"roles":[{"name":"sam:role:router","allowed_services":["*"],"allowed_targets":["*"]},{"name":"sam:role:node","allowed_services":["system://sam.catalog","mcp://greeter","mcp://market"],"allowed_targets":["*"]}],"bindings":[{"role":"sam:role:router","members":["group:sam-live-chain0"]},{"role":"sam:role:node","members":["group:sam-live-chain0"]}]}' >/dev/null
+echo "policy seeded: group:sam-live-chain0 -> sam:role:router, sam:role:node"
+
 mint_token router-client "$RUNTIME/tokens/router.jwt"
 ROUTER_TOKEN="$(cat "$RUNTIME/tokens/router.jwt")"
 start_bg router \

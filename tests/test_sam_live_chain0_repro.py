@@ -79,6 +79,25 @@ def test_semantic_probe_requires_native_tool_sequence_and_hello() -> None:
     assert "Hello, SAM!" in probe
 
 
+def test_up_sh_seeds_policy_before_router_enrollment() -> None:
+    """Regression for clean-replay attempt 1 (@3be3749): the reconstructed up.sh
+    omitted the /policies seed, so router enrollment failed 403 (role not
+    authorized). Enrollment requires a group->role binding to exist first."""
+    up = text(TOOLS / "up.sh")
+    # a /policies seed exists
+    assert "/policies" in up
+    policy_pos = up.index("/policies")
+    # both role bindings present
+    assert '"role": "sam:role:router"' in up or '"role":"sam:role:router"' in up
+    assert '"role": "sam:role:node"' in up or '"role":"sam:role:node"' in up
+    # node role grants exactly the services this replay uses
+    for svc in ("system://sam.catalog", "mcp://greeter", "mcp://market"):
+        assert svc in up
+    # the POST must happen textually BEFORE the router is started
+    assert "start_bg router" in up
+    assert policy_pos < up.index("start_bg router"), "policy seed must precede router enrollment"
+
+
 def test_python_and_shell_sources_parse() -> None:
     for path in TOOLS.glob("*.py"):
         ast.parse(text(path), filename=str(path))

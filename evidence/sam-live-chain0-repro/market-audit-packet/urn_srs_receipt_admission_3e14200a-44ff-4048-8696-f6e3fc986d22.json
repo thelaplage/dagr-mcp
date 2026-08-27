@@ -1,0 +1,49 @@
+{
+  "actor_ref": "actor:sam-live-chain0",
+  "argument_digest": "sha256:dddabb19563bf098ba99881edaa1bfc850067cd957f2b8a261d6848eb618c42b",
+  "artifact_classes_covered": [
+    "tool_call_admission"
+  ],
+  "artifact_classes_excluded": [
+    "raw_prompt",
+    "raw_output",
+    "raw_tool_arguments",
+    "raw_tool_result"
+  ],
+  "attestation_limits": [
+    "The receipt attests only to governance conditions at the named admission boundary.",
+    "The market backend is a deterministic fixture; result_returned does not establish a real financial settlement."
+  ],
+  "boundary_id": "boundary:sam-live-chain0",
+  "boundary_type": "mcp_tool_call",
+  "disposition": "admitted",
+  "extensions": {
+    "mcp": {
+      "binding_version": "fastmcp.middleware.v0.1"
+    }
+  },
+  "issued_at": "2026-08-27T04:01:28Z",
+  "issuer_id": "issuer:sam-live-chain0",
+  "logical_call_id": "req:live-market0:1",
+  "policy_pack_id": "policy:sam-live-chain0",
+  "policy_pack_version": "2026.08.26",
+  "profile_id": "srs.mcp.sdk_enforcement",
+  "profile_version": "v0.1",
+  "protocol_binding": "mcp",
+  "receipt_id": "urn:srs:receipt:admission:3e14200a-44ff-4048-8696-f6e3fc986d22",
+  "receipt_kind": "admission",
+  "receipt_signature": {
+    "algorithm": "Ed25519",
+    "canonicalization": "RFC8785-JCS",
+    "key_id": "issuer.sam-live-chain0/key/1",
+    "signature": "mUxkalwBFsWq8APbaGCQQqyWQlhFPIKNvnE_yVuTrBLdx3AOUifCmil_1kZ2lDaVEGeJMOTa3UNVY5CM_QKyDQ"
+  },
+  "receipt_type": "sdk_enforcement",
+  "receipt_version": "srs.core.v5.1",
+  "requested_tool_name": "settle",
+  "retention_class_applied": "hash_only",
+  "runtime_instance_id": "runtime:sam-live-chain0",
+  "subject_ref": "tool-call:req:live-market0:1",
+  "subject_ref_origin": "derived_from_supplied_correlation",
+  "tool_resolution_status": "not_observed"
+}

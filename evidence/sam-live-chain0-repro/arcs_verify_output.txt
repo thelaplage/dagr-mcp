@@ -1,0 +1,22 @@
+### urn_srs_receipt_admission_3e14200a-44ff-4048-8696-f6e3fc986d22.json
+schema_digest: PASS
+envelope: PASS
+profile: PASS
+raw_content_exclusion: PASS
+signature_valid: PASS
+issuer_key_resolved: PASS
+issuer_key_trusted: PASS
+attestation_limits_present: PASS
+chain_status: not_applicable
+
+### urn_srs_receipt_outcome_f9ed24cf-2646-494b-9bd6-5e5203def803.json
+schema_digest: PASS
+envelope: PASS
+profile: PASS
+raw_content_exclusion: PASS
+signature_valid: PASS
+issuer_key_resolved: PASS
+issuer_key_trusted: PASS
+attestation_limits_present: PASS
+chain_status: not_applicable
+

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 
 from dagr_mcp_service.connectors.remote import RemoteCredential, RemoteTargetConfig, RemoteToolConnector
 from dagr_mcp_service.connectors.sam_native import (
@@ -15,6 +16,34 @@ from dagr_mcp_service.connectors.sam_native import (
 
 HANDLE = "sam:live-chain0"
 HELLO = "mcp://greeter/hello"
+
+
+def _tools_from_result(result) -> list:
+    """Extract the find_remote_tools list from a CallToolResult.
+
+    alpha.7's Go sam-node returns the tool list as a bare JSON array in the
+    result's text content and does NOT populate structuredContent["tools"];
+    tolerate both shapes rather than assuming one."""
+    sc = getattr(result, "structuredContent", None)
+    if isinstance(sc, list):
+        return sc
+    if isinstance(sc, dict):
+        for key in ("tools", "result"):
+            if isinstance(sc.get(key), list):
+                return sc[key]
+    for block in getattr(result, "content", None) or []:
+        text = getattr(block, "text", None)
+        if not text:
+            continue
+        try:
+            data = json.loads(text)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict) and isinstance(data.get("tools"), list):
+            return data["tools"]
+    return []
 
 
 def provider(token: str):
@@ -40,7 +69,7 @@ async def main() -> int:
     if discovered.isError:
         raise RuntimeError("discover_remote_services failed")
     tools_result = await find_sam_remote_tools(remote, sam_endpoint_handle=HANDLE)
-    tools = list((tools_result.structuredContent or {}).get("tools", []))
+    tools = _tools_from_result(tools_result)
     peers = sorted({str(t["peer_id"]) for t in tools if t.get("tool_name") == HELLO and t.get("peer_id")})
     if len(peers) != 1:
         raise RuntimeError(f"expected one greeter provider, got {peers!r}")

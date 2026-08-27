@@ -22,6 +22,32 @@ SAM_HANDLE = "sam:live-chain0"
 TARGET_HANDLE = "market:fixture"
 TOOL_ALIAS = "settle"
 REMOTE_TOOL = "mcp://market/settle"
+
+
+def _tools_from_result(result) -> list:
+    """Extract the find_remote_tools list from a CallToolResult. alpha.7's Go
+    sam-node returns a bare JSON array in text content and does not populate
+    structuredContent["tools"]; tolerate both shapes."""
+    sc = getattr(result, "structuredContent", None)
+    if isinstance(sc, list):
+        return sc
+    if isinstance(sc, dict):
+        for key in ("tools", "result"):
+            if isinstance(sc.get(key), list):
+                return sc[key]
+    for block in getattr(result, "content", None) or []:
+        text = getattr(block, "text", None)
+        if not text:
+            continue
+        try:
+            data = json.loads(text)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict) and isinstance(data.get("tools"), list):
+            return data["tools"]
+    return []
 REQUEST_REF = "req:live-market0:1"
 
 
@@ -57,7 +83,7 @@ async def main() -> int:
     })
 
     discovered = await find_sam_remote_tools(remote, sam_endpoint_handle=SAM_HANDLE)
-    tools = list((discovered.structuredContent or {}).get("tools", []))
+    tools = _tools_from_result(discovered)
     matches = [row for row in tools if row.get("tool_name") == REMOTE_TOOL]
     peer_ids = sorted({str(row.get("peer_id")) for row in matches if row.get("peer_id")})
     if len(peer_ids) != 1:
