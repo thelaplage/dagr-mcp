@@ -1,9 +1,11 @@
 # SAM-LIVE-CHAIN0 clean-checkout reproduction — evidence manifest
 
-Generation: identity-separated clean-checkout reproduction (2026-08-27),
-produced by the corrective commit atop dd98b4e. Supersedes the dd98b4e
-intermediate (shared-group binding), which is preserved in git history.
-All digests sha256. Runtime processes torn down; evidence is read-only.
+Generation: identity-separated clean-checkout reproduction (2026-08-27).
+**Tested executable state (exact): `6d783574d018794d28393754bed61d264b697132`** (branch feat/sam-live-chain0-repro).
+The gen-3 chain was executed against that tree; this evidence bundle is frozen
+on top of it by an evidence-only commit that changes no executable/authz/parser
+code. Supersedes the dd98b4e intermediate (shared-group binding), preserved in
+git history. All digests sha256. Runtime processes torn down (see teardown.log).
 
 ## Pin + release (official prebuilt, verify_pins 5/5 PASS)
 ```
@@ -17,7 +19,7 @@ b1e8457409012bde0f9f0fde02517d3aff4e48b0a0c02ea129b843f2c509ad49  bin/sam-contro
 ## Retained artifacts (sha256)
 ```
 090636b1309a0b2c8dac0e2f61072ce1694b86f6709901bb242b802ea1b6ee59  ATTEMPT1_DIAGNOSTIC.md
-e25b5629469ecea929f8cbe034e70d849b599ac529ed18d9a7fa1b44e0600fbd  REPRODUCTION_REPORT.md
+81c6b5072533e5f08860b9f376dbae7aeac94fec8a085b4261d58e4dd3b735d3  REPRODUCTION_REPORT.md
 c72f4c9fd284fe85a9dc24c9ff8fc452b4f1835624a68f3a88f1f7c4bd4e0f2f  market-audit-packet/issuer-keys.json
 ab971aff492237fb1ad2a756c6d4eeec75854523bcfef11dc67154822cbd11c6  market-audit-packet/urn_srs_receipt_admission_eee897c6-5fcf-4b73-b293-6558a97a0003.json
 8e412136e6d51ac23c13d3806610fde59f8245b16e43516a071240828237fde8  market-audit-packet/urn_srs_receipt_outcome_433d7b69-535d-4dd8-b79c-9b5847bc6e11.json
@@ -30,11 +32,12 @@ e4da8f5d71a9b4f16a41905efa5859a13fa02d934cc111f2f6767925904177a1  run-logs/gover
 8ad206519375d36690a6524f55b0baba6555a2878a5ba11008f26f8442845227  run-logs/hostile-node-as-router.log
 26fbeab7ccff6016c0eb186fed2d6c5c8bb7ebf0eba5f3ea48ddc8a7ecbe5314  run-logs/pytest_static_gate.log
 d65da150c69140bd15b29b8a2e8c35d23e535c97729b811972db1bf5a8a38358  run-logs/semantic-probe.log
+8e30b8b894ad77105dc5127eb65149b82f88ca0e3400c16f1c840f1a2f2c5303  run-logs/teardown.log
 fc86cd361794bef8ec96153cbe8191b3b7e2177f3e92657a45e327da1bbef3a8  run-logs/up.stdout.log
 4b78e0433696b250f80f79bd1208a08b1343df610fc762802ad552f2673ce80e  run-logs/verify_pins.log
 ```
 
-## Gate results (this generation)
+## Gate results (this generation) — every gate has a retained artifact
 | gate | result | evidence |
 |---|---|---|
 | static pytest gate | 15 passed | run-logs/pytest_static_gate.log |
@@ -46,7 +49,7 @@ fc86cd361794bef8ec96153cbe8191b3b7e2177f3e92657a45e327da1bbef3a8  run-logs/up.st
 | governed settle | admitted/result | run-logs/governed-call.stdout.log |
 | same-call receipts | req:live-market0:1 admission+outcome | market-audit-packet/ |
 | independent ARCS | aggregate exit 0 | run-logs/arcs_verify_output.txt + arcs_verify_exit_code.txt |
-| teardown | 0 procs / ports free | (verified in session) |
+| teardown / ports free | PASS (0 procs, 9 ports free) | run-logs/teardown.log |
 
 ## Constitutional boundary
 - route-success != authorization != semantic truth; fixture `settle` != real financial event.

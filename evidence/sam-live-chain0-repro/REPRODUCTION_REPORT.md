@@ -10,6 +10,10 @@ Reproduction date: 2026-08-27 (local darwin/arm64 host). This generation uses
 intermediate (which bound both roles to one shared group); that intermediate is
 preserved in git history, not as a separate evidence dir.
 
+**Tested executable state (exact): `6d783574d018794d28393754bed61d264b697132`.**
+The gen-3 chain ran against that tree; this bundle is frozen on top of it by an
+evidence-only commit that changes no executable/authz/parser code.
+
 ## Posture
 
 - Fresh `sam_Darwin_arm64.tar.gz` download; `verify_pins.py` PASS on all 5 SHAs.
@@ -34,10 +38,11 @@ preserved in git history, not as a separate evidence dir.
 | `Hello, SAM!` | PASS |
 | governed `settle` | PASS |
 | independent ARCS (own env) aggregate exit | 0 |
-| teardown / ports free | PASS |
+| teardown / ports free | PASS (0 procs, 9 ports free — `run-logs/teardown.log`) |
 
-Retained outputs for every gate are under `run-logs/`; digests and release pins
-are in `EVIDENCE_MANIFEST.md`.
+Retained outputs for **every** gate above are under `run-logs/` (including
+`teardown.log`); digests, release pins, and the exact tested head are in
+`EVIDENCE_MANIFEST.md`.
 
 ## Identity separation (owner correction)
 
