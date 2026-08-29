@@ -66,8 +66,12 @@ asyncio_mode = "auto"
 # itself collects or how it runs.
 testpaths = ["tests"]
 
+# ``dagr_mcp*`` already globs the local-demo package, but it is listed
+# explicitly so the LOCAL-DEMO-ONLY, non-production adapter factory package is an
+# intentional, reviewable part of the distribution wherever dagr-mcp is installed
+# (so acquisition's ``importlib.import_module`` can resolve the factory selector).
 [tool.setuptools.packages.find]
-include = ["dagr_mcp*"]
+include = ["dagr_mcp*", "dagr_mcp_local_demo*"]
 
 [tool.setuptools.package-data]
 dagr_mcp = ["vendor/srs/*.json", "vendor/srs/*.zip"]
