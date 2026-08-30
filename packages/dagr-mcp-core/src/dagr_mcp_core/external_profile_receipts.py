@@ -1,13 +1,13 @@
 """Opt-in SRS vNext external-profile receipt emission.
 
-This module is additive.  The historical ``SignedReceiptEmitter`` in
+This module is additive. The historical ``SignedReceiptEmitter`` in
 ``dagr_mcp_core.srs_receipts`` remains the byte-stable
-``srs.mcp.sdk_enforcement.v0.1`` / Envelope v0.2.1 producer.  Callers must
+``srs.mcp.sdk_enforcement.v0.1`` / Envelope v0.2.1 producer. Callers must
 explicitly construct :class:`ExternalProfileSignedReceiptEmitter` to emit the
 successor envelope.
 
-The emitter owns serialization only.  It does not decide domain semantics,
-DAGR domain identity, authorization, standing, or truth.  In particular this
+The emitter owns serialization only. It does not decide domain semantics,
+DAGR domain identity, authorization, standing, or truth. In particular this
 module does not synthesize a ``dagr_binding`` and does not map the historical
 consumer-local ``mcp_action`` vocabulary to the DAGR ``action`` domain.
 
@@ -22,12 +22,15 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 from dagr_mcp_core.srs_receipts import (
+    RESULT_LIMIT,
+    TASK_LIMIT,
     ReceiptContentError,
     ReceiptContext,
     SignedReceiptEmitter,
+    enforce_raw_content_exclusion,
 )
 
 ENVELOPE_SCHEMA_VERSION = "srs-envelope-v0-next"
@@ -48,9 +51,9 @@ _PROFILE_VERSION_RE = re.compile(r"^v[0-9]+(?:\.[0-9]+)*$")
 class ExternalProfileReceiptContract:
     """Application-owned external-profile projection selected by an operator.
 
-    Every field here is configuration, not inferred authority.  Contract
-    digests bind the emitted receipt to exact bytes; this object does not fetch
-    or validate those bytes and does not claim that a referenced candidate has
+    Every field here is configuration, not inferred authority. Contract digests
+    bind the emitted receipt to exact bytes; this object does not fetch or
+    validate those bytes and does not claim that a referenced candidate has
     been ratified.
     """
 
@@ -69,9 +72,13 @@ class ExternalProfileReceiptContract:
 
     def __post_init__(self) -> None:
         if not _EXTERNAL_PROFILE_ID_RE.fullmatch(self.profile_id):
-            raise ValueError("profile_id must be a globally namespaced external profile id ending in .vN")
+            raise ValueError(
+                "profile_id must be a globally namespaced external profile id ending in .vN"
+            )
         if self.profile_id.startswith(("srs.", "garp.")):
-            raise ValueError("external profile may not claim the reserved srs.* or garp.* namespace")
+            raise ValueError(
+                "external profile may not claim the reserved srs.* or garp.* namespace"
+            )
         if not _PROFILE_VERSION_RE.fullmatch(self.profile_version):
             raise ValueError("profile_version must use vN[.N...] syntax")
         if not self.emitter_id:
@@ -88,7 +95,9 @@ class ExternalProfileReceiptContract:
             ("outcome_receipt_type", self.outcome_receipt_type),
         ):
             if not _EXTERNAL_RECEIPT_TYPE_RE.fullmatch(receipt_type):
-                raise ValueError(f"{label} must be a globally namespaced external receipt type")
+                raise ValueError(
+                    f"{label} must be a globally namespaced external receipt type"
+                )
         for label, value in (
             ("envelope_contract_id", self.envelope_contract_id),
             ("envelope_contract_version", self.envelope_contract_version),
@@ -109,16 +118,18 @@ class ExternalProfileReceiptContract:
             return self.admission_receipt_type
         if receipt_kind == "outcome":
             return self.outcome_receipt_type
-        raise ReceiptContentError(f"unsupported external-profile receipt_kind: {receipt_kind!r}")
+        raise ReceiptContentError(
+            f"unsupported external-profile receipt_kind: {receipt_kind!r}"
+        )
 
 
 class ExternalProfileSignedReceiptEmitter(SignedReceiptEmitter):
     """Signed MCP lifecycle emitter for an explicitly selected SRS vNext profile.
 
-    ``emit_admission`` and ``emit_outcome`` are inherited unchanged from the
-    existing emitter.  Only the common envelope projection is replaced.  The
-    existing lifecycle adapters therefore keep their execution semantics while
-    an operator can opt into a different, byte-bound carrier/profile.
+    ``emit_admission`` is inherited unchanged. ``emit_outcome`` preserves the
+    existing lifecycle behavior but writes exception metadata under the selected
+    external namespace rather than assuming the historical bare ``mcp``
+    extension exists. The common envelope projection is replaced for both kinds.
     """
 
     def __init__(self, *, contract: ExternalProfileReceiptContract, **kwargs: Any) -> None:
@@ -133,7 +144,7 @@ class ExternalProfileSignedReceiptEmitter(SignedReceiptEmitter):
         artifact_class: str,
     ) -> dict[str, Any]:
         # Reuse only the already-hardened common MCP runtime projection and its
-        # binding/subject-origin guards.  Replace every profile/carrier-owned
+        # binding/subject-origin guards. Replace every profile/carrier-owned
         # value before the envelope can be signed or written.
         envelope = super()._common(
             context,
@@ -163,7 +174,7 @@ class ExternalProfileSignedReceiptEmitter(SignedReceiptEmitter):
 
         # The legacy emitter carries binding metadata under extensions.mcp.
         # vNext external profiles use their own globally-scoped extension
-        # namespace.  Moving this neutral binding-version observation does not
+        # namespace. Moving this neutral binding-version observation does not
         # create domain authority and deliberately does not manufacture a DAGR
         # binding.
         legacy_mcp = envelope.get("extensions", {}).get("mcp", {})
@@ -174,3 +185,46 @@ class ExternalProfileSignedReceiptEmitter(SignedReceiptEmitter):
             }
         }
         return envelope
+
+    def emit_outcome(
+        self,
+        *,
+        context: ReceiptContext,
+        admission_receipt_ref: str,
+        outcome: str,
+        result_digest: str | None = None,
+        exception_class: str | None = None,
+        additional_attestation_limits: Sequence[str] = (),
+        binding_owned_fields: Mapping[str, bool] | None = None,
+    ) -> str:
+        """Emit an outcome without reintroducing the legacy bare ``mcp`` namespace."""
+
+        envelope = self._common(
+            context,
+            receipt_kind="outcome",
+            artifact_class="tool_call_outcome",
+        )
+        envelope.update(
+            {
+                "admission_receipt_ref": admission_receipt_ref,
+                "outcome": outcome,
+            }
+        )
+        if result_digest:
+            envelope["result_digest"] = result_digest
+        if exception_class:
+            extension = envelope["extensions"][self.contract.extension_namespace]
+            extension["exception_class"] = exception_class
+        if outcome in {"result_returned", "error_returned"}:
+            envelope["attestation_limits"].append(RESULT_LIMIT)
+        if outcome == "task_submitted":
+            envelope["attestation_limits"].append(TASK_LIMIT)
+        self._append_attestation_limits(envelope, additional_attestation_limits)
+        self._apply_binding_owned_fields(
+            envelope,
+            outcome=outcome,
+            binding_owned_fields=binding_owned_fields,
+        )
+        enforce_raw_content_exclusion(envelope)
+        signed = self.identity.sign_envelope(envelope)
+        return self.sink.write(signed)
