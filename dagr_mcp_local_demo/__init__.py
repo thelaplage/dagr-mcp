@@ -13,4 +13,4 @@ exact frozen policy it encodes.
 
 from __future__ import annotations
 
-__all__ = ["counterpedia_acquisition"]
+__all__ = ["counterpedia_acquisition", "wave100_acquisition"]
