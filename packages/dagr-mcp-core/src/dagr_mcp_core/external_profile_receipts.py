@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from dagr_mcp_core.srs_receipts import (
+    CANCELLATION_FIELD_NAMES,
     RESULT_LIMIT,
     TASK_LIMIT,
     ReceiptContentError,
@@ -127,9 +128,10 @@ class ExternalProfileSignedReceiptEmitter(SignedReceiptEmitter):
     """Signed MCP lifecycle emitter for an explicitly selected SRS vNext profile.
 
     ``emit_admission`` is inherited unchanged. ``emit_outcome`` preserves the
-    existing lifecycle behavior but writes exception metadata under the selected
-    external namespace rather than assuming the historical bare ``mcp``
-    extension exists. The common envelope projection is replaced for both kinds.
+    existing lifecycle behavior but keeps binding-owned exception/delivery
+    metadata inside the selected external namespace rather than assuming legacy
+    top-level/bare-``mcp`` slots. The common envelope projection is replaced for
+    both receipt kinds.
     """
 
     def __init__(self, *, contract: ExternalProfileReceiptContract, **kwargs: Any) -> None:
@@ -186,6 +188,41 @@ class ExternalProfileSignedReceiptEmitter(SignedReceiptEmitter):
         }
         return envelope
 
+    def _apply_binding_owned_fields(
+        self,
+        envelope: dict[str, Any],
+        *,
+        outcome: str,
+        binding_owned_fields: Mapping[str, bool] | None,
+    ) -> None:
+        """Project SDK-v2 delivery facts into the open namespaced extension.
+
+        The historical v0.2.1 emitter serialized these three Boolean facts at
+        top level. Envelope v0-next is top-level ``additionalProperties:false``
+        and does not define those legacy slots, while its ``extensions`` member
+        is explicitly open for namespaced evolution. The vNext projection keeps
+        the same facts but moves them under ``delivery_state`` rather than
+        reopening or mutating the reviewed envelope schema.
+        """
+
+        if not binding_owned_fields:
+            return
+        if outcome != "indeterminate":
+            raise ReceiptContentError(
+                "cancellation fields are permitted only on indeterminate outcomes"
+            )
+        projected: dict[str, bool] = {}
+        for key, value in binding_owned_fields.items():
+            if key not in CANCELLATION_FIELD_NAMES:
+                raise ReceiptContentError(f"unknown binding-owned field: {key}")
+            if type(value) is not bool:
+                raise ReceiptContentError(
+                    f"binding-owned field must be boolean: {key}"
+                )
+            projected[key] = value
+        extension = envelope["extensions"][self.contract.extension_namespace]
+        extension["delivery_state"] = projected
+
     def emit_outcome(
         self,
         *,
@@ -197,7 +234,7 @@ class ExternalProfileSignedReceiptEmitter(SignedReceiptEmitter):
         additional_attestation_limits: Sequence[str] = (),
         binding_owned_fields: Mapping[str, bool] | None = None,
     ) -> str:
-        """Emit an outcome without reintroducing the legacy bare ``mcp`` namespace."""
+        """Emit an outcome without reintroducing legacy bare/top-level extensions."""
 
         envelope = self._common(
             context,
