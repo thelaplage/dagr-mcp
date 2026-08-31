@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "srs.external-profile-declaration.v0.1",
+  "title": "SRS External Profile Declaration v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "profile_id",
+    "profile_version",
+    "publisher_ref",
+    "compatible_envelopes",
+    "permitted_receipt_types",
+    "receipt_type_classifications",
+    "extension_namespace",
+    "raw_content_posture",
+    "signing_required",
+    "attestation_limits_required",
+    "unknown_profile_behavior",
+    "conformance_vectors_ref"
+  ],
+  "properties": {
+    "schema": {"const": "srs.external-profile-declaration/v0.1"},
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*(\\.[A-Za-z0-9][A-Za-z0-9_-]*)+\\.v[0-9]+$",
+      "not": {
+        "anyOf": [
+          {"pattern": "^srs(?:\\.|$)"},
+          {"pattern": "^garp(?:\\.|$)"}
+        ]
+      }
+    },
+    "profile_version": {"type": "string", "pattern": "^v[0-9]+(?:\\.[0-9]+)*$"},
+    "publisher_ref": {"type": "string", "minLength": 1},
+    "compatible_envelopes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["published_version", "sha256"],
+        "properties": {
+          "published_version": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "permitted_receipt_types": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/external_or_legacy_receipt_type"}
+    },
+    "receipt_type_classifications": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["receipt_type", "receipt_class"],
+        "properties": {
+          "receipt_type": {"$ref": "#/$defs/external_or_legacy_receipt_type"},
+          "receipt_class": {
+            "type": "string",
+            "enum": [
+              "governance_decision",
+              "lifecycle_event",
+              "outcome",
+              "provenance",
+              "verification_report"
+            ]
+          },
+          "receipt_kind": {"type": ["string", "null"], "minLength": 1}
+        }
+      }
+    },
+    "extension_namespace": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*(\\.[A-Za-z0-9][A-Za-z0-9_-]*)+$",
+      "not": {
+        "anyOf": [
+          {"pattern": "^garp(?:\\.|$)"},
+          {"pattern": "^srs(?:\\.|$)"}
+        ]
+      }
+    },
+    "raw_content_posture": {
+      "type": "string",
+      "enum": ["profile_defined", "metadata_only", "hash_only"]
+    },
+    "signing_required": {"type": "boolean"},
+    "attestation_limits_required": {"const": true},
+    "external_contract_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "unknown_profile_behavior": {"const": "preserve_identity_and_do_not_infer"},
+    "conformance_vectors_ref": {"type": "string", "minLength": 1},
+    "migration_ref": {"type": ["string", "null"]}
+  },
+  "allOf": [
+    {
+      "$comment": "Envelope-scoped fail-closed invariant. A conservative reading of 'every permitted type must be legal under every listed compatible envelope': if this profile declares v0.2.1 compatibility, no permitted receipt_type (and no classified receipt_type) may fall outside the frozen v0.2.1 enum. A profile that needs a new namespaced type must NOT declare v0.2.1 compatibility. This closes the independent-array hole where a v0.2.1-compatible profile could otherwise permit com.acme.claims.review.",
+      "if": {
+        "required": ["compatible_envelopes"],
+        "properties": {
+          "compatible_envelopes": {
+            "contains": {
+              "type": "object",
+              "required": ["published_version"],
+              "properties": {"published_version": {"const": "0.2.1"}}
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "permitted_receipt_types": {
+            "items": {"$ref": "#/$defs/frozen_v0_2_1_receipt_type"}
+          },
+          "receipt_type_classifications": {
+            "items": {
+              "properties": {
+                "receipt_type": {"$ref": "#/$defs/frozen_v0_2_1_receipt_type"}
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "frozen_v0_2_1_receipt_type": {
+      "enum": ["sdk_enforcement", "grace_session", "connection", "provenance"]
+    },
+    "external_or_legacy_receipt_type": {
+      "oneOf": [
+        {"enum": ["sdk_enforcement", "grace_session", "connection", "provenance"]},
+        {
+          "type": "string",
+          "pattern": "^(?!srs\\.)(?!garp\\.)[A-Za-z0-9][A-Za-z0-9_-]*(\\.[A-Za-z0-9][A-Za-z0-9_-]*){2,}$"
+        }
+      ]
+    }
+  },
+  "x-reconciliation": {
+    "receipt_type_role": "semantic_event_type_identity",
+    "receipt_class_role": "srs_owned_structural_classification",
+    "bare_unknown_external_receipt_type_allowed": false,
+    "external_profile_may_claim_srs_namespace": false,
+    "external_profile_may_claim_garp_namespace": false,
+    "classification_entries_use_same_type_namespace_rule": true,
+    "classification_set_must_cover_permitted_types": "profile_conformance_requirement",
+    "permitted_type_must_be_legal_under_every_compatible_envelope": true,
+    "v0_2_1_compatible_profile_restricted_to_frozen_enum": true,
+    "namespaced_type_requires_dropping_v0_2_1_compatibility": true,
+    "unknown_namespaced_type_can_pass_envelope_syntax": true,
+    "unknown_namespaced_type_implies_profile_conformance": false,
+    "same_class_implies_same_semantics": false
+  }
+}
