@@ -1,0 +1,331 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arcs.example/schemas/srs/successor/envelope-v0-next.schema.json",
+  "title": "SRS Envelope Successor v0-next (DRAFT)",
+  "description": "Stricter successor to SRS envelope predecessors (v0.1.0, v0.2.0, v0.2.1). Tightens identifiers, timestamps, digest grammar, duplicate handling, and unknown-property policy while preserving the frozen receipt_version discriminator. NOT a release version; marked v0-next to distinguish from the stable predecessor series.",
+  "x-status": "draft",
+  "x-predecessor-schemas": [
+    "https://garp.doctrine/schemas/srs/srs-envelope.schema.json",
+    "https://arcs.example/schemas/srs/srs-envelope-v0.2.0.schema.json",
+    "https://arcs.example/schemas/srs/srs-envelope-v0.2.1.schema.json"
+  ],
+  "type": "object",
+  "required": [
+    "receipt_version",
+    "receipt_id",
+    "receipt_type",
+    "emitter_id",
+    "boundary_type",
+    "protocol_binding",
+    "issued_at",
+    "artifact_classes_covered",
+    "artifact_classes_excluded",
+    "attestation_limits",
+    "extensions",
+    "envelope_schema_version"
+  ],
+  "properties": {
+    "envelope_schema_version": {
+      "type": "string",
+      "const": "srs-envelope-v0-next",
+      "description": "Identifies this receipt as conforming to the successor envelope schema. Must be the literal string 'srs-envelope-v0-next'. Absence of this field indicates a predecessor receipt (v0.1.0, v0.2.0, or v0.2.1)."
+    },
+    "receipt_version": {
+      "type": "string",
+      "const": "srs.core.v5.1",
+      "description": "Frozen SRS receipt version discriminator. Must be the exact literal 'srs.core.v5.1'. This value is byte-pinned and must not change even in successor envelope schemas."
+    },
+    "receipt_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-zA-Z0-9_:.-]+$",
+      "description": "Unique receipt identifier. Must be non-empty and contain only alphanumeric characters, underscores, colons, periods, and hyphens. Empty strings are prohibited."
+    },
+    "receipt_type": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Receipt type identifier. Open string (not a closed enum) — the successor schema delegates type semantics to profile contracts and the receipt-class taxonomy. Must be non-empty."
+    },
+    "emitter_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier for the emitting runtime or binding. Must be non-empty. This field is required in the successor schema to enable receipt attribution without relying on profile-level enforcement."
+    },
+    "boundary_type": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The boundary classification for this receipt. Must be non-empty."
+    },
+    "protocol_binding": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The protocol binding under which this receipt was emitted. Must be non-empty."
+    },
+    "subject_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to the subject of the governed action. When present, must be non-empty. The format is binding-specific; URIs and opaque identifiers are both acceptable."
+    },
+    "subject_ref_origin": {
+      "type": "string",
+      "minLength": 1,
+      "description": "How subject_ref was determined. When present, must be non-empty. Enumeration of allowed values is profile-governed, not enforced at the base envelope level. This is the v0.2.1-era string field; successor receipts should use subject_ref_origin_v2 instead."
+    },
+    "subject_ref_origin_v2": {
+      "type": "object",
+      "description": "Structured provenance successor to the v0.2.1 subject_ref_origin string enum. When present, must conform to the subject-ref-origin-v2 schema (schemas/srs-envelope/successor/subject-ref-origin-v2.schema.json). Absence means not_declared and must never be reinterpreted as supplied or as any legacy emitter provenance. Presence of subject_ref_origin_v2 does not require removal of subject_ref_origin; both may coexist during migration.",
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["supplied", "derived", "correlation_derived", "binding_minted", "not_declared"]
+        },
+        "source_type": {"type": "string", "minLength": 1},
+        "source_ref": {"type": "string", "minLength": 1},
+        "derivation_method": {"type": "string", "minLength": 1},
+        "authority_ref": {"type": "string", "minLength": 1}
+      },
+      "if": {
+        "properties": {"mode": {"const": "not_declared"}},
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "mode": {},
+          "source_type": false,
+          "source_ref": false,
+          "derivation_method": false,
+          "authority_ref": false
+        }
+      },
+      "additionalProperties": false,
+      "x-governed-by": "https://arcs.example/schemas/srs/successor/subject-ref-origin-v2.schema.json"
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "ISO 8601 date-time at which the receipt was issued. Must conform to the date-time format (RFC 3339 / ISO 8601). Non-ISO timestamps (e.g. epoch integers, human-readable strings without timezone) are rejected. Both format: date-time and the pattern constraint are declared; validators that do not enable format checking will still enforce the pattern."
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The profile identifier this receipt conforms to, e.g. 'srs.mcp.sdk_enforcement'. When present, must be non-empty."
+    },
+    "profile_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The profile version string, e.g. 'v0.1'. When present, must be non-empty."
+    },
+    "receipt_kind": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Event kind within a profile, e.g. 'admission' or 'outcome'. When present, must be non-empty."
+    },
+    "issuer_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier for the issuing entity. When present, must be non-empty."
+    },
+    "runtime_instance_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Runtime instance identifier. When present, must be non-empty."
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Tenant identifier. When present, must be non-empty."
+    },
+    "workspace_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Workspace identifier. When present, must be non-empty."
+    },
+    "actor_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to the acting entity. When present, must be non-empty."
+    },
+    "policy_pack_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Policy pack identifier. When present, must be non-empty."
+    },
+    "policy_pack_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Policy pack version. When present, must be non-empty."
+    },
+    "boundary_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Boundary instance identifier. When present, must be non-empty."
+    },
+    "logical_call_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Logical call correlation identifier. When present, must be non-empty."
+    },
+    "parent_receipt_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to a parent receipt. When present, must be non-empty."
+    },
+    "admission_receipt_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to the associated admission receipt. When present, must be non-empty."
+    },
+    "review_object_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to the review object. When present, must be non-empty."
+    },
+    "requested_tool_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The name of the tool that was requested. When present, must be non-empty."
+    },
+    "resolved_tool_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to the resolved tool. When present, must be non-empty."
+    },
+    "tool_resolution_status": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Status of tool resolution. When present, must be non-empty."
+    },
+    "disposition": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The governance disposition for this receipt. When present, must be non-empty."
+    },
+    "outcome": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The outcome of the governed action. When present, must be non-empty."
+    },
+    "retry_contract": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Retry contract identifier. When present, must be non-empty."
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reason code for the disposition or outcome. When present, must be non-empty."
+    },
+    "retention_class_applied": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The retention class applied to this receipt. When present, must be non-empty."
+    },
+    "argument_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "SHA-256 digest of the call arguments in the form 'sha256:<64 lowercase hex chars>'. Raw argument content must not appear in the receipt."
+    },
+    "result_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "SHA-256 digest of the call result in the form 'sha256:<64 lowercase hex chars>'. Raw result content must not appear in the receipt."
+    },
+    "artifact_classes_covered": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "description": "Artifact classes covered by this receipt. Must be a unique-item array of non-empty strings."
+    },
+    "artifact_classes_excluded": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "description": "Artifact classes explicitly excluded from this receipt's scope. Must be a unique-item array of non-empty strings."
+    },
+    "attestation_limits": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "description": "Attestation limit declarations for this receipt. Must be a unique-item array of non-empty strings. Each entry declares what this receipt does and does not attest."
+    },
+    "contract_refs": {
+      "type": "object",
+      "description": "Normative schema and profile byte-identity binding. Links this receipt to the exact contract bytes used at emit time. Predecessor receipts that do not declare contract_refs are treated as 'not_declared' (not a failure). The shape is governed by schemas/srs-envelope/successor/contract-refs-v0.1.schema.json.",
+      "required": ["envelope_contract"],
+      "properties": {
+        "envelope_contract": {
+          "type": "object",
+          "required": ["id", "version", "digest"],
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "version": {"type": "string", "minLength": 1},
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "profile_contract": {
+          "type": "object",
+          "required": ["id", "version", "digest"],
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "version": {"type": "string", "minLength": 1},
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "x-governed-by": "https://arcs.example/schemas/srs/successor/contract-refs-v0.1.schema.json"
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Namespaced extension fields. The successor schema allows additionalProperties within this object so that namespaced extensions remain open. Extensions must use namespaced keys (e.g. 'garp.body', 'vendor.custom') to avoid conflicts with reserved top-level fields.",
+      "additionalProperties": true
+    },
+    "receipt_signature": {
+      "type": "object",
+      "description": "Structured receipt signature object. Shape-checked by the Signed Receipt Profile v0.1; not required by the base envelope contract. Profile conformance may require this field.",
+      "required": ["algorithm", "canonicalization", "key_id", "signature"],
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "const": "Ed25519"
+        },
+        "canonicalization": {
+          "type": "string",
+          "const": "RFC8785-JCS"
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "x-design-notes": [
+    "additionalProperties: false is enforced at the top level. Unknown properties are a migration failure, not a graceful extension point. Extensions must use the 'extensions' object.",
+    "The 'extensions' object remains open (additionalProperties: true) so that namespaced body payloads (e.g. extensions.garp.body) can evolve independently.",
+    "receipt_type is an open string (no enum) because the receipt-class taxonomy (schemas/receipt-classes/v0.1/) separates structural class from semantic dialect. Profile contracts own dialect semantics.",
+    "receipt_signature is optional at the base envelope level. The Signed Receipt Profile v0.1 (srs.signed_receipt.v0.1) makes it required. Not every generic envelope needs a signature.",
+    "contract_refs is optional. Absence renders contract_refs_bound: not_declared (not a failure). Presence binds the receipt to specific normative byte identities.",
+    "argument_digest and result_digest enforce sha256:<hex> grammar. Raw content in receipts is rejected at emit time (retention_class_applied: hash_only).",
+    "issued_at format: date-time enforces ISO 8601 / RFC 3339. jsonschema format validation must be enabled (format_checker=jsonschema.FormatChecker()) for this constraint to fire.",
+    "Predecessor receipts (v0.1.0, v0.2.0, v0.2.1) remain valid under their own schemas. Do not force predecessor bytes through this schema.",
+    "subject_ref_origin_v2 is the structured successor to the v0.2.1 subject_ref_origin string enum. Both fields may coexist during migration. The v2 object schema is defined in schemas/srs-envelope/successor/subject-ref-origin-v2.schema.json. Absence of subject_ref_origin_v2 means not_declared — never reinterpret absence as supplied or as legacy provenance.",
+    "The if/then block on subject_ref_origin_v2 enforces that mode: not_declared cannot carry source_type, source_ref, derivation_method, or authority_ref. This structural constraint is defined inline here and normatively in the dedicated schema."
+  ]
+}
