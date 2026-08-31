@@ -1,4 +1,4 @@
-# DAGR-MCP-APPS0 — initial recon
+# DAGR-MCP-APPS0 — recon
 
 ## External pattern studied
 
@@ -6,7 +6,9 @@
 
 ## DAGR adoption decision
 
-This is a strong interoperability pattern because it preserves the distinction between semantic result metadata and raw/resource content. DAGR should not become the UI/resource producer: the existing MCP binding should carry SDK-owned metadata and govern helper tool calls exactly as it governs other calls.
+This is a strong interoperability pattern because it preserves the distinction between semantic result metadata and raw/resource content. DAGR should not become the UI/resource producer: an Apps-aware binding/composition owner should carry SDK-owned UI metadata and govern helper tool calls through the neutral DAGR lifecycle.
+
+The current `official-mcp-sdk.python.v0.2` binding is **not** that Apps-aware owner surface.
 
 ## Non-collapse rules
 
@@ -16,12 +18,14 @@ This is a strong interoperability pattern because it preserves the distinction b
 - resource/document bytes must remain excluded from metadata-only receipts;
 - current receipt attestation limits remain unchanged.
 
-## Concurrency fence
+## SRS vNext fence
 
-SRS-VNEXT-EMITTER0 is separately owned by active PR #81. This lane must not change its profile/envelope semantics or use Apps metadata to justify a new receipt profile.
+SRS-VNEXT-EMITTER0 (#81) is landed on current `main`. It remains separately owned and orthogonal: it adds an opt-in external-profile receipt emitter plus tests/docs, without changing SDK-v2 server construction or adding Apps capability/resource hosting. This lane does not alter its profile/envelope semantics or use Apps metadata to justify a new receipt profile.
 
-## Next gate
+## Resolved gate
 
-Inspect the current Official MCP SDK 2.x binding to determine where tool `_meta`, annotations, visibility, and resource metadata flow or are filtered. Construction is lawful only on that existing surface; otherwise return `NOT_SUPPORTED_BY_CURRENT_BINDING`.
+Current bytes still use low-level `mcp.server.Server`, explicitly exclude high-level `MCPServer`, and serve protocol `2026-07-28` on the no-`initialize`, no-`Mcp-Session-Id` path. The studied Apps pattern requires the missing high-level capability/resource-host surface.
 
-**Current posture:** `RECON_COMPLETE_FOR_BINDING_INSPECTION` / `AUTHORITY_MOVEMENT=0`.
+**Terminal:** `NOT_SUPPORTED_BY_CURRENT_BINDING`  
+**Posture:** `RECON_COMPLETE / NO_CONSTRUCTION_ON_CURRENT_BINDING`  
+**Authority:** `AUTHORITY_MOVEMENT=0`
