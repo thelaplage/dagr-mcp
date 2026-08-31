@@ -6,11 +6,11 @@
 
 `AUTHORITY_MOVEMENT=0`
 
-## Exact current-byte finding
+## Current-byte finding
 
-The current Official MCP SDK v2 DAGR binding is intentionally built on the low-level `mcp.server.Server` and protocol `2026-07-28`.
+The Official MCP SDK v2 DAGR binding on current `main` is intentionally built on the low-level `mcp.server.Server` and protocol `2026-07-28`.
 
-`docs/DAGR_MCP_SDK_V2_BINDING.md` and `dagr_mcp_sdk_v2/server.py` both explicitly state that this binding:
+`docs/DAGR_MCP_SDK_V2_BINDING.md` and `dagr_mcp_sdk_v2/server.py` explicitly state that this binding:
 
 - uses `Server(..., on_call_tool=..., on_list_tools=...)`;
 - never uses the high-level `MCPServer` layer;
@@ -20,7 +20,13 @@ The current Official MCP SDK v2 DAGR binding is intentionally built on the low-l
 
 The studied MCP Apps specimen (`espirado/mcp-resources-apps-demo`) depends on the high-level Apps extension surface: `Apps()`, `MCPServer(..., extensions=[apps])`, an advertised `io.modelcontextprotocol/ui` capability, `ui://` resources, and app-only tool visibility.
 
-The required capability-advertisement contract therefore does not exist on this binding. Preserving a tool `_meta` field alone would not constitute MCP Apps support because the extension capability/resource host contract is absent.
+The required capability-advertisement and resource-host contract therefore does not exist on this binding. Preserving generic Tool `_meta` fields alone would not constitute MCP Apps support.
+
+## Post-#81 reconciliation
+
+SRS-VNEXT-EMITTER0 (#81) is now landed on `main`. Its changed files are limited to the opt-in external-profile receipt emitter plus its tests and documentation. It does not modify `dagr_mcp_sdk_v2/server.py`, the low-level Server construction, resource hosting, Apps capability advertisement, or the no-handshake protocol path.
+
+Therefore #81 does not alter this terminal finding. This recon consumes none of its profile/envelope semantics and makes no receipt-profile changes.
 
 ## Why this is a STOP rather than an adapter patch
 
@@ -34,10 +40,10 @@ A future Apps integration, if desired, needs a separately scoped binding/composi
 
 - no new DAGR binding is created here;
 - no receipt profile changes;
-- no SRS vNext semantics consumed from PR #81;
+- no SRS vNext semantics are imported into Apps handling;
 - no assertion that Apps UI metadata is authority;
 - no claim that low-level Tool `_meta` transport equals Apps capability support.
 
 ## Result
 
-Recon completed. Construction is stopped on the current binding by design.
+Recon completed and revalidated against current `main`. Construction is stopped on the current binding by design.
