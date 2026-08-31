@@ -155,7 +155,7 @@
     "policy_pack_version": {
       "type": "string",
       "minLength": 1,
-      "description": "Policy pack version string. When present, must be non-empty."
+      "description": "Policy pack version. When present, must be non-empty."
     },
     "boundary_id": {
       "type": "string",
