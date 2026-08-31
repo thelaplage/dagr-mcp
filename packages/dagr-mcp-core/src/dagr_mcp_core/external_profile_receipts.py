@@ -11,8 +11,9 @@ DAGR domain identity, authorization, standing, or truth. In particular this
 module does not synthesize a ``dagr_binding`` and does not map the historical
 consumer-local ``mcp_action`` vocabulary to the DAGR ``action`` domain.
 
-Candidate contract basis (DRAFT / non-canonical at implementation time):
-- arcs-srs #57 SRS-RECEIPT-TYPE-RECON0 / Envelope v0-next
+Candidate contract basis (merged bytes, still DRAFT / non-canonical):
+- arcs-srs #57 merge 483c73e02ca87b286597eb234c759d93aeed687d
+  / Envelope v0-next blob 39beaeaa65ab97e6e81d32057b52ac20c3f8a1ea
 - arcs-srs #56 SRS External Profile Contract v0.1
 
 ``AUTHORITY_MOVEMENT = 0``.
@@ -20,6 +21,8 @@ Candidate contract basis (DRAFT / non-canonical at implementation time):
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
@@ -35,6 +38,16 @@ from dagr_mcp_core.srs_receipts import (
 )
 
 ENVELOPE_SCHEMA_VERSION = "srs-envelope-v0-next"
+ARCS_SRS_VNEXT_MERGE_COMMIT = "483c73e02ca87b286597eb234c759d93aeed687d"
+ARCS_SRS_VNEXT_ENVELOPE_GIT_BLOB = "39beaeaa65ab97e6e81d32057b52ac20c3f8a1ea"
+ARCS_SRS_EXTERNAL_PROFILE_SCHEMA_GIT_BLOB = "4832c73870820575362ccd98868de990c51b74c1"
+SUPPORTED_ENVELOPE_CONTRACT_ID = "srs-envelope-v0-next"
+SUPPORTED_ENVELOPE_CONTRACT_VERSION = "v0-next"
+_SUPPORTED_ENVELOPE_SCHEMA_ID = (
+    "https://arcs.example/schemas/srs/successor/envelope-v0-next.schema.json"
+)
+_EXTERNAL_PROFILE_DECLARATION_SCHEMA = "srs.external-profile-declaration/v0.1"
+_EXTERNAL_PROFILE_UNKNOWN_BEHAVIOR = "preserve_identity_and_do_not_infer"
 _DIGEST_REF_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _EXTERNAL_PROFILE_ID_RE = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+\.v[0-9]+$"
@@ -46,16 +59,71 @@ _EXTERNAL_RECEIPT_TYPE_RE = re.compile(
     r"^(?!srs\.)(?!garp\.)[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*){2,}$"
 )
 _PROFILE_VERSION_RE = re.compile(r"^v[0-9]+(?:\.[0-9]+)*$")
+_PROFILE_REQUIRED_KEYS = frozenset(
+    {
+        "schema",
+        "profile_id",
+        "profile_version",
+        "publisher_ref",
+        "compatible_envelopes",
+        "permitted_receipt_types",
+        "receipt_type_classifications",
+        "extension_namespace",
+        "raw_content_posture",
+        "signing_required",
+        "attestation_limits_required",
+        "unknown_profile_behavior",
+        "conformance_vectors_ref",
+    }
+)
+_PROFILE_ALLOWED_KEYS = _PROFILE_REQUIRED_KEYS | frozenset(
+    {"external_contract_refs", "migration_ref"}
+)
+_RECEIPT_CLASSES = frozenset(
+    {
+        "governance_decision",
+        "lifecycle_event",
+        "outcome",
+        "provenance",
+        "verification_report",
+    }
+)
+
+
+def _sha256_ref(data: bytes) -> str:
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def _git_blob_sha(data: bytes) -> str:
+    header = f"blob {len(data)}\0".encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()  # noqa: S324 - Git object identity, not security
+
+
+def _load_json_object(label: str, data: bytes) -> dict[str, Any]:
+    if not isinstance(data, bytes) or not data:
+        raise ValueError(f"{label} must be non-empty bytes")
+    try:
+        parsed = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"{label} must be UTF-8 JSON bytes") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{label} must decode to a JSON object")
+    return parsed
 
 
 @dataclass(frozen=True, slots=True)
 class ExternalProfileReceiptContract:
     """Application-owned external-profile projection selected by an operator.
 
-    Every field here is configuration, not inferred authority. Contract digests
-    bind the emitted receipt to exact bytes; this object does not fetch or
-    validate those bytes and does not claim that a referenced candidate has
-    been ratified.
+    ``contract_refs`` is an exact byte-identity claim. Therefore syntactically
+    valid caller-supplied digests are insufficient: callers must provide the
+    actual envelope/profile contract bytes and every serialized digest is
+    checked against those bytes before any receipt can be emitted.
+
+    The envelope contract is additionally pinned to the exact ARCS SRS vNext
+    Git blob merged by #57. The profile remains application-owned; its declared
+    identity, namespace, receipt types, envelope compatibility, and required
+    safety posture are checked against the supplied profile bytes.
     """
 
     profile_id: str
@@ -68,6 +136,8 @@ class ExternalProfileReceiptContract:
     envelope_contract_version: str
     envelope_contract_digest: str
     profile_contract_digest: str
+    envelope_contract_bytes: bytes
+    profile_contract_bytes: bytes
     boundary_type: str = "mcp_tool_call"
     protocol_binding: str = "mcp"
 
@@ -100,19 +170,132 @@ class ExternalProfileReceiptContract:
                     f"{label} must be a globally namespaced external receipt type"
                 )
         for label, value in (
-            ("envelope_contract_id", self.envelope_contract_id),
-            ("envelope_contract_version", self.envelope_contract_version),
             ("boundary_type", self.boundary_type),
             ("protocol_binding", self.protocol_binding),
         ):
             if not isinstance(value, str) or not value:
                 raise ValueError(f"{label} must be non-empty")
+        if self.envelope_contract_id != SUPPORTED_ENVELOPE_CONTRACT_ID:
+            raise ValueError("unsupported envelope_contract_id")
+        if self.envelope_contract_version != SUPPORTED_ENVELOPE_CONTRACT_VERSION:
+            raise ValueError("unsupported envelope_contract_version")
         for label, digest in (
             ("envelope_contract_digest", self.envelope_contract_digest),
             ("profile_contract_digest", self.profile_contract_digest),
         ):
             if not _DIGEST_REF_RE.fullmatch(digest):
                 raise ValueError(f"{label} must be sha256:<64 lowercase hex>")
+
+        envelope = _load_json_object("envelope_contract_bytes", self.envelope_contract_bytes)
+        if _git_blob_sha(self.envelope_contract_bytes) != ARCS_SRS_VNEXT_ENVELOPE_GIT_BLOB:
+            raise ValueError("envelope_contract_bytes do not match the pinned ARCS SRS vNext blob")
+        if envelope.get("$id") != _SUPPORTED_ENVELOPE_SCHEMA_ID:
+            raise ValueError("pinned envelope schema id mismatch")
+        properties = envelope.get("properties")
+        if not isinstance(properties, dict):
+            raise ValueError("pinned envelope schema properties missing")
+        if properties.get("envelope_schema_version", {}).get("const") != ENVELOPE_SCHEMA_VERSION:
+            raise ValueError("pinned envelope schema version mismatch")
+        if properties.get("receipt_version", {}).get("const") != "srs.core.v5.1":
+            raise ValueError("pinned envelope receipt_version mismatch")
+        expected_envelope_digest = _sha256_ref(self.envelope_contract_bytes)
+        if self.envelope_contract_digest != expected_envelope_digest:
+            raise ValueError("envelope_contract_digest does not match envelope_contract_bytes")
+
+        profile = _load_json_object("profile_contract_bytes", self.profile_contract_bytes)
+        missing = _PROFILE_REQUIRED_KEYS - profile.keys()
+        unknown = profile.keys() - _PROFILE_ALLOWED_KEYS
+        if missing:
+            raise ValueError(f"profile contract missing required keys: {sorted(missing)}")
+        if unknown:
+            raise ValueError(f"profile contract contains unknown keys: {sorted(unknown)}")
+        if profile.get("schema") != _EXTERNAL_PROFILE_DECLARATION_SCHEMA:
+            raise ValueError("unsupported external profile declaration schema")
+        if profile.get("profile_id") != self.profile_id:
+            raise ValueError("profile_id does not match profile contract bytes")
+        if profile.get("profile_version") != self.profile_version:
+            raise ValueError("profile_version does not match profile contract bytes")
+        if profile.get("extension_namespace") != self.extension_namespace:
+            raise ValueError("extension_namespace does not match profile contract bytes")
+        if profile.get("signing_required") is not True:
+            raise ValueError("signed external-profile emitter requires signing_required=true")
+        if profile.get("attestation_limits_required") is not True:
+            raise ValueError("external profile must require attestation limits")
+        if profile.get("unknown_profile_behavior") != _EXTERNAL_PROFILE_UNKNOWN_BEHAVIOR:
+            raise ValueError("external profile must preserve unknown profile identity without inference")
+        if profile.get("raw_content_posture") not in {
+            "profile_defined",
+            "metadata_only",
+            "hash_only",
+        }:
+            raise ValueError("unsupported raw_content_posture")
+        for label in ("publisher_ref", "conformance_vectors_ref"):
+            if not isinstance(profile.get(label), str) or not profile[label]:
+                raise ValueError(f"profile {label} must be non-empty")
+
+        permitted = profile.get("permitted_receipt_types")
+        if not isinstance(permitted, list) or not permitted:
+            raise ValueError("profile permitted_receipt_types must be a non-empty list")
+        if len(permitted) != len(set(permitted)):
+            raise ValueError("profile permitted_receipt_types must be unique")
+        if any(
+            not isinstance(value, str) or not _EXTERNAL_RECEIPT_TYPE_RE.fullmatch(value)
+            for value in permitted
+        ):
+            raise ValueError("profile permitted_receipt_types contains an invalid external type")
+        for expected in (self.admission_receipt_type, self.outcome_receipt_type):
+            if expected not in permitted:
+                raise ValueError(f"profile does not permit configured receipt type: {expected}")
+
+        classifications = profile.get("receipt_type_classifications")
+        if not isinstance(classifications, list) or not classifications:
+            raise ValueError("profile receipt_type_classifications must be a non-empty list")
+        seen: dict[tuple[str, str | None], str] = {}
+        for item in classifications:
+            if not isinstance(item, dict) or set(item) - {"receipt_type", "receipt_class", "receipt_kind"}:
+                raise ValueError("invalid receipt_type_classification entry")
+            receipt_type = item.get("receipt_type")
+            receipt_class = item.get("receipt_class")
+            receipt_kind = item.get("receipt_kind")
+            if receipt_type not in permitted:
+                raise ValueError("classification references a non-permitted receipt type")
+            if receipt_class not in _RECEIPT_CLASSES:
+                raise ValueError("classification contains an invalid receipt_class")
+            if receipt_kind is not None and (not isinstance(receipt_kind, str) or not receipt_kind):
+                raise ValueError("classification receipt_kind must be non-empty when present")
+            key = (receipt_type, receipt_kind)
+            if key in seen and seen[key] != receipt_class:
+                raise ValueError("conflicting duplicate receipt classification")
+            seen[key] = receipt_class
+        for receipt_type, receipt_kind in (
+            (self.admission_receipt_type, "admission"),
+            (self.outcome_receipt_type, "outcome"),
+        ):
+            if (receipt_type, receipt_kind) not in seen and (receipt_type, None) not in seen:
+                raise ValueError(
+                    f"profile classification does not cover {receipt_kind} receipt type"
+                )
+
+        compatibility = profile.get("compatible_envelopes")
+        if not isinstance(compatibility, list) or not compatibility:
+            raise ValueError("profile compatible_envelopes must be a non-empty list")
+        expected_sha = expected_envelope_digest.removeprefix("sha256:")
+        if not any(
+            isinstance(item, dict)
+            and item.get("published_version") == SUPPORTED_ENVELOPE_CONTRACT_VERSION
+            and item.get("sha256") == expected_sha
+            for item in compatibility
+        ):
+            raise ValueError("profile does not bind the exact pinned vNext envelope bytes")
+        if any(
+            isinstance(item, dict) and item.get("published_version") == "0.2.1"
+            for item in compatibility
+        ):
+            raise ValueError("namespaced external receipt types are incompatible with envelope v0.2.1")
+
+        expected_profile_digest = _sha256_ref(self.profile_contract_bytes)
+        if self.profile_contract_digest != expected_profile_digest:
+            raise ValueError("profile_contract_digest does not match profile_contract_bytes")
 
     def receipt_type_for(self, receipt_kind: str) -> str:
         if receipt_kind == "admission":
