@@ -10,21 +10,12 @@ from dagr_mcp_core.external_profile_receipts import (
 from dagr_mcp_core.srs_receipts import RawEnvelopeFileSink, ReceiptContext, SigningIdentity
 
 
-def test_exception_outcome_stays_inside_application_namespace(tmp_path: Path) -> None:
-    contract = ExternalProfileReceiptContract(
-        profile_id="org.counterpedia.srs.mcp_read.v1",
-        profile_version="v1",
-        emitter_id="dagr-mcp:counterpedia-read",
-        extension_namespace="org.counterpedia",
-        admission_receipt_type="org.counterpedia.mcp.read.admission",
-        outcome_receipt_type="org.counterpedia.mcp.read.outcome",
-        envelope_contract_id="srs-envelope-v0-next",
-        envelope_contract_version="v0-next",
-        envelope_contract_digest="sha256:" + "1" * 64,
-        profile_contract_digest="sha256:" + "2" * 64,
-    )
+def test_exception_outcome_stays_inside_application_namespace(
+    tmp_path: Path,
+    external_profile_contract: ExternalProfileReceiptContract,
+) -> None:
     emitter = ExternalProfileSignedReceiptEmitter(
-        contract=contract,
+        contract=external_profile_contract,
         identity=SigningIdentity.generate(issuer_id="issuer:test", key_id="key:test"),
         sink=RawEnvelopeFileSink(tmp_path),
         receipt_id_factory=lambda kind: f"receipt:{kind}",
