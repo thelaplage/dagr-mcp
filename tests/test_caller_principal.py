@@ -1,13 +1,19 @@
 """Tests for the pre-validated caller principal seam (DAGR-MCP-PRINCIPAL0).
 
-Covers: the three distinguishable caller states, structural exclusion of raw
-credentials from the principal type, lossless projection onto the existing
-duck-typed ``caller_context`` surface already consumed by
+Seam-1 closure: ``dagr_mcp.caller_principal.CallerPrincipal`` is now a thin
+adapter over the canonical ``dagr_sdk.caller_auth_context.CallerAuthContext``
+wire contract, not an independent three-field shape. These tests cover: the
+three distinguishable caller states (delegated to the SDK contract), that
+credential-shape validation lives in exactly one place (the SDK contract,
+never re-implemented here), lossless projection onto the existing duck-typed
+``caller_context`` surface already consumed by
 ``dagr_mcp.enforcement_harness.wrap_handler``, an operator policy resolver
 reaching an authenticated principal and refusing on a missing scope (never a
-hardcoded DAGR rule), that the principal never changes tool identity, and
-that admission/outcome receipt linkage through the existing SRS ``actor_ref``
-field is unchanged whether or not a principal is supplied.
+hardcoded DAGR rule), that the principal never changes tool identity, that
+admission/outcome receipt linkage through the existing SRS ``actor_ref``
+field is unchanged whether or not a principal is supplied, and a
+cross-language golden-vector proof that the SDK's committed v0.1 wire
+vectors survive vector -> ``CallerAuthContext`` -> DAGR MCP unchanged.
 """
 
 from __future__ import annotations
@@ -17,6 +23,8 @@ import json
 from pathlib import Path
 
 import pytest
+
+from dagr_sdk.caller_auth_context import CallerAuthContext, CallerAuthContextError
 
 from dagr_mcp.caller_principal import (
     ANONYMOUS_CALLER_PRINCIPAL,
@@ -31,91 +39,76 @@ from dagr_mcp.srs_bridge import BridgeConfig, HarnessSRSBridge
 from dagr_mcp.srs_receipts import RawEnvelopeFileSink, SignedReceiptEmitter, SigningIdentity
 
 
+def _auth(**kwargs) -> CallerAuthContext:
+    return CallerAuthContext(**kwargs)
+
+
+def _principal(**kwargs) -> CallerPrincipal:
+    return CallerPrincipal(auth=_auth(**kwargs))
+
+
 # --------------------------------------------------------------------------- #
-# Three distinguishable caller states                                        #
+# CallerPrincipal is a thin adapter: no re-declared credential validation.   #
+# --------------------------------------------------------------------------- #
+
+
+def test_caller_principal_error_is_the_sdk_contract_error():
+    # Exactly one validation authority: CallerPrincipalError IS
+    # CallerAuthContextError, not a parallel, re-implemented exception type.
+    assert CallerPrincipalError is CallerAuthContextError
+
+
+def test_caller_principal_wraps_exactly_one_auth_context_field():
+    field_names = {f.name for f in dataclasses.fields(CallerPrincipal)}
+    assert field_names == {"auth"}
+
+
+def test_caller_principal_rejects_non_auth_context_payload():
+    with pytest.raises(CallerPrincipalError):
+        CallerPrincipal(auth={"state": "anonymous"})  # type: ignore[arg-type]
+
+
+def test_malformed_auth_context_construction_fails_in_the_sdk_contract():
+    # Credential-shape / state-vocabulary guards are exercised (and owned)
+    # entirely by dagr_sdk.caller_auth_context; CallerPrincipal adds none.
+    with pytest.raises(CallerAuthContextError):
+        _auth(state="superuser", principal_ref="user:1")
+    with pytest.raises(CallerAuthContextError):
+        _auth(state="authenticated_user", principal_ref="Bearer abc.def.ghi")
+    with pytest.raises(CallerAuthContextError):
+        _auth(state="anonymous", principal_ref="user:1")
+
+
+# --------------------------------------------------------------------------- #
+# Three distinguishable caller states, delegated to the SDK contract          #
 # --------------------------------------------------------------------------- #
 
 
 def test_three_caller_states_are_closed_and_distinguishable():
     assert CALLER_PRINCIPAL_STATES == (
         "anonymous",
-        "authenticated_user",
         "authenticated_machine",
+        "authenticated_user",
     )
-    anon = CallerPrincipal(state="anonymous")
-    user = CallerPrincipal(state="authenticated_user", principal_ref="user:1")
-    machine = CallerPrincipal(
-        state="authenticated_machine", principal_ref="svc:acct:1", scopes={"read"}
+    anon = _principal(state="anonymous")
+    user = _principal(state="authenticated_user", principal_ref="user:1")
+    machine = _principal(
+        state="authenticated_machine", principal_ref="svc:acct:1", scope_refs={"read"}
     )
     assert {anon.state, user.state, machine.state} == set(CALLER_PRINCIPAL_STATES)
     assert anon.is_authenticated is False
     assert user.is_authenticated is True
     assert machine.is_authenticated is True
-
-
-def test_anonymous_principal_forbids_ref_and_scopes():
-    with pytest.raises(CallerPrincipalError):
-        CallerPrincipal(state="anonymous", principal_ref="user:1")
-    with pytest.raises(CallerPrincipalError):
-        CallerPrincipal(state="anonymous", scopes={"read"})
-
-
-@pytest.mark.parametrize("state", ["authenticated_user", "authenticated_machine"])
-def test_authenticated_principal_requires_nonempty_ref(state):
-    with pytest.raises(CallerPrincipalError):
-        CallerPrincipal(state=state, principal_ref=None)
-    with pytest.raises(CallerPrincipalError):
-        CallerPrincipal(state=state, principal_ref="   ")
-
-
-def test_unrecognized_state_fails_closed():
-    with pytest.raises(CallerPrincipalError):
-        CallerPrincipal(state="superuser", principal_ref="user:1")
-
-
-# --------------------------------------------------------------------------- #
-# Raw credential structurally impossible to serialize through the type       #
-# --------------------------------------------------------------------------- #
-
-
-def test_principal_type_has_no_credential_field():
-    field_names = {f.name for f in dataclasses.fields(CallerPrincipal)}
-    assert field_names == {"state", "principal_ref", "scopes"}
-    for forbidden in ("token", "bearer", "api_key", "password", "secret", "credential"):
-        assert forbidden not in field_names
-
-
-def test_principal_constructor_rejects_unknown_credential_kwargs():
-    with pytest.raises(TypeError):
-        CallerPrincipal(  # type: ignore[call-arg]
-            state="authenticated_user",
-            principal_ref="user:1",
-            bearer_token="secret-value",
-        )
-
-
-@pytest.mark.parametrize(
-    "raw",
-    [
-        "Bearer abc123.def456.ghi789",
-        "bearer sometoken",
-        "Basic dXNlcjpwYXNz",
-        "Authorization: Bearer xyz",
-    ],
-)
-def test_bearer_shaped_value_rejected_as_principal_ref(raw):
-    with pytest.raises(CallerPrincipalError):
-        CallerPrincipal(state="authenticated_user", principal_ref=raw)
-
-
-def test_whitespace_in_principal_ref_rejected():
-    with pytest.raises(CallerPrincipalError):
-        CallerPrincipal(state="authenticated_user", principal_ref="user 1")
+    assert anon.principal_ref is None
+    assert user.principal_ref == "user:1"
+    assert machine.scopes == frozenset({"read"})
 
 
 def test_projections_never_carry_more_than_ref_state_scopes():
-    principal = CallerPrincipal(
-        state="authenticated_machine", principal_ref="svc:acct:9", scopes={"read", "write"}
+    principal = _principal(
+        state="authenticated_machine",
+        principal_ref="svc:acct:9",
+        scope_refs={"read", "write"},
     )
     context = principal.to_caller_context(session_ref="session:1", request_ref="req:1")
     assert set(context) == {"actor_ref", "session_ref", "request_ref"}
@@ -184,7 +177,7 @@ def test_authenticated_principal_actor_ref_reaches_harness_context():
         policies=[_allow_policy()],
     )
 
-    principal = CallerPrincipal(state="authenticated_user", principal_ref="user:42")
+    principal = _principal(state="authenticated_user", principal_ref="user:42")
     governed = wrapped(
         "read_status", {"q": 1}, context=principal.to_caller_context(session_ref="session:7")
     )
@@ -211,16 +204,12 @@ def test_principal_does_not_change_tool_identity():
     anon_result = wrapped(
         "records.lookup", {"id": 1}, context=ANONYMOUS_CALLER_PRINCIPAL.to_caller_context()
     )
-    user = CallerPrincipal(state="authenticated_user", principal_ref="user:1")
-    user_result = wrapped(
-        "records.lookup", {"id": 1}, context=user.to_caller_context()
+    user = _principal(state="authenticated_user", principal_ref="user:1")
+    user_result = wrapped("records.lookup", {"id": 1}, context=user.to_caller_context())
+    machine = _principal(
+        state="authenticated_machine", principal_ref="svc:1", scope_refs={"read"}
     )
-    machine = CallerPrincipal(
-        state="authenticated_machine", principal_ref="svc:1", scopes={"read"}
-    )
-    machine_result = wrapped(
-        "records.lookup", {"id": 1}, context=machine.to_caller_context()
-    )
+    machine_result = wrapped("records.lookup", {"id": 1}, context=machine.to_caller_context())
 
     assert calls == ["records.lookup", "records.lookup", "records.lookup"]
     for result in (anon_result, user_result, machine_result):
@@ -249,9 +238,7 @@ def _operator_policy_function(principal: CallerPrincipal, *, required_scope: str
 
 
 def test_authenticated_principal_reaches_policy_resolver_and_missing_scope_is_refused():
-    principal = CallerPrincipal(
-        state="authenticated_user", principal_ref="user:7", scopes={"read"}
-    )
+    principal = _principal(state="authenticated_user", principal_ref="user:7", scope_refs={"read"})
 
     decision, reason = _operator_policy_function(principal, required_scope="write")
     assert decision == "refused"
@@ -265,8 +252,8 @@ def test_authenticated_principal_reaches_policy_resolver_and_missing_scope_is_re
 
 
 def test_authenticated_principal_with_required_scope_is_admitted():
-    principal = CallerPrincipal(
-        state="authenticated_machine", principal_ref="svc:1", scopes={"read", "write"}
+    principal = _principal(
+        state="authenticated_machine", principal_ref="svc:1", scope_refs={"read", "write"}
     )
 
     decision, reason = _operator_policy_function(principal, required_scope="write")
@@ -321,9 +308,7 @@ def test_admission_outcome_linkage_unchanged_with_authenticated_principal(tmp_pa
         srs_bridge=bridge,
     )
 
-    principal = CallerPrincipal(
-        state="authenticated_user", principal_ref="user:99", scopes={"read"}
-    )
+    principal = _principal(state="authenticated_user", principal_ref="user:99", scope_refs={"read"})
     result = wrapped(
         "records.lookup",
         {"record_ref": "record:1"},
@@ -380,3 +365,116 @@ def test_admission_outcome_linkage_unchanged_when_anonymous(tmp_path):
     assert outcome["admission_receipt_ref"] == admission["receipt_id"]
     assert "actor_ref" not in admission
     assert "actor_ref" not in outcome
+
+
+# --------------------------------------------------------------------------- #
+# Cross-language golden specimen: SDK v0.1 wire vectors -> CallerAuthContext #
+# -> DAGR MCP adapters -> fixture operator policy resolver.                  #
+# --------------------------------------------------------------------------- #
+
+
+def _dagr_sdk_vectors_path() -> Path:
+    # The installed dagr-sdk *distribution* packages only dagr_sdk*/garp_sdk*
+    # (its own pyproject.toml [tool.setuptools.packages.find]) -- it does not
+    # ship tests/fixtures/, so the committed conformance vectors are consumed
+    # from the vendored, commit-pinned copy instead (see
+    # dagr_mcp/vendor/dagr_sdk_caller_auth_context/PROVENANCE.md), mirroring
+    # the existing arcs-srs -> arcs-verify commit-pin vendoring pattern.
+    root = Path(__file__).resolve().parents[1]
+    candidate = (
+        root
+        / "dagr_mcp"
+        / "vendor"
+        / "dagr_sdk_caller_auth_context"
+        / "v0.1.vectors.json"
+    )
+    if candidate.exists():
+        return candidate
+    raise FileNotFoundError(
+        "vendored dagr_sdk v0.1 caller_auth_context golden vectors not found "
+        f"at {candidate}"
+    )
+
+
+def _load_golden_vectors() -> list[dict]:
+    payload = json.loads(_dagr_sdk_vectors_path().read_text(encoding="utf-8"))
+    assert payload["contract_schema_version"] == "dagr.caller_auth_context.v0.1"
+    return payload["vectors"]
+
+
+GOLDEN_VECTORS = _load_golden_vectors()
+
+
+def test_golden_vectors_cover_all_three_states():
+    states = {vector["construct"]["state"] for vector in GOLDEN_VECTORS}
+    assert states == {"anonymous", "authenticated_user", "authenticated_machine"}
+
+
+@pytest.mark.parametrize(
+    "vector", GOLDEN_VECTORS, ids=[vector["name"] for vector in GOLDEN_VECTORS]
+)
+def test_golden_vector_survives_wire_to_dagr_mcp_policy_resolver(vector, tmp_path):
+    construct = vector["construct"]
+    expected_wire = vector["expected_wire"]
+
+    # 1. wire vector -> canonical SDK contract (exactly as the SDK's own
+    #    conformance tests construct it; scope_refs is a list on the wire,
+    #    a frozenset on the contract).
+    kwargs = dict(construct)
+    if "scope_refs" in kwargs:
+        kwargs["scope_refs"] = frozenset(kwargs["scope_refs"])
+    auth = CallerAuthContext(**kwargs)
+
+    # The contract's own wire projection must reproduce the committed vector
+    # byte-for-byte (modulo list/set ordering, already normalized above).
+    wire = auth.as_wire_dict()
+    assert wire["state"] == expected_wire["state"]
+    assert wire["principal_ref"] == expected_wire["principal_ref"]
+    assert sorted(wire["scope_refs"]) == sorted(expected_wire["scope_refs"])
+
+    # 2. CallerAuthContext -> DAGR-MCP-local adapter.
+    principal = CallerPrincipal.from_auth_context(auth)
+    assert principal.state == expected_wire["state"]
+    assert principal.principal_ref == expected_wire["principal_ref"]
+    assert sorted(principal.scopes) == sorted(expected_wire["scope_refs"])
+
+    # 3. adapter -> real wrap_handler call, through the existing duck-typed
+    #    caller_context surface and the real SRS admission/outcome path.
+    identity, bridge = _srs_bridge(tmp_path)
+
+    def inner(tool_name, arguments, context=None):
+        return {"ok": True}
+
+    wrapped = wrap_handler(
+        inner,
+        HarnessConfig("1", "module", "1", "profile", "policy"),
+        HarnessSinks(event=InMemoryEventSink()),
+        policies=[ToolPolicy("records.lookup", "read", "allow")],
+        srs_bridge=bridge,
+    )
+    result = wrapped(
+        "records.lookup",
+        {"record_ref": "record:1"},
+        principal.to_caller_context(session_ref=f"session:{vector['name']}"),
+    )
+    assert result.ok is True
+    assert result.context.actor_ref == expected_wire["principal_ref"]
+
+    paths = sorted(tmp_path.glob("urn_srs_receipt_*.json"))
+    receipts = [json.loads(path.read_text()) for path in paths]
+    admission = next(item for item in receipts if item["receipt_kind"] == "admission")
+    outcome = next(item for item in receipts if item["receipt_kind"] == "outcome")
+    assert outcome["admission_receipt_ref"] == admission["receipt_id"]
+    if principal.is_authenticated:
+        assert admission["actor_ref"] == expected_wire["principal_ref"]
+    else:
+        assert "actor_ref" not in admission
+
+    # 4. adapter -> fixture operator policy resolver, proving the specimen
+    #    reaches a policy decision without DAGR interpreting scopes itself.
+    decision, reason = _operator_policy_function(principal, required_scope="read")
+    if "read" in principal.scopes:
+        assert decision == "admitted"
+    else:
+        assert decision == "refused"
+        assert reason == "missing_scope:read"

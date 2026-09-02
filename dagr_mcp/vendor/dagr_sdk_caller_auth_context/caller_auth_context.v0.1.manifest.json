@@ -1,0 +1,77 @@
+{
+  "additional_keys_forbidden": true,
+  "anonymous_default_vector": {
+    "principal_ref": null,
+    "scope_refs": [],
+    "state": "anonymous"
+  },
+  "connection_ref_present": false,
+  "contract_schema_version": "dagr.caller_auth_context.v0.1",
+  "forbidden_wire_fields": [
+    "access_token",
+    "admission",
+    "api_key",
+    "authority",
+    "authorization_code",
+    "bearer_token",
+    "capabilities",
+    "claim_support",
+    "connection_ref",
+    "credential",
+    "delegation",
+    "display_name",
+    "email",
+    "participant",
+    "participant_id",
+    "password",
+    "refresh_token",
+    "secret",
+    "standing",
+    "token"
+  ],
+  "generated_by": "dagr-sdk.caller_auth_context_manifest",
+  "manifest_kind": "caller_auth_context_wire_manifest",
+  "schema_version": "dagr.caller_auth_context_manifest.v0.1",
+  "state_rules": {
+    "anonymous": {
+      "principal_ref": {
+        "must_equal": null,
+        "required": false
+      },
+      "scope_refs": {
+        "must_equal": [],
+        "required": false
+      }
+    },
+    "authenticated_machine": {
+      "principal_ref": {
+        "nonempty": true,
+        "required": true
+      },
+      "scope_refs": {
+        "required": false,
+        "shape": "array_of_string"
+      }
+    },
+    "authenticated_user": {
+      "principal_ref": {
+        "nonempty": true,
+        "required": true
+      },
+      "scope_refs": {
+        "required": false,
+        "shape": "array_of_string"
+      }
+    }
+  },
+  "states": [
+    "anonymous",
+    "authenticated_machine",
+    "authenticated_user"
+  ],
+  "wire_keys": [
+    "principal_ref",
+    "scope_refs",
+    "state"
+  ]
+}

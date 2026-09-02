@@ -6,145 +6,95 @@ an MCP binding/service hand DAGR a caller principal/scopes context that has
 other operator-owned auth boundary). DAGR does not authenticate credentials,
 does not run OAuth, does not issue API keys, does not store credentials, does
 not become an RBAC database, and does not become a gateway/proxy. This module
-carries none of that machinery: it is a closed-shape value object plus two
-lossless projections onto surfaces DAGR already has.
+carries none of that machinery: it is a thin projection over the canonical
+SDK caller-identity contract plus two lossless projections onto surfaces
+DAGR already has.
 
-Contract-ownership note: :mod:`dagr_sdk` (the canonical DAGR SDK) was
-inspected before adding this type. Its only existing caller-identity surface
-is the duck-typed ``caller_context.actor_ref`` / ``.session_ref`` /
-``.request_ref`` triple consumed by
-``dagr_mcp.enforcement_harness._build_context`` (ported byte-for-byte from
-``dagr_sdk.enforcement_harness``) — three bare, optional strings, with no
-notion of caller state (anonymous vs. authenticated user vs. authenticated
-machine) and no notion of scopes. That existing surface is reused exactly,
-unchanged: :meth:`CallerPrincipal.to_caller_context` projects losslessly onto
-it. There is no canonical actor/session/principal-with-scopes contract
-anywhere in ``dagr_sdk`` today, so :class:`CallerPrincipal` is declared here,
-explicitly, as a **non-canonical, binding-local adapter type** — not a new
-DAGR-MCP-local canonical identity. A canonical principal+scopes wire contract,
-if one is wanted across bindings, remains a gap to be filled in ``dagr_sdk``
-itself, not minted here.
+Seam-1 closure (2026-09-02): ``dagr_sdk`` now owns the canonical caller-
+identity wire contract, :class:`dagr_sdk.caller_auth_context.CallerAuthContext`
+(``dagr-sdk`` main @ ``f11fbf817ea3b4af150e15effae9448c470e247d``, commit-pinned
+in ``pyproject.toml``). That module's own docstring records that it was built
+*specifically* to resolve the gap this module previously declared: "there is
+no canonical actor/session/principal-with-scopes contract anywhere in
+dagr_sdk today." That gap is now closed, so ``CallerPrincipal`` no longer
+owns a competing three-field shape -- it is reduced to a thin adapter whose
+constructor *consumes* a ``CallerAuthContext`` and adds only the DAGR-MCP-
+local projections that ``CallerAuthContext`` itself deliberately does not
+own (see that module's "Why connection_ref is OMITTED"):
 
-Receipt-discipline note: the existing MCP admission/outcome envelope already
-carries an ``actor_ref`` field (``dagr_mcp.srs_receipts.ReceiptContext.actor_ref``
--> envelope ``actor_ref``), sourced from ``HarnessContext.actor_ref``. This
-module supplies that existing field with the principal's opaque ref and
-introduces no new receipt field, no email, no display name, and no raw
-credential.
+* :meth:`CallerPrincipal.to_caller_context` -- projects onto the existing
+  duck-typed ``caller_context.actor_ref`` / ``.session_ref`` / ``.request_ref``
+  triple already consumed by ``dagr_mcp.enforcement_harness._build_context``.
+  ``session_ref`` / ``request_ref`` remain call-site parameters here, exactly
+  as before -- they are not, and per the SDK contract's own design should
+  not become, fields on the caller-identity value itself.
+* :meth:`CallerPrincipal.for_policy_resolver` -- a safe, minimal view for an
+  operator-owned policy resolver.
+
+``CallerPrincipal`` carries no state of its own beyond the wrapped
+``CallerAuthContext``: it does not re-validate, re-derive, or shadow any of
+``state`` / ``principal_ref`` / ``scope_refs``. Those properties simply
+delegate to the wrapped contract, so there is exactly one place credential-
+shape validation happens (``dagr_sdk.caller_auth_context.CallerAuthContext``),
+not two.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Literal, Mapping
+from dataclasses import dataclass
+from typing import Any, Mapping
 
-CallerPrincipalState = Literal[
-    "anonymous",
-    "authenticated_user",
-    "authenticated_machine",
-]
-
-CALLER_PRINCIPAL_STATES: tuple[CallerPrincipalState, ...] = (
-    "anonymous",
-    "authenticated_user",
-    "authenticated_machine",
+from dagr_sdk.caller_auth_context import (
+    ANONYMOUS_CALLER_AUTH_CONTEXT,
+    CALLER_AUTH_STATES,
+    CallerAuthContext,
+    CallerAuthContextError,
+    CallerAuthState,
 )
 
-_AUTHENTICATED_STATES: frozenset[str] = frozenset(
-    {"authenticated_user", "authenticated_machine"}
-)
-
-# Case-insensitive prefixes/markers that indicate a *raw* credential value
-# (an Authorization header, a bearer token, a literal "Bearer " prefix) was
-# passed where an already-validated opaque reference belongs. This is a
-# format-shape guard, not authentication: it does not verify the reference,
-# it only refuses to carry something that is structurally a live credential.
-_RAW_CREDENTIAL_MARKERS: tuple[str, ...] = (
-    "bearer ",
-    "basic ",
-    "authorization:",
-)
-
-
-class CallerPrincipalError(ValueError):
-    """Raised when a :class:`CallerPrincipal` is malformed."""
+# Re-exported so existing dagr-mcp call sites that imported the state
+# vocabulary / error type from this module keep working, sourced from the
+# single canonical definition rather than a re-declared local copy.
+CallerPrincipalState = CallerAuthState
+CALLER_PRINCIPAL_STATES: tuple[str, ...] = tuple(sorted(CALLER_AUTH_STATES))
+CallerPrincipalError = CallerAuthContextError
 
 
 @dataclass(frozen=True, slots=True)
 class CallerPrincipal:
-    """A pre-validated caller principal, opaque and credential-free.
+    """A thin DAGR-MCP-local adapter over the SDK's ``CallerAuthContext``.
 
-    ``state`` distinguishes the three caller postures DAGR must be able to
-    carry: an anonymous call, a call from an authenticated human/user
-    principal, and a call from an authenticated machine/service principal.
-
-    ``principal_ref`` is an opaque, upstream-minted reference to the caller
-    (e.g. a stable user id or service-account id) -- never a bearer token,
-    API key, email address, or display name. It is required for the two
-    authenticated states and forbidden for ``anonymous``.
-
-    ``scopes`` is a closed set of operator-defined scope tokens the upstream
-    auth boundary has already granted this principal. DAGR does not
-    interpret them; it only carries them to wherever an operator's own
-    policy resolver can read them via :meth:`for_policy_resolver`.
-
-    There is deliberately no field on this type capable of holding a raw
-    credential (bearer token, API key, refresh token, password, cookie,
-    header value, ...): the dataclass shape is closed to exactly
-    ``state`` / ``principal_ref`` / ``scopes``, so a raw credential cannot be
-    constructed onto, or serialized through, this type.
+    Construct this from an already-built ``CallerAuthContext`` (the canonical
+    wire shape, owned by ``dagr_sdk``); do not construct a
+    ``CallerAuthContext`` inline here as a convenience, because this type
+    exists only to add the two DAGR-MCP-local projections below, not to
+    re-mint an independent caller-identity shape.
     """
 
-    state: CallerPrincipalState
-    principal_ref: str | None = None
-    scopes: frozenset[str] = field(default_factory=frozenset)
+    auth: CallerAuthContext
 
     def __post_init__(self) -> None:
-        if self.state not in CALLER_PRINCIPAL_STATES:
+        if not isinstance(self.auth, CallerAuthContext):
             raise CallerPrincipalError(
-                f"state outside the closed vocabulary: {self.state!r} "
-                f"(expected one of {CALLER_PRINCIPAL_STATES})"
+                "CallerPrincipal.auth must be a dagr_sdk.caller_auth_context."
+                f"CallerAuthContext, got {type(self.auth).__name__}"
             )
 
-        if self.state == "anonymous":
-            if self.principal_ref is not None:
-                raise CallerPrincipalError(
-                    "anonymous principal must not carry principal_ref"
-                )
-            if self.scopes:
-                raise CallerPrincipalError(
-                    "anonymous principal must not carry scopes"
-                )
-            return
+    @property
+    def state(self) -> CallerPrincipalState:
+        return self.auth.state
 
-        # authenticated_user / authenticated_machine
-        if not isinstance(self.principal_ref, str) or not self.principal_ref.strip():
-            raise CallerPrincipalError(
-                f"{self.state} principal requires a non-empty principal_ref"
-            )
-        ref = self.principal_ref.strip()
-        object.__setattr__(self, "principal_ref", ref)
-        lowered = ref.lower()
-        if any(marker in lowered for marker in _RAW_CREDENTIAL_MARKERS):
-            raise CallerPrincipalError(
-                "principal_ref must be an opaque, pre-validated reference, "
-                "not a raw credential/header value"
-            )
-        if any(ch.isspace() for ch in ref):
-            raise CallerPrincipalError(
-                "principal_ref must not contain whitespace"
-            )
+    @property
+    def principal_ref(self) -> str | None:
+        return self.auth.principal_ref
 
-        normalized_scopes = frozenset(self.scopes)
-        for scope in normalized_scopes:
-            if not isinstance(scope, str) or not scope.strip():
-                raise CallerPrincipalError("scopes must be non-empty strings")
-        object.__setattr__(self, "scopes", normalized_scopes)
+    @property
+    def scopes(self) -> frozenset[str]:
+        return self.auth.scope_refs
 
     @property
     def is_authenticated(self) -> bool:
-        """``True`` for either authenticated state, ``False`` for anonymous."""
-        return self.state in _AUTHENTICATED_STATES
+        return self.auth.is_authenticated
 
     def to_caller_context(
         self,
@@ -162,7 +112,7 @@ class CallerPrincipal:
         for an anonymous one, matching today's default (no-context) behavior.
         """
         return {
-            "actor_ref": self.principal_ref if self.is_authenticated else None,
+            "actor_ref": self.auth.principal_ref if self.auth.is_authenticated else None,
             "session_ref": session_ref,
             "request_ref": request_ref,
         }
@@ -171,21 +121,28 @@ class CallerPrincipal:
         """A safe, minimal view for an operator-owned policy resolver.
 
         Carries only ``principal_state``, ``principal_ref`` (opaque, never a
-        raw credential -- see :class:`CallerPrincipal`), and ``scopes``
-        (sorted for determinism). DAGR itself performs no scope check: an
-        operator's own policy function reads this view and decides,
-        producing an ``"admitted"``/``"refused"`` outcome that flows into
+        raw credential -- see :class:`dagr_sdk.caller_auth_context.CallerAuthContext`),
+        and ``scopes`` (sorted for determinism). DAGR itself performs no
+        scope check: an operator's own policy function reads this view and
+        decides, producing an ``"admitted"``/``"refused"`` outcome that flows
+        into
         :func:`dagr_mcp.operator_admission_resolver.resolve_operator_admission`
         exactly as any other operator decision would.
         """
+        wire = self.auth.as_wire_dict()
         return {
-            "principal_state": self.state,
-            "principal_ref": self.principal_ref,
-            "scopes": tuple(sorted(self.scopes)),
+            "principal_state": wire["state"],
+            "principal_ref": wire["principal_ref"],
+            "scopes": wire["scope_refs"],
         }
 
+    @classmethod
+    def from_auth_context(cls, auth: CallerAuthContext) -> "CallerPrincipal":
+        """Explicit, named constructor mirroring the SDK contract's own name."""
+        return cls(auth=auth)
 
-ANONYMOUS_CALLER_PRINCIPAL = CallerPrincipal(state="anonymous")
+
+ANONYMOUS_CALLER_PRINCIPAL = CallerPrincipal(auth=ANONYMOUS_CALLER_AUTH_CONTEXT)
 
 
 __all__ = [
