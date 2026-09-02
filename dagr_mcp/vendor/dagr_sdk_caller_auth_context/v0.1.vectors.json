@@ -1,0 +1,43 @@
+{
+  "schema_version": "dagr.caller_auth_context_manifest.v0.1",
+  "contract_schema_version": "dagr.caller_auth_context.v0.1",
+  "vectors": [
+    {
+      "name": "anonymous",
+      "construct": {
+        "state": "anonymous"
+      },
+      "expected_wire": {
+        "state": "anonymous",
+        "principal_ref": null,
+        "scope_refs": []
+      }
+    },
+    {
+      "name": "authenticated_user",
+      "construct": {
+        "state": "authenticated_user",
+        "principal_ref": "user_abc123",
+        "scope_refs": ["read", "write"]
+      },
+      "expected_wire": {
+        "state": "authenticated_user",
+        "principal_ref": "user_abc123",
+        "scope_refs": ["read", "write"]
+      }
+    },
+    {
+      "name": "authenticated_machine",
+      "construct": {
+        "state": "authenticated_machine",
+        "principal_ref": "svc_reporting_7",
+        "scope_refs": ["ingest"]
+      },
+      "expected_wire": {
+        "state": "authenticated_machine",
+        "principal_ref": "svc_reporting_7",
+        "scope_refs": ["ingest"]
+      }
+    }
+  ]
+}

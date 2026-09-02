@@ -37,6 +37,13 @@
       "InMemoryContextPacketStore"
     ],
     "dagr_mcp.async_sinks": null,
+    "dagr_mcp.caller_principal": [
+      "ANONYMOUS_CALLER_PRINCIPAL",
+      "CALLER_PRINCIPAL_STATES",
+      "CallerPrincipal",
+      "CallerPrincipalError",
+      "CallerPrincipalState"
+    ],
     "dagr_mcp.cg_extension": [
       "CGExtensionError",
       "build_cg_extension",
