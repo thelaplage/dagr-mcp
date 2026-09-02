@@ -20,7 +20,12 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.testclient import TestClient
 
 from dagr_mcp_core.srs_receipts import RawEnvelopeFileSink, SignedReceiptEmitter, SigningIdentity
-from dagr_mcp_sdk_v2.adapter import SdkV2BindingConfig, SdkV2LifecycleAdapter
+from dagr_mcp_sdk_v2.adapter import (
+    SdkV2AdmissionResolver,
+    SdkV2BindingConfig,
+    SdkV2CallerAuthResolver,
+    SdkV2LifecycleAdapter,
+)
 from dagr_mcp_sdk_v2.server import GovernedTool, build_governed_server
 
 PROTOCOL_VERSION = "2026-07-28"
@@ -117,6 +122,8 @@ def build_governed_test_app(
     subject_ref_override: str | None = None,
     logical_call_id_override: str | None = None,
     mint_logical_call_id: bool = False,
+    caller_auth_resolver: SdkV2CallerAuthResolver | None = None,
+    admission_resolver: SdkV2AdmissionResolver | None = None,
 ) -> GovernedTestApp:
     """Build a real governed v2 Server + stateless ASGI app for one test.
 
@@ -145,6 +152,8 @@ def build_governed_test_app(
         subject_ref_override=subject_ref_override,
         logical_call_id_override=logical_call_id_override,
         mint_logical_call_id=mint_logical_call_id,
+        caller_auth_resolver=caller_auth_resolver,
+        admission_resolver=admission_resolver,
     )
     adapter = SdkV2LifecycleAdapter(emitter=emitter, config=config)
 

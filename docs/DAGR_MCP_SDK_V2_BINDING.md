@@ -127,6 +127,56 @@ including the `ctx.request_id == 0` edge case (`0 is not None`, so
 `request:0` is still produced), is unaffected. See
 `packages/dagr-mcp-sdk-v2/tests/test_mint_logical_call_id_v2.py`.
 
+## 1c. Caller-auth resolver + operator admission resolver (DAGR-MCP-SDKV2-CALLER0)
+
+Two additive, opt-in `SdkV2BindingConfig` seams close a binding-coverage gap:
+the v0.2 binding previously had no way to carry an already-authenticated
+caller into its admission decision, and no operator admission-policy hook,
+forcing a consumer to bridge the gap with a request-scoped `ContextVar` (a
+product-local hidden channel). Neither seam changes this binding's own
+caller-identity semantics — `dagr_sdk.caller_auth_context.CallerAuthContext`
+remains the single canonical contract, owned by `dagr-sdk`
+(commit-pinned in `pyproject.toml`, mirroring the top-level `dagr-mcp` pin).
+
+* **`caller_auth_resolver: SdkV2CallerAuthResolver | None = None`** — reads
+  `(ctx, argument_digest)` from trusted context only (never tool arguments)
+  and returns a `CallerAuthContext`. Default (`None`): every call resolves to
+  `ANONYMOUS_CALLER_AUTH_CONTEXT` — byte-identical to pre-seam behavior.
+* **`admission_resolver: SdkV2AdmissionResolver | None = None`** — the
+  operator admission-policy seam. Reads `(ctx, caller_auth, actor, tool_name,
+  tool_class, argument_digest)` and returns an `AdmissionRequest` — the
+  *same* neutral type `plan_admission` already consumes for the built-in
+  unknown-tool refusal. DAGR itself never inspects `CallerAuthContext.
+  scope_refs`; an operator resolver's own reasoning (e.g. "caller lacks the
+  scope this tool requires") is entirely the operator's own policy, expressed
+  only as the `AdmissionRequest` it returns. Default (`None`): every known
+  tool resolves to `AdmissionRequest(disposition="admitted", tool_class=
+  tool_class)` — byte-identical to pre-seam behavior. The built-in
+  unknown-tool refusal is unconditional and never routed through this
+  resolver.
+* **`ActorResolution` stays separate** from caller authentication — it is not
+  swollen with scopes. The only default coupling: an authenticated caller
+  with no explicit `actor_resolver` yields `ActorResolution(actor_ref=
+  caller_auth.principal_ref)`; an anonymous caller yields `actor_ref=None`,
+  exactly as before this seam. This is activity attribution through the
+  existing `ReceiptContext.actor_ref` field — it does not create a DAGR
+  `Participant`, standing, delegation, or capability.
+* **Real refusal.** If the operator admission resolver returns `disposition=
+  "refused"`, the binding emits a real signed refused admission receipt (the
+  same terminal path the unknown-tool refusal already used), the delegate
+  never runs, `ToolRefused` is raised, and no outcome receipt is ever
+  emitted — never a coerced admission. A `disposition="deferred"` return
+  fails closed with `AdmissionDeferredUnsupported`: this seam does not build
+  deferred-for-review support for this binding.
+* **Neutral refusal-ground vocabulary, unchanged.** `plan_admission` still
+  enforces its existing closed `NeutralRefusalGround` vocabulary (`policy_
+  refused`, `unknown_tool_fail_closed`, `required_sink_unavailable`,
+  `review_object_creation_failed`) — this seam does not add a new ground.
+  An operator resolver refusing on its own domain reasoning (e.g. a missing
+  scope) expresses that refusal as the existing general-purpose
+  `"policy_refused"` ground; DAGR's core never learns *why* in scope-specific
+  terms, matching "DAGR must not understand scope_refs."
+
 ## 2. The governed `tools/call` handler contract
 
 See `dagr_mcp_sdk_v2/adapter.py:SdkV2LifecycleAdapter.governed_call_tool`. In

@@ -26,6 +26,15 @@ classifiers = [
 dependencies = [
   "dagr-mcp-core",
   "mcp==2.0.0",
+  # Commit-pinned (dagr-sdk is pre-1.0/unreleased, no PyPI distribution yet;
+  # mirrors the top-level dagr-mcp -> dagr-sdk commit-pin pattern, DAGR-MCP-
+  # PRINCIPAL0 / seam-1). Pin owns dagr_sdk.caller_auth_context.CallerAuthContext
+  # (DAGR-MCP-SDKV2-CALLER0 closure) -- bump only via a reviewed lane. This is
+  # the ONLY cross-package dependency this addition introduces: dagr-sdk has
+  # no runtime dependency of its own (see its pyproject.toml), so mcp==2.0.0
+  # isolation is unaffected and this package still does NOT depend on the
+  # top-level dagr-mcp (FastMCP/v1 binding) package or its mcp1 tree.
+  "dagr-sdk @ git+https://github.com/thelaplage/dagr-sdk@f11fbf817ea3b4af150e15effae9448c470e247d",
 ]
 
 [project.optional-dependencies]
