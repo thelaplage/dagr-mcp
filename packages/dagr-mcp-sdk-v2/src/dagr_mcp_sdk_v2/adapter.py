@@ -330,7 +330,16 @@ class SdkV2LifecycleAdapter:
             raise ToolRefused(
                 f"Admission refused for {tool_name!r}" + (f" ({ground})" if ground else "")
             )
-        if admission_plan.resolved_disposition == "deferred":
+        if admission_plan.resolved_disposition == "deferred":  # pragma: no cover
+            # Structurally unreachable: _narrow_operator_admission_request
+            # already rejects an operator-requested "deferred" disposition
+            # with AdmissionDeferredUnsupported BEFORE plan_admission is ever
+            # called, and every other admission_request this method builds
+            # (the unknown-tool refusal and the default admit) is
+            # "refused"/"admitted" only. Kept as a checked invariant guard --
+            # exactly the same pattern InputRequiredUnsupported's core-invariant
+            # check above uses -- so a future change that let "deferred"
+            # reach plan_admission would surface loudly instead of silently.
             raise AdmissionDeferredUnsupported(
                 f"Operator admission resolver deferred {tool_name!r}; the "
                 f"{BINDING_VERSION} binding does not support deferred-for-review "
@@ -425,6 +434,14 @@ class SdkV2LifecycleAdapter:
             resolved = self.config.caller_auth_resolver(ctx, argument_digest)
             if inspect.isawaitable(resolved):
                 resolved = await resolved
+            if not isinstance(resolved, CallerAuthContext):
+                raise SDKV2BindingError(
+                    "caller_auth_resolver returned "
+                    f"{type(resolved).__name__}, not a "
+                    "dagr_sdk.caller_auth_context.CallerAuthContext; failing "
+                    "closed rather than carrying an unvalidated caller "
+                    "assertion into admission."
+                )
             return resolved
         return ANONYMOUS_CALLER_AUTH_CONTEXT
 
@@ -475,10 +492,84 @@ class SdkV2LifecycleAdapter:
             )
             if inspect.isawaitable(resolved):
                 resolved = await resolved
-            return resolved
+            if not isinstance(resolved, AdmissionRequest):
+                raise SDKV2BindingError(
+                    f"admission_resolver for {tool_name!r} returned "
+                    f"{type(resolved).__name__}, not an "
+                    "dagr_mcp_core.lifecycle.models.AdmissionRequest; "
+                    "failing closed rather than planning an unvalidated "
+                    "admission decision."
+                )
+            return self._narrow_operator_admission_request(
+                resolved, tool_class=tool_class, tool_name=tool_name
+            )
         # No operator resolver supplied: byte-identical to this binding's
         # admission decision before this seam existed -- every known tool is
         # admitted.
+        return AdmissionRequest(disposition="admitted", tool_class=tool_class)
+
+    def _narrow_operator_admission_request(
+        self,
+        operator_request: AdmissionRequest,
+        *,
+        tool_class: GovernedToolClass,
+        tool_name: str,
+    ) -> AdmissionRequest:
+        """BINDING VALIDATION / NARROWING: the operator resolver's own
+        ``AdmissionRequest`` object is NEVER forwarded verbatim into
+        ``plan_admission``. Only two fields of it are ever honored --
+        ``disposition`` (constrained to ``admitted``/``refused``) and, when
+        refused, ``refusal_ground`` -- and the resulting request is REBUILT
+        entirely from binding-owned state plus those two operator-permitted
+        values.
+
+        This closes the seam an operator resolver could otherwise use to
+        reach binding-owned lifecycle semantics through ``AdmissionRequest``:
+        it cannot suppress a read admission record via
+        ``emit_read_admission_before_execution=False``, cannot present a
+        ``tool_class`` different from this binding's own classification
+        (``SdkV2BindingConfig.tool_classes``), and cannot manufacture a
+        ``disposition="deferred"`` + ``review_object_created=False`` state
+        that ``plan_admission`` would otherwise resolve into a real
+        ``review_object_creation_failed`` refusal -- this SDK-v2 binding
+        creates no review object, so that state would be semantically
+        fabricated, not observed.
+        """
+        disposition = operator_request.disposition
+        if disposition == "deferred":
+            # Rejected BEFORE plan_admission ever runs: no admission record is
+            # planned, no receipt (refusal or otherwise) is emitted for this
+            # event, and no review-object state is ever touched.
+            raise AdmissionDeferredUnsupported(
+                f"Operator admission resolver requested deferred-for-review "
+                f"admission for {tool_name!r}; the {BINDING_VERSION} binding "
+                "does not support operator-manufactured deferral -- it "
+                "creates no review object, so a deferred/"
+                "review_object_created admission state would be fabricated, "
+                "not observed. Rejected before core admission planning."
+            )
+        if disposition not in ("admitted", "refused"):
+            raise SDKV2BindingError(
+                f"admission_resolver for {tool_name!r} returned an "
+                f"unrecognized disposition {disposition!r}; the operator may "
+                "decide only 'admitted' or 'refused'."
+            )
+        if disposition == "refused":
+            return AdmissionRequest(
+                disposition="refused",
+                tool_class=tool_class,
+                refusal_ground=operator_request.refusal_ground,
+            )
+        # "admitted" -- every other field the operator's object may have
+        # carried (tool_class, review_object_created,
+        # emit_read_admission_before_execution, has_parent_boundary) is
+        # discarded; the binding reconstitutes admission from its own state
+        # only. emit_read_admission_before_execution / has_parent_boundary
+        # stay at AdmissionRequest's own defaults (True / False) here because
+        # this binding does not yet expose operator control over either --
+        # adding that control is a separate, explicitly binding-owned config
+        # surface, not something an operator's admission_resolver return
+        # value can reach.
         return AdmissionRequest(disposition="admitted", tool_class=tool_class)
 
     def _receipt_context(

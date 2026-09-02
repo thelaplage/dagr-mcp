@@ -48,7 +48,12 @@ from dagr_sdk.caller_auth_context import (
     CallerAuthContextError,
 )
 from dagr_mcp_core.lifecycle.models import AdmissionRequest
-from dagr_mcp_sdk_v2.adapter import ActorResolution, ToolRefused
+from dagr_mcp_sdk_v2.adapter import (
+    ActorResolution,
+    AdmissionDeferredUnsupported,
+    SDKV2BindingError,
+    ToolRefused,
+)
 
 from harness import build_governed_test_app, call_tool, ok_result
 
@@ -287,6 +292,263 @@ def test_row6_adequate_scope_is_admitted_dispatches_once_linked_outcome(tmp_path
 
 
 # --------------------------------------------------------------------------- #
+# B2-R1 HARDENING: the operator resolver cannot reach binding-owned          #
+# lifecycle semantics through AdmissionRequest. A BINDING VALIDATION/        #
+# NARROWING step sits between the operator resolver and plan_admission();    #
+# the operator's AdmissionRequest object is never forwarded verbatim.        #
+# --------------------------------------------------------------------------- #
+
+
+def test_hostile_emit_read_admission_before_execution_false_cannot_suppress_read_admission(tmp_path):
+    """A hostile resolver tries to suppress the read admission record by
+    setting emit_read_admission_before_execution=False. Binding narrowing
+    discards that field entirely -- the record is still emitted per the
+    binding's own read-admission configuration."""
+
+    def hostile_resolver(*, ctx, caller_auth, actor, tool_name, tool_class, argument_digest):
+        return AdmissionRequest(
+            disposition="admitted",
+            tool_class=tool_class,
+            emit_read_admission_before_execution=False,
+        )
+
+    dt = build_governed_test_app(
+        tmp_path,
+        tool_bodies={"read_it": lambda args: ok_result("read")},
+        tool_classes={"read_it": "read"},
+        admission_resolver=hostile_resolver,
+    )
+    with dt.client() as client:
+        resp = call_tool(client, "read_it", {})
+
+    assert resp.status_code == 200
+    # A "read" tool_class with the binding's own default configuration DOES
+    # emit an admission record before execution -- the hostile resolver's
+    # emit_read_admission_before_execution=False was discarded by narrowing,
+    # not honored.
+    assert len(dt.admission_receipts()) == 1
+    assert dt.admission_receipts()[0]["disposition"] == "admitted"
+    assert dt.delegates["read_it"].call_count == 1
+    assert len(dt.outcome_receipts()) == 1
+
+
+def test_hostile_operator_tool_class_override_is_discarded_binding_classification_wins(tmp_path):
+    """A hostile resolver claims a different (weaker) tool_class than the
+    binding's own classification for this tool name. Binding narrowing
+    reconstitutes tool_class from SdkV2BindingConfig.tool_classes only."""
+
+    def hostile_resolver(*, ctx, caller_auth, actor, tool_name, tool_class, argument_digest):
+        # tool_name is classified "destructive" by the binding config below;
+        # the hostile resolver lies and claims "read" on the object it
+        # returns.
+        assert tool_class == "destructive"  # sanity: binding passed the real classification in
+        return AdmissionRequest(disposition="admitted", tool_class="read")
+
+    seen_pre_execution_modes: list[str] = []
+
+    dt = build_governed_test_app(
+        tmp_path,
+        tool_bodies={"nuke_it": lambda args: ok_result("boom-but-governed")},
+        tool_classes={"nuke_it": "destructive"},
+        # destructive is fail_closed by the binding's own default config
+        # (SdkV2BindingConfig.pre_execution_receipt_failure default); if the
+        # hostile "read" override had won, this tool would have been treated
+        # as fail_open instead.
+        pre_execution_receipt_failure={"read": "fail_open", "write": "fail_closed", "destructive": "fail_closed"},
+        admission_resolver=hostile_resolver,
+    )
+    with dt.client() as client:
+        resp = call_tool(client, "nuke_it", {})
+
+    assert resp.status_code == 200
+    assert dt.delegates["nuke_it"].call_count == 1
+    assert len(dt.admission_receipts()) == 1
+    assert dt.admission_receipts()[0]["disposition"] == "admitted"
+    # The adapter's own _pre_execution_failure_mode lookup (used for the
+    # admission-receipt-sink-failure policy) is keyed by the BINDING's
+    # tool_class ("destructive"), never the operator's claimed "read" --
+    # proven structurally via the adapter internals directly below.
+    from dagr_mcp_sdk_v2.adapter import SdkV2LifecycleAdapter
+
+    assert dt.adapter._pre_execution_failure_mode("destructive") == "fail_closed"
+    assert dt.adapter._pre_execution_failure_mode("read") == "fail_open"
+    # And the narrowing method itself proves the point directly: handed an
+    # operator object claiming tool_class="read", it returns a normalized
+    # request carrying the BINDING's tool_class, not the operator's.
+    operator_claimed_request = AdmissionRequest(disposition="admitted", tool_class="read")
+    normalized = dt.adapter._narrow_operator_admission_request(
+        operator_claimed_request, tool_class="destructive", tool_name="nuke_it"
+    )
+    assert normalized.tool_class == "destructive"
+    assert normalized.disposition == "admitted"
+
+
+def test_hostile_deferred_disposition_rejected_before_core_planning_no_receipt_at_all(tmp_path):
+    """A hostile/naive resolver tries to defer, including manufacturing
+    review_object_created=False (the state that, if forwarded to
+    plan_admission, core would resolve into a real
+    review_object_creation_failed refusal -- but this SDK-v2 binding creates
+    no review object, so that would be fabricated). Narrowing rejects
+    "deferred" outright, before plan_admission ever runs: no receipt of any
+    kind (not even a refusal) is ever emitted."""
+
+    def deferring_resolver(*, ctx, caller_auth, actor, tool_name, tool_class, argument_digest):
+        return AdmissionRequest(
+            disposition="deferred",
+            tool_class=tool_class,
+            review_object_created=False,
+        )
+
+    dt = build_governed_test_app(
+        tmp_path,
+        tool_bodies={"needs_review": lambda args: ok_result("should never run")},
+        tool_classes={"needs_review": "write"},
+        admission_resolver=deferring_resolver,
+    )
+    with dt.client() as client:
+        resp = call_tool(client, "needs_review", {})
+
+    body = resp.json()
+    assert "error" in body
+    assert "needs_review" in body["error"]["message"]
+    assert dt.delegates["needs_review"].call_count == 0
+    # No receipt of ANY kind -- not a review_object_creation_failed refusal,
+    # not any other refusal -- was ever emitted for this event.
+    assert len(dt.admission_receipts()) == 0
+    assert len(dt.outcome_receipts()) == 0
+
+
+def test_hostile_deferred_disposition_rejected_at_narrowing_directly():
+    """Direct unit-level proof that narrowing raises AdmissionDeferredUnsupported
+    BEFORE plan_admission is ever invoked, independent of the HTTP wire."""
+    from dagr_mcp_core.srs_receipts import RawEnvelopeFileSink, SignedReceiptEmitter, SigningIdentity
+    from dagr_mcp_sdk_v2.adapter import SdkV2BindingConfig, SdkV2LifecycleAdapter
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        identity = SigningIdentity.generate(issuer_id="issuer:hostile-deferred", key_id="issuer.hostile-deferred/key/1")
+        emitter = SignedReceiptEmitter(identity=identity, sink=RawEnvelopeFileSink(Path(tmp) / "receipts"))
+        adapter = SdkV2LifecycleAdapter(
+            emitter=emitter,
+            config=SdkV2BindingConfig(
+                runtime_instance_id="rt:x", boundary_id="b:x", policy_pack_id="p:x", policy_pack_version="1",
+            ),
+        )
+        deferred_request = AdmissionRequest(disposition="deferred", tool_class="write", review_object_created=False)
+        with pytest.raises(AdmissionDeferredUnsupported):
+            adapter._narrow_operator_admission_request(deferred_request, tool_class="write", tool_name="t")
+        # Nothing was ever written to the receipts sink.
+        assert list((Path(tmp) / "receipts").glob("*.json")) == []
+
+
+def test_hostile_admission_resolver_wrong_return_type_fails_explicitly(tmp_path):
+    def broken_resolver(*, ctx, caller_auth, actor, tool_name, tool_class, argument_digest):
+        return {"disposition": "admitted"}  # not an AdmissionRequest
+
+    dt = build_governed_test_app(
+        tmp_path,
+        tool_bodies={"echo": lambda args: ok_result("hi")},
+        admission_resolver=broken_resolver,
+    )
+    with dt.client() as client:
+        resp = call_tool(client, "echo", {})
+    body = resp.json()
+    assert "error" in body, f"expected a JSON-RPC error, got: {body}"
+    assert dt.delegates["echo"].call_count == 0
+    assert len(dt.admission_receipts()) == 0
+    assert len(dt.outcome_receipts()) == 0
+
+
+def test_hostile_admission_resolver_wrong_return_type_raises_sdkv2_binding_error_directly():
+    import asyncio
+    from types import SimpleNamespace
+
+    from dagr_mcp_core.srs_receipts import RawEnvelopeFileSink, SignedReceiptEmitter, SigningIdentity
+    from dagr_mcp_sdk_v2.adapter import SdkV2BindingConfig, SdkV2LifecycleAdapter
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        identity = SigningIdentity.generate(issuer_id="issuer:wrong-type", key_id="issuer.wrong-type/key/1")
+        emitter = SignedReceiptEmitter(identity=identity, sink=RawEnvelopeFileSink(Path(tmp) / "receipts"))
+        adapter = SdkV2LifecycleAdapter(
+            emitter=emitter,
+            config=SdkV2BindingConfig(
+                runtime_instance_id="rt:x", boundary_id="b:x", policy_pack_id="p:x", policy_pack_version="1",
+                tool_classes={"echo": "read"},
+                admission_resolver=lambda **kwargs: "not-an-admission-request",
+            ),
+        )
+        ctx = SimpleNamespace(method="tools/call", request_id="req-wrong-type")
+        params = mcp_types.CallToolRequestParams(name="echo", arguments={})
+
+        async def delegate(_arguments):
+            return ok_result("should never run")
+
+        with pytest.raises(SDKV2BindingError):
+            asyncio.run(adapter.governed_call_tool(ctx, params, delegate))
+
+
+def test_hostile_caller_auth_resolver_wrong_return_type_raises_sdkv2_binding_error():
+    import asyncio
+    from types import SimpleNamespace
+
+    from dagr_mcp_core.srs_receipts import RawEnvelopeFileSink, SignedReceiptEmitter, SigningIdentity
+    from dagr_mcp_sdk_v2.adapter import SdkV2BindingConfig, SdkV2LifecycleAdapter
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        identity = SigningIdentity.generate(issuer_id="issuer:wrong-caller", key_id="issuer.wrong-caller/key/1")
+        emitter = SignedReceiptEmitter(identity=identity, sink=RawEnvelopeFileSink(Path(tmp) / "receipts"))
+        adapter = SdkV2LifecycleAdapter(
+            emitter=emitter,
+            config=SdkV2BindingConfig(
+                runtime_instance_id="rt:x", boundary_id="b:x", policy_pack_id="p:x", policy_pack_version="1",
+                tool_classes={"echo": "read"},
+                caller_auth_resolver=lambda ctx, digest: {"state": "authenticated_user", "principal_ref": "x"},
+            ),
+        )
+        ctx = SimpleNamespace(method="tools/call", request_id="req-wrong-caller")
+        params = mcp_types.CallToolRequestParams(name="echo", arguments={})
+
+        async def delegate(_arguments):
+            return ok_result("should never run")
+
+        with pytest.raises(SDKV2BindingError):
+            asyncio.run(adapter.governed_call_tool(ctx, params, delegate))
+
+
+def test_hostile_regression_missing_scope_still_policy_refused_exactly_one_receipt(tmp_path):
+    """Regression guard on the good path: after inserting binding
+    validation/narrowing, the pre-existing missing-scope -> policy_refused
+    behavior (row 5) is still exactly one signed refusal receipt, zero
+    delegate calls, zero outcome receipts."""
+    caller = CallerAuthContext(state="authenticated_user", principal_ref="user:regression", scope_refs=frozenset())
+
+    dt = build_governed_test_app(
+        tmp_path,
+        tool_bodies={"write_it": lambda args: ok_result("should never run")},
+        tool_classes={"write_it": "write"},
+        caller_auth_resolver=lambda ctx, digest: caller,
+        admission_resolver=_scope_gated_admission_resolver,
+    )
+    with dt.client() as client:
+        resp = call_tool(client, "write_it", {"payload": "x"})
+
+    body = resp.json()
+    assert "error" in body
+    assert dt.delegates["write_it"].call_count == 0
+    admission_receipts = dt.admission_receipts()
+    assert len(admission_receipts) == 1
+    assert admission_receipts[0]["disposition"] == "refused"
+    assert admission_receipts[0]["reason_code"] == "policy_refused"
+    assert admission_receipts[0]["receipt_signature"]
+    assert len(dt.outcome_receipts()) == 0
+
+
+# --------------------------------------------------------------------------- #
 # Row 7: unknown tool still fails closed BEFORE reaching either resolver     #
 # --------------------------------------------------------------------------- #
 
@@ -438,10 +700,37 @@ def test_row11_imports_dagr_sdk_contract_directly_never_top_level_dagr_mcp():
                 )
                 assert node.module != "dagr_mcp", f"{path} imports from top-level dagr_mcp"
 
+    # Runtime corroboration of the AST check above (which proves no *source*
+    # import statement exists): walk every already-loaded dagr_mcp_sdk_v2
+    # submodule's live attributes and assert none of them actually
+    # originates from top-level dagr_mcp / dagr_mcp.caller_principal. This is
+    # a real, non-vacuous check over sys.modules -- not an `any(... for m in
+    # ())` over an empty iterable (which is unconditionally True regardless
+    # of what actually loaded).
     import sys
 
-    assert "dagr_mcp.caller_principal" not in sys.modules or not any(
-        m.startswith("dagr_mcp_sdk_v2") for m in ()
+    loaded_dagr_mcp_sdk_v2_modules = [
+        (name, module) for name, module in sys.modules.items()
+        if name == "dagr_mcp_sdk_v2" or name.startswith("dagr_mcp_sdk_v2.")
+    ]
+    assert loaded_dagr_mcp_sdk_v2_modules, (
+        "expected dagr_mcp_sdk_v2 submodules to already be loaded by this "
+        "point in the test session"
+    )
+    for module_name, module in loaded_dagr_mcp_sdk_v2_modules:
+        for attr_name in dir(module):
+            attr = getattr(module, attr_name, None)
+            attr_module = getattr(attr, "__module__", None)
+            if not isinstance(attr_module, str):
+                continue
+            assert attr_module != "dagr_mcp" and not attr_module.startswith("dagr_mcp."), (
+                f"{module_name}.{attr_name} originates from top-level "
+                f"{attr_module!r} -- dagr_mcp_sdk_v2 must not consume "
+                "anything from the top-level (FastMCP/v1) dagr_mcp package"
+            )
+    assert "dagr_mcp.caller_principal" not in sys.modules, (
+        "top-level dagr_mcp.caller_principal must never be imported by the "
+        "isolated mcp==2.0.0 dagr-mcp-sdk-v2 test process"
     )
 
 
