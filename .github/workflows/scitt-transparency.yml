@@ -1,0 +1,21 @@
+name: scitt-transparency
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install only focused-test dependencies
+        run: python -m pip install --upgrade pip pytest rfc8785
+      - name: Compile transparency module
+        run: python -m py_compile dagr_mcp/transparency.py
+      - name: Run post-commit transparency hostile tests
+        run: PYTHONPATH=. pytest -q tests/test_transparency.py
