@@ -27,11 +27,12 @@ dependencies = [
   "cryptography>=46.0.4,<47",
   "fastmcp>=3.4.4,<4",
   "rfc8785==0.1.4",
-  # Commit-pinned (dagr-sdk is pre-1.0/unreleased, no PyPI distribution yet;
-  # mirrors the arcs-srs -> arcs-verify commit-pin pattern for cross-repo
-  # contract consumption). Pin owns dagr_sdk.caller_auth_context.CallerAuthContext
-  # (DAGR-MCP-PRINCIPAL0 seam-1 closure) -- bump only via a reviewed lane.
-  "dagr-sdk @ git+https://github.com/thelaplage/dagr-sdk@f11fbf817ea3b4af150e15effae9448c470e247d",
+  # Package-version requirement, not a source-transport pin. The runtime
+  # compatibility contract expressed here is dagr-sdk 0.1.0; exact source
+  # provenance remains a consumer/build concern and must be pinned by the
+  # environment that composes these packages. This keeps offline/vendored
+  # installs possible without weakening the reviewed caller-auth contract.
+  "dagr-sdk==0.1.0",
 ]
 
 [project.urls]
