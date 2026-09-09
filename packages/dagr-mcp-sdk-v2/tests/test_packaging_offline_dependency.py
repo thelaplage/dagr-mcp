@@ -34,9 +34,19 @@ def _runtime_requires_dist() -> list[str]:
     ]
 
 
+def _dagr_sdk_requirements() -> list[str]:
+    """Only the dagr-sdk runtime requirement(s). This test module guards the
+    SDK-v2 -> dagr-sdk edge specifically; it does not police other, unrelated
+    dependencies (a legitimate future direct-URL dep is out of scope here)."""
+    return [
+        r
+        for r in _runtime_requires_dist()
+        if r.split()[0].split("==")[0].split("@")[0].strip() == "dagr-sdk"
+    ]
+
+
 def test_dagr_sdk_is_a_version_requirement_not_a_url() -> None:
-    requires = _runtime_requires_dist()
-    dagr_sdk = [r for r in requires if r.split()[0].split("==")[0].split("@")[0].strip() == "dagr-sdk"]
+    dagr_sdk = _dagr_sdk_requirements()
     assert dagr_sdk == ["dagr-sdk==0.1.0"], (
         "SDK-v2 must require dagr-sdk by version, exactly 'dagr-sdk==0.1.0'; "
         f"got {dagr_sdk!r}"
@@ -44,10 +54,11 @@ def test_dagr_sdk_is_a_version_requirement_not_a_url() -> None:
 
 
 def test_no_direct_url_transport_for_dagr_sdk() -> None:
-    requires = _runtime_requires_dist()
-    for req in requires:
-        assert "git+" not in req, f"no VCS transport allowed in metadata: {req!r}"
-        assert "@ " not in req, f"no direct-URL (PEP 508 '@') requirement allowed: {req!r}"
+    dagr_sdk = _dagr_sdk_requirements()
+    assert dagr_sdk, "dagr-sdk runtime requirement must be present"
+    for req in dagr_sdk:
+        assert "git+" not in req, f"no VCS transport allowed for dagr-sdk: {req!r}"
+        assert "@ " not in req, f"no direct-URL (PEP 508 '@') requirement allowed for dagr-sdk: {req!r}"
 
 
 def test_isolation_and_core_deps_preserved() -> None:
