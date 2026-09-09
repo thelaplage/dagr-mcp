@@ -26,19 +26,25 @@ classifiers = [
 dependencies = [
   "dagr-mcp-core",
   "mcp==2.0.0",
-  # Commit-pinned (dagr-sdk is pre-1.0/unreleased, no PyPI distribution yet;
-  # mirrors the top-level dagr-mcp -> dagr-sdk commit-pin pattern, DAGR-MCP-
-  # PRINCIPAL0 / seam-1). Pin owns dagr_sdk.caller_auth_context.CallerAuthContext
-  # (DAGR-MCP-SDKV2-CALLER0 closure) -- bump only via a reviewed lane. This is
-  # the ONLY cross-package dependency this addition introduces: dagr-sdk has
-  # no runtime dependency of its own (see its pyproject.toml), so mcp==2.0.0
-  # isolation is unaffected and this package still does NOT depend on the
-  # top-level dagr-mcp (FastMCP/v1 binding) package or its mcp1 tree.
-  "dagr-sdk @ git+https://github.com/thelaplage/dagr-sdk@f11fbf817ea3b4af150e15effae9448c470e247d",
+  # Package-version requirement, not a source-transport pin. The runtime
+  # compatibility contract this package expresses is "dagr-sdk 0.1.0"; the
+  # exact source provenance (commit) is a consumer/build concern, pinned by
+  # whoever composes the environment (e.g. LIVE0 pins
+  # dagr-sdk@f11fbf817ea3b4af150e15effae9448c470e247d, which builds 0.1.0).
+  # A package must not force a network transport (git+https) merely to state
+  # which compatible version it needs -- that defeated offline/vendored
+  # installs. This remains the ONLY cross-package dependency this addition
+  # introduces: dagr-sdk has no runtime dependency of its own (see its
+  # pyproject.toml), so mcp==2.0.0 isolation is unaffected and this package
+  # still does NOT depend on the top-level dagr-mcp (FastMCP/v1 binding)
+  # package or its mcp1 tree. Pin owns
+  # dagr_sdk.caller_auth_context.CallerAuthContext (DAGR-MCP-SDKV2-CALLER0
+  # closure) -- change the required version only via a reviewed lane.
+  "dagr-sdk==0.1.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=9,<10", "pytest-asyncio>=1.3,<2", "jsonschema>=4.26,<5", "httpx>=0.28,<1"]
+dev = ["pytest>=9,<10", "pytest-asyncio>=1.3,<2", "jsonschema>=4.26,<5", "httpx>=0.28,<1", "build>=1.0,<2", "setuptools>=77"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
