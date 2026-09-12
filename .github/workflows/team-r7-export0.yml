@@ -1,0 +1,30 @@
+name: team-r7-export0
+on:
+  push:
+    branches: [proof/team-r7-export0]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cdf757988cb27e9fe14b631903c1eb43e369b87b
+          fetch-depth: 0
+          path: source
+      - shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "cdf757988cb27e9fe14b631903c1eb43e369b87b"
+          test -z "$(git -C source status --porcelain)"
+          tar -czf dagr-mcp.tar.gz source
+          sha256sum dagr-mcp.tar.gz > dagr-mcp.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: team-r7-dagr-mcp-source
+          path: |
+            dagr-mcp.tar.gz
+            dagr-mcp.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 2
