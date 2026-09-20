@@ -21,6 +21,7 @@ from starlette.testclient import TestClient
 
 from dagr_mcp_core.srs_receipts import RawEnvelopeFileSink, SignedReceiptEmitter, SigningIdentity
 from dagr_mcp_sdk_v2.adapter import (
+    PostOutcomeHook,
     SdkV2AdmissionResolver,
     SdkV2BindingConfig,
     SdkV2CallerAuthResolver,
@@ -124,6 +125,7 @@ def build_governed_test_app(
     mint_logical_call_id: bool = False,
     caller_auth_resolver: SdkV2CallerAuthResolver | None = None,
     admission_resolver: SdkV2AdmissionResolver | None = None,
+    post_outcome_hook: PostOutcomeHook | None = None,
 ) -> GovernedTestApp:
     """Build a real governed v2 Server + stateless ASGI app for one test.
 
@@ -154,6 +156,7 @@ def build_governed_test_app(
         mint_logical_call_id=mint_logical_call_id,
         caller_auth_resolver=caller_auth_resolver,
         admission_resolver=admission_resolver,
+        post_outcome_hook=post_outcome_hook,
     )
     adapter = SdkV2LifecycleAdapter(emitter=emitter, config=config)
 
