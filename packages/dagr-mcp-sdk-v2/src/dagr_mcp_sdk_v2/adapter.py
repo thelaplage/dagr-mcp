@@ -211,6 +211,49 @@ class SdkV2AdmissionResolver(Protocol):
     ) -> AdmissionRequest | Awaitable[AdmissionRequest]: ...
 
 
+@dataclass(frozen=True, slots=True)
+class PostOutcomeEvent:
+    """The payload handed to an operator ``post_outcome_hook`` after a durable
+    outcome receipt has been written.
+
+    This is a plain, explicitly-typed record -- product-agnostic and carrying
+    no knowledge of what any consumer will do with it (see
+    ``SdkV2BindingConfig.post_outcome_hook``). It is constructed fresh for
+    every invocation from binding-owned state plus the values already threaded
+    through ``governed_call_tool``; nothing here is mutable shared state.
+    """
+
+    tool_name: str
+    arguments: Mapping[str, Any]
+    delegate_result: mcp_types.CallToolResult | None
+    actor: ActorResolution
+    caller_auth: CallerAuthContext
+    receipt_context: ReceiptContext
+    admission_receipt_ref: str
+    outcome_receipt_ref: str
+    result_digest: str | None
+
+
+class PostOutcomeHook(Protocol):
+    """Optional, generic post-outcome composition seam.
+
+    Invoked at most once per governed call, and ONLY after
+    ``emitter.emit_outcome`` has durably succeeded -- never before, never on a
+    refused/undelivered/receipt-failed path (see
+    ``SdkV2LifecycleAdapter._emit_outcome_from_observation``). The hook is
+    handed a :class:`PostOutcomeEvent`; this binding has no knowledge of, and
+    makes no assumptions about, what a configured hook does with it -- it is
+    purely a composition point, not a second lifecycle authority. A hook that
+    raises is a POST-EXECUTION failure: the tool has already run and the
+    signed outcome receipt already exists, so the adapter records local
+    telemetry and returns the already-computed result unchanged (mirroring
+    this binding's existing outcome-emission failure posture) rather than
+    fabricating a refusal or rewriting the receipt.
+    """
+
+    def __call__(self, event: PostOutcomeEvent) -> None | Awaitable[None]: ...
+
+
 @dataclass(slots=True)
 class SdkV2BindingConfig:
     """Configuration for the official-SDK v0.2 binding (no module-global state)."""
@@ -261,6 +304,16 @@ class SdkV2BindingConfig:
         }
     )
     additional_attestation_limits: tuple[str, ...] = (DEFAULT_BOUNDARY_LIMIT,)
+    # Optional, generic post-outcome composition seam (DAGR-SDKV2-POSTOUTCOME0).
+    # Defaults to ``None``, in which case this binding's behavior is byte-
+    # identical to before this seam existed -- the hook is never constructed,
+    # never called, and nothing about the emitted receipts, dispatch order, or
+    # returned result changes. See ``PostOutcomeHook`` for the exact contract:
+    # invoked at most once, only after emit_outcome() durably succeeds, never
+    # on refusal/receipt-failure/input_required. This binding has zero
+    # knowledge of what a configured hook does with the event it is handed --
+    # it is a composition point, not a policy or product integration.
+    post_outcome_hook: PostOutcomeHook | None = None
 
     def __post_init__(self) -> None:
         if self.logical_call_id_override is not None and self.mint_logical_call_id:
@@ -371,9 +424,11 @@ class SdkV2LifecycleAdapter:
             result = await _maybe_await(delegate(arguments))
         except asyncio.CancelledError:
             if admission_receipt_ref is not None:
-                self._emit_outcome_from_observation(
+                await self._emit_outcome_from_observation(
                     admission_plan, receipt_context, admission_receipt_ref,
                     ExecutionObservation(observation="cancellation"),
+                    tool_name=tool_name, arguments=arguments,
+                    caller_auth=caller_auth, actor=actor,
                 )
             raise
         except Exception as exc:  # noqa: BLE001 - classified into a neutral outcome, then re-raised.
@@ -383,8 +438,10 @@ class SdkV2LifecycleAdapter:
                     if isinstance(exc, TimeoutError)
                     else ExecutionObservation(observation="exception", exception_class=type(exc).__name__)
                 )
-                self._emit_outcome_from_observation(
-                    admission_plan, receipt_context, admission_receipt_ref, observation
+                await self._emit_outcome_from_observation(
+                    admission_plan, receipt_context, admission_receipt_ref, observation,
+                    tool_name=tool_name, arguments=arguments,
+                    caller_auth=caller_auth, actor=actor,
                 )
             raise
 
@@ -417,9 +474,11 @@ class SdkV2LifecycleAdapter:
         observation = ExecutionObservation(
             observation="error" if projection["is_error"] else "result"
         )
-        self._emit_outcome_from_observation(
+        await self._emit_outcome_from_observation(
             admission_plan, receipt_context, admission_receipt_ref, observation,
-            result_digest=result_digest,
+            tool_name=tool_name, arguments=arguments,
+            caller_auth=caller_auth, actor=actor,
+            delegate_result=result, result_digest=result_digest,
         )
         return result
 
@@ -663,13 +722,18 @@ class SdkV2LifecycleAdapter:
         except Exception as exc:  # noqa: BLE001 - do not leak signer/sink failures to the caller.
             self._record_receipt_failure(receipt_context, "admission", exc)
 
-    def _emit_outcome_from_observation(
+    async def _emit_outcome_from_observation(
         self,
         admission_plan: AdmissionPlan,
         receipt_context: ReceiptContext,
         admission_receipt_ref: str,
         observation: ExecutionObservation,
         *,
+        tool_name: str,
+        arguments: Mapping[str, Any],
+        caller_auth: CallerAuthContext,
+        actor: ActorResolution,
+        delegate_result: mcp_types.CallToolResult | None = None,
         result_digest: str | None = None,
     ) -> None:
         record = plan_outcome_strict(admission_plan, observation).record
@@ -681,18 +745,47 @@ class SdkV2LifecycleAdapter:
             if record.governance_facts
             else None
         )
+        emitted_result_digest = result_digest if record.carries_result_digest else None
         try:
-            self.emitter.emit_outcome(
+            outcome_receipt_ref = self.emitter.emit_outcome(
                 context=receipt_context,
                 admission_receipt_ref=admission_receipt_ref,
                 outcome=outcome_token,
-                result_digest=result_digest if record.carries_result_digest else None,
+                result_digest=emitted_result_digest,
                 exception_class=record.exception_class,
                 additional_attestation_limits=self.config.additional_attestation_limits,
                 binding_owned_fields=binding_owned_fields,
             )
         except Exception as exc:  # noqa: BLE001 - post-execution failure policy: return result, record telemetry.
             self._record_receipt_failure(receipt_context, "outcome", exc)
+            return
+
+        if self.config.post_outcome_hook is None:
+            return
+        event = PostOutcomeEvent(
+            tool_name=tool_name,
+            arguments=arguments,
+            delegate_result=delegate_result,
+            actor=actor,
+            caller_auth=caller_auth,
+            receipt_context=receipt_context,
+            admission_receipt_ref=admission_receipt_ref,
+            outcome_receipt_ref=outcome_receipt_ref,
+            result_digest=emitted_result_digest,
+        )
+        try:
+            hook_result = self.config.post_outcome_hook(event)
+            if inspect.isawaitable(hook_result):
+                await hook_result
+        except Exception as exc:  # noqa: BLE001 - post-execution: outcome already durable, never rewritten.
+            # A callback failure here is strictly post-execution: the tool has
+            # already run, and the signed outcome receipt above already
+            # exists and is never rewritten, replaced, or invalidated. This
+            # mirrors the exact posture _emit_outcome_from_observation itself
+            # already uses for an outcome-emission failure ("return result,
+            # record telemetry") -- there is no honest "fail closed" left to
+            # do at this point; the lifecycle event already happened.
+            self._record_receipt_failure(receipt_context, "post_outcome_hook", exc)
 
     def _record_receipt_failure(
         self, receipt_context: ReceiptContext, attempted_receipt_kind: str, failure: BaseException
@@ -728,6 +821,8 @@ __all__ = [
     "SdkV2ActorResolver",
     "SdkV2CallerAuthResolver",
     "SdkV2AdmissionResolver",
+    "PostOutcomeEvent",
+    "PostOutcomeHook",
     "SdkV2BindingConfig",
     "SdkV2LifecycleAdapter",
 ]
