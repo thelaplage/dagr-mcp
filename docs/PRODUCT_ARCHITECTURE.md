@@ -12,7 +12,7 @@ inventory.
 | ARCS Amnesiac | candidate, admission, refusal, reopening, supersession and context packets | MCP transport behavior |
 | DAGR MCP | runtime admission boundary, dispatch control and signed receipt emission | independent verification or durable-memory ratification |
 | ARCS Verify | recomputation from serialized artifacts | producer execution or truth of the underlying event |
-| GARPedia | public record, sources, history, alternatives and verification projection | mutable admission authority |
+| Counterpedia / Countergraph | public record, sources, history, alternatives and verification projection | mutable admission authority |
 
 ## Implemented DAGR surfaces
 
@@ -83,9 +83,9 @@ binding abstraction:
 3. retain only refs, digests and lifecycle results at the DAGR boundary;
 4. emit signed admission/outcome receipts;
 5. verify those receipts independently in ARCS Verify;
-6. project selected, excluded, refused and reconsiderable material to GARPedia.
+6. project selected, excluded, refused and reconsiderable material to Counterpedia.
 
-The full governed context planner and GARPedia projection remain separate
+The full governed context planner and Counterpedia projection remain separate
 product work. The existing reference selector must not be renamed or presented
 as that planner.
 

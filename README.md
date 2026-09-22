@@ -19,7 +19,7 @@ by [ARCS Verify](https://github.com/thelaplage/arcs-verify).
 | Open runtime and adapters | DAGR |
 | Governed durable memory | ARCS Amnesiac |
 | Public reference implementations | DAGR MCP and ARCS Verify |
-| Public read and demo surfaces | GARPedia, Overlay, Showcase |
+| Public read and demo surfaces | Counterpedia, Countergraph, Showcase |
 | Commercial operator products | Countervail, Workbench, managed deployments |
 
 ## Repository authority
@@ -71,7 +71,7 @@ source / record
     -> governed tool call through a DAGR binding
     -> admission and outcome receipts
     -> independent verification in ARCS Verify
-    -> human and agent projection in GARPedia
+    -> human and agent projection in Counterpedia
 ```
 
 DAGR does not admit claims into durable memory and does not verify its own
