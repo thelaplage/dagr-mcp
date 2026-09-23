@@ -129,7 +129,7 @@ unowned_responsibilities:
     authority_repository: null
     reason: "DAGR MCP consumes configured policy decisions but does not own organization policy."
   - concern: "public evidence-view semantics"
-    authority_repository: "GARPedia"
+    authority_repository: "Counterpedia"
     reason: "Public projection and evidence presentation are outside this repository."
   - concern: "historical truth of underlying events"
     authority_repository: null
