@@ -1,0 +1,2 @@
+# README.md lines carrying classified live compatibility names.
+59  # garp-sdk remains ACTIVE_COMPATIBILITY / BLOCKED_ON_SDK_MIGRATION_AUTHORITY
