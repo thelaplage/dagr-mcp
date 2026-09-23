@@ -9,7 +9,8 @@ does not depend on the *installed* `dagr-sdk` distribution shipping its
 `tests/` directory (it does not — its `pyproject.toml` packages only
 `dagr_sdk*` / `garp_sdk*`).
 
-- Source repository: `https://github.com/thelaplage/dagr-sdk`
+- Source repository: `dagr-sdk` (not public; do not treat as the verification
+  path — the sha256 digests below are)
 - Source commit: `f11fbf817ea3b4af150e15effae9448c470e247d`
 - Source paths:
   - `manifests/caller_auth_context.v0.1.json`
