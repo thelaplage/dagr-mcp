@@ -14,7 +14,7 @@ def test_readme_names_all_implemented_binding_surfaces():
         "dagr_mcp_service",
         "ARCS Amnesiac",
         "ARCS Verify",
-        "GARPedia",
+        "Counterpedia",
     ):
         assert required in text
     assert "FastMCP is the one binding" not in text
