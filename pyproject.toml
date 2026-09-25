@@ -53,6 +53,10 @@ dev = ["pytest>=9,<10", "pytest-asyncio>=1.3,<2", "jsonschema>=4.26,<5", "build>
 # base dependency. Without this extra the binding still imports and fails closed
 # with capability_unavailable; with it, the native producer-backed path runs.
 amnesiac = ["arcs-amnesiac>=0.2.0", "garp-sdk>=0.1.0"]
+# Optional SCITT/COSE statement construction for post-commit transparency.
+# The base MCP runtime does not import or require this substrate; operators opt
+# in explicitly when configuring ScittStatementPublisher.
+scitt = ["scitt-cose==0.1.1"]
 # Sprint A5 — the second lifecycle binding, over the official Python MCP SDK.
 # The base package reaches ``mcp`` only transitively through fastmcp; this
 # optional extra declares the direct dependency explicitly. It is pinned to the
